@@ -2,6 +2,7 @@
 import os
 import requests
 
+from twilio.entity import User
 
 class TwilioHelpers:
     """Helper para chamar funcoes utils de forma simples"""
