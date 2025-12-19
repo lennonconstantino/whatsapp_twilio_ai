@@ -9,6 +9,10 @@ from payload import TwilioWhatsAppPayload
 
 app = Flask(__name__)
 
+# TODO
+# Modo Client ou Local - NOK 80%
+# Variaveis de ambiente - NOK 90%
+
 def download_audio(media_type, media_url):
     """Baixa o áudio do Twilio"""
     try:
