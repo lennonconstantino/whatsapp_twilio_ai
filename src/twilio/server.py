@@ -12,6 +12,11 @@ app = Flask(__name__)
 # TODO
 # Modo Client ou Local - NOK 80%
 # Variaveis de ambiente - NOK 90%
+# Ajustar Exceptions - NOK 0%
+# Refatorar Handler - NOK 0%
+# Pegar do banco de dados de usuarios - NOK 0%
+# Construir integraçao com langgraph - NOK 0%
+# Implementar o modulo Conversations - NOK 0%
 
 def download_audio(media_type, media_url):
     """Baixa o áudio do Twilio"""
@@ -77,6 +82,7 @@ def process_message(payload: TwilioWhatsAppPayload) -> MessagingResponse:
     # Modo normal: retorna TwiML para o Twilio processar
     response_text = "Está tudo ok!"
 
+    # Extract Media Content Type
     if payload.num_media > 0:
         if 'audio' in payload.media_content_type:
             response_text = "Recebi seu áudio! 🎤"
@@ -114,7 +120,9 @@ def whatsapp_receive():
     # print("Fetch_msg-->",Fetch_msg)
 
     try:
+        # parse message
         payload = TwilioWhatsAppPayload(**request.values)
+        # validation
         response = process_message(payload)
 
         return str(response), 200
