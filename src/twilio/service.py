@@ -72,7 +72,8 @@ class TwilioWhatsappService:
 
 
     def respond_and_send_message(self, payload: TwilioWhatsAppPayload):
-		# Salvar requisição
+		# Salvar requisição em banco de dados
+
         start_time = time.time()
 
         info = self.__extract_media_content(payload)
@@ -82,7 +83,7 @@ class TwilioWhatsappService:
         if response["response"] in "path":
             self.__send_media("path")
 
-		# Salvar resposta
+		# Salvar resposta em banco de dados
 
 		# Verificar se a conversa deve ser encerrada
         # try:

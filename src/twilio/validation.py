@@ -12,10 +12,12 @@ class TwilioValidation:
         return True
         
     def __is_message_too_old(self):
+        # message.date_created
         pass
     
     def __get_owner_number_phone(self):
         # message.to_    # owner_number
+        # getOwnerNumber(message.account_sid)
         pass
 
     def __get_customer_number_phone(self): 

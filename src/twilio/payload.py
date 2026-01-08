@@ -3,15 +3,16 @@ from typing import Optional
 import json
 
 class TwilioWhatsAppPayload(BaseModel):
+    
     message_sid: str = Field(..., alias='MessageSid')
-    account_sid: str = Field(..., alias='AccountSid')
+    account_sid: str = Field(..., alias='AccountSid') # Owner
     
     body: str = Field(..., alias='Body')
-    message_type: str = Field(..., alias='MessageType')
+    message_type: Optional[str] = Field(default="text", alias="MessageType")
     
     from_number: str = Field(..., alias='From')
-    wa_id: str = Field(..., alias='WaId')
-    profile_name: str = Field(..., alias='ProfileName')
+    wa_id: Optional[str] = Field(default=None, alias="WaId")
+    profile_name: str = Field(default="Unknown", alias="ProfileName")
     
     to_number: str = Field(..., alias='To')
     
@@ -24,6 +25,16 @@ class TwilioWhatsAppPayload(BaseModel):
 
     media_url: Optional[str] = Field(None, alias='MediaUrl0') # Getting the URL of the file
     media_content_type: Optional[str] = Field(None, alias='MediaContentType0')  # Getting the extension for the file
+
+    date_created: Optional[str] = Field(None, alias='DateCreated')
+
+    to_country: Optional[str] = Field(None,alias='ToCountry')
+    to_state: Optional[str] = Field(None,alias='ToState')
+    to_city: Optional[str] = Field(None,alias='ToCity')
+    from_city: Optional[str] = Field(None,alias='FromCity')
+    from_zip: Optional[str] = Field(None,alias='FromZip')
+    to_zip: Optional[str] = Field(None,alias='ToZip')
+    from_country: Optional[str] = Field(None,alias='FromCountry')
 
     client_receive: Optional[bool] = Field(None, alias='ClientReceive')
     
