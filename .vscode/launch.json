@@ -1,0 +1,30 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Main Module",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.main",
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "name": "Python: Sender Local",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.twilio_sender.sender",
+            "console": "integratedTerminal",
+            "args": [
+                "teste de mensagem",
+                "--to",
+                "+5511991490733",
+                "--local"
+            ],
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}

@@ -1,0 +1,78 @@
+graph TB
+    START([New User Message]) --> CHECK_OWNER{Is from<br/>USER?}
+    
+    CHECK_OWNER -->|No| NO_DETECTION[No Detection<br/>Return: should_close=false]
+    CHECK_OWNER -->|Yes| CHECK_EXPLICIT{Explicit signal<br/>in metadata?}
+    
+    CHECK_EXPLICIT -->|Yes| AUTO_CLOSE[Immediate Close<br/>confidence=1.0]
+    CHECK_EXPLICIT -->|No| ANALYZE[Start Multi-factor Analysis]
+    
+    ANALYZE --> KEYWORDS[Analyze Keywords<br/>Score: 0.0 - 1.0]
+    ANALYZE --> PATTERNS[Analyze Patterns<br/>Score: 0.0 - 1.0]
+    ANALYZE --> CONTEXT[Analyze Context<br/>Score: 0.0 - 1.0]
+    ANALYZE --> DURATION{Min duration<br/>passed?}
+    
+    KEYWORDS --> |Weight: 0.5| CALC[Calculate Total<br/>Confidence]
+    PATTERNS --> |Weight: 0.3| CALC
+    CONTEXT --> |Weight: 0.2| CALC
+    DURATION -->|Yes| CALC
+    DURATION -->|No| PENALTY[Apply Penalty<br/>confidence *= 0.5]
+    PENALTY --> CALC
+    
+    subgraph "Keyword Analysis"
+        KW_DETECT[Detect Keywords:<br/>tchau, obrigado, valeu, etc.]
+        KW_COUNT[Count Matches]
+        KW_POSITION[Check Position:<br/>start/end +bonus]
+        KW_LENGTH[Message Length:<br/>short +bonus]
+        KW_SCORE[Keyword Score]
+        
+        KW_DETECT --> KW_COUNT --> KW_POSITION --> KW_LENGTH --> KW_SCORE
+    end
+    
+    subgraph "Pattern Analysis"
+        PAT_SHORT[Short Response<br/>after AI?]
+        PAT_POSITIVE[Positive Words:<br/>sim, ok, certo?]
+        PAT_SEQUENCE[Final Message<br/>after exchanges?]
+        PAT_SCORE[Pattern Score]
+        
+        PAT_SHORT --> PAT_SCORE
+        PAT_POSITIVE --> PAT_SCORE
+        PAT_SEQUENCE --> PAT_SCORE
+    end
+    
+    subgraph "Context Analysis"
+        CTX_GOAL[Goal Achieved<br/>in context?]
+        CTX_PENDING[No Pending<br/>Actions?]
+        CTX_FLAG[Can Close<br/>Flag set?]
+        CTX_SCORE[Context Score]
+        
+        CTX_GOAL --> CTX_SCORE
+        CTX_PENDING --> CTX_SCORE
+        CTX_FLAG --> CTX_SCORE
+    end
+    
+    CALC --> THRESHOLD{Confidence<br/>Score?}
+    
+    THRESHOLD -->|>= 0.8| HIGH[High Confidence<br/>Auto-close conversation]
+    THRESHOLD -->|0.6 - 0.8| MEDIUM[Medium Confidence<br/>Mark in context<br/>Await confirmation]
+    THRESHOLD -->|< 0.6| LOW[Low Confidence<br/>Continue conversation]
+    
+    HIGH --> UPDATE_HIGH[Update Status:<br/>USER_CLOSED<br/>Set ended_at]
+    MEDIUM --> UPDATE_MED[Update Context:<br/>closure_detected<br/>with details]
+    LOW --> NO_ACTION[No Action<br/>Continue normal flow]
+    
+    AUTO_CLOSE --> END1([End: Closed])
+    UPDATE_HIGH --> END1
+    UPDATE_MED --> END2([End: Marked])
+    LOW --> END3([End: Active])
+    NO_ACTION --> END3
+    NO_DETECTION --> END3
+    
+    style START fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style AUTO_CLOSE fill:#F44336,stroke:#B71C1C,color:#fff
+    style HIGH fill:#FF5722,stroke:#D84315,color:#fff
+    style MEDIUM fill:#FF9800,stroke:#E65100,color:#fff
+    style LOW fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style END1 fill:#F44336,stroke:#B71C1C,color:#fff
+    style END2 fill:#FF9800,stroke:#E65100,color:#fff
+    style END3 fill:#4CAF50,stroke:#2E7D32,color:#fff

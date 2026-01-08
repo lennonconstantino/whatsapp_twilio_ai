@@ -1,0 +1,129 @@
+sequenceDiagram
+    participant User as 📱 User<br/>(WhatsApp)
+    participant Twilio as 🔵 Twilio API
+    participant Webhook as 🌐 Webhook<br/>Endpoint
+    participant ConvSvc as 🔧 Conversation<br/>Service
+    participant Closure as 🤖 Closure<br/>Detector
+    participant ConvRepo as 📦 Conversation<br/>Repository
+    participant MsgRepo as 📦 Message<br/>Repository
+    participant DB as 🗄️ Supabase<br/>PostgreSQL
+
+    Note over User,DB: Inbound Message Flow (User sends message)
+    
+    User->>Twilio: Send WhatsApp message
+    Twilio->>Webhook: POST /webhooks/twilio/inbound
+    activate Webhook
+    
+    Webhook->>ConvSvc: get_or_create_conversation()
+    activate ConvSvc
+    
+    ConvSvc->>ConvRepo: find_active_conversation()
+    ConvRepo->>DB: SELECT * FROM conversations
+    DB-->>ConvRepo: conversation or null
+    
+    alt Conversation exists
+        ConvRepo-->>ConvSvc: Return existing conversation
+    else No conversation
+        ConvSvc->>ConvRepo: create()
+        ConvRepo->>DB: INSERT INTO conversations
+        DB-->>ConvRepo: new conversation
+        ConvRepo-->>ConvSvc: Return new conversation
+    end
+    
+    ConvSvc->>ConvSvc: Create MessageCreate DTO
+    ConvSvc->>MsgRepo: create()
+    MsgRepo->>DB: INSERT INTO messages
+    DB-->>MsgRepo: new message
+    MsgRepo-->>ConvSvc: Return message
+    
+    ConvSvc->>Closure: detect_closure_intent()
+    activate Closure
+    
+    Closure->>Closure: _analyze_keywords()
+    Closure->>Closure: _analyze_message_pattern()
+    Closure->>Closure: _analyze_context()
+    Closure->>Closure: Calculate confidence score
+    
+    alt High confidence (>= 0.8)
+        Closure->>ConvSvc: should_close: true<br/>confidence: 0.9
+        ConvSvc->>ConvRepo: update_status(USER_CLOSED)
+        ConvRepo->>DB: UPDATE conversations<br/>SET status='user_closed'
+    else Medium confidence (0.6-0.8)
+        Closure->>ConvSvc: should_close: true<br/>confidence: 0.7
+        ConvSvc->>ConvRepo: update_context()<br/>(mark for closure)
+        ConvRepo->>DB: UPDATE conversations<br/>SET context={closure_detected}
+    else Low confidence (< 0.6)
+        Closure->>ConvSvc: should_close: false
+    end
+    
+    deactivate Closure
+    
+    ConvSvc->>ConvRepo: update_timestamp()
+    ConvRepo->>DB: UPDATE conversations<br/>SET updated_at=NOW()
+    
+    ConvSvc-->>Webhook: Message processed
+    deactivate ConvSvc
+    
+    Webhook-->>Twilio: 200 OK
+    deactivate Webhook
+    
+    Note over User,DB: Outbound Message Flow (System sends message)
+    
+    participant API as 🌐 API Client
+    participant TwilioSvc as 🔧 Twilio<br/>Service
+    
+    API->>ConvSvc: POST /conversations/{id}/messages
+    activate ConvSvc
+    
+    ConvSvc->>MsgRepo: create()
+    MsgRepo->>DB: INSERT INTO messages
+    DB-->>MsgRepo: new message
+    
+    ConvSvc->>TwilioSvc: send_message()
+    activate TwilioSvc
+    
+    TwilioSvc->>TwilioSvc: Get owner credentials
+    TwilioSvc->>Twilio: Create message via API
+    Twilio-->>TwilioSvc: Message SID + status
+    
+    TwilioSvc-->>ConvSvc: Success
+    deactivate TwilioSvc
+    
+    ConvSvc-->>API: Message sent
+    deactivate ConvSvc
+    
+    Twilio->>User: Deliver WhatsApp message
+    
+    Note over User,DB: Timeout Processing (Background Job)
+    
+    participant Scheduler as ⏰ Scheduler<br/>(Cron/Celery)
+    
+    Scheduler->>ConvSvc: process_expired_conversations()
+    activate ConvSvc
+    
+    ConvSvc->>ConvRepo: find_expired_conversations()
+    ConvRepo->>DB: SELECT * FROM conversations<br/>WHERE expires_at < NOW()
+    DB-->>ConvRepo: expired conversations
+    
+    loop For each expired
+        ConvSvc->>ConvRepo: update_status(EXPIRED)
+        ConvRepo->>DB: UPDATE conversations<br/>SET status='expired'
+    end
+    
+    ConvSvc-->>Scheduler: {count} conversations closed
+    deactivate ConvSvc
+    
+    Scheduler->>ConvSvc: process_idle_conversations()
+    activate ConvSvc
+    
+    ConvSvc->>ConvRepo: find_idle_conversations(60min)
+    ConvRepo->>DB: SELECT * FROM conversations<br/>WHERE updated_at < (NOW() - 60min)
+    DB-->>ConvRepo: idle conversations
+    
+    loop For each idle
+        ConvSvc->>ConvRepo: update_status(IDLE_TIMEOUT)
+        ConvRepo->>DB: UPDATE conversations<br/>SET status='idle_timeout'
+    end
+    
+    ConvSvc-->>Scheduler: {count} conversations closed
+    deactivate ConvSvc

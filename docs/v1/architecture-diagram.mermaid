@@ -1,0 +1,118 @@
+graph TB
+    subgraph "External Services"
+        TWILIO[Twilio API<br/>WhatsApp/SMS]
+        CLIENT[Client Applications<br/>Mobile/Web]
+    end
+
+    subgraph "API Layer - FastAPI"
+        API_CONV[Conversations API<br/>/conversations/*]
+        API_WEBHOOK[Webhooks API<br/>/webhooks/twilio/*]
+        API_HEALTH[Health Checks<br/>/health]
+    end
+
+    subgraph "Service Layer - Business Logic"
+        CONV_SVC[ConversationService<br/>- get_or_create_conversation<br/>- add_message<br/>- close_conversation<br/>- process_timeouts]
+        CLOSURE_SVC[ClosureDetector<br/>- detect_closure_intent<br/>- analyze_keywords<br/>- analyze_patterns<br/>- score calculation]
+        TWILIO_SVC[TwilioService<br/>- send_message<br/>- get_message_status<br/>- validate_webhook]
+        AI_SVC[AIResultService<br/>- create_result<br/>- analyze_performance<br/>- get_results]
+    end
+
+    subgraph "Repository Layer - Data Access"
+        OWNER_REPO[OwnerRepository]
+        USER_REPO[UserRepository]
+        FEATURE_REPO[FeatureRepository]
+        TWILIO_REPO[TwilioAccountRepository]
+        CONV_REPO[ConversationRepository]
+        MSG_REPO[MessageRepository]
+        AI_REPO[AIResultRepository]
+        BASE_REPO[BaseRepository<br/>Generic CRUD]
+    end
+
+    subgraph "Database - Supabase PostgreSQL"
+        DB_OWNERS[(owners)]
+        DB_USERS[(users)]
+        DB_FEATURES[(features)]
+        DB_TWILIO[(twilio_accounts)]
+        DB_CONV[(conversations)]
+        DB_MSG[(messages)]
+        DB_AI[(ai_results)]
+    end
+
+    subgraph "Models & DTOs"
+        MODELS[Domain Models<br/>Owner, User, Feature<br/>Conversation, Message<br/>AIResult]
+        ENUMS[Enums<br/>ConversationStatus<br/>MessageOwner<br/>MessageType<br/>MessageDirection]
+        DTOS[DTOs<br/>ConversationCreate<br/>MessageCreate<br/>Response Models]
+    end
+
+    %% External to API
+    TWILIO -->|webhook| API_WEBHOOK
+    CLIENT -->|HTTP| API_CONV
+    CLIENT -->|HTTP| API_HEALTH
+
+    %% API to Services
+    API_CONV --> CONV_SVC
+    API_WEBHOOK --> CONV_SVC
+    API_WEBHOOK --> TWILIO_SVC
+    API_CONV --> AI_SVC
+
+    %% Services interactions
+    CONV_SVC --> CLOSURE_SVC
+    CONV_SVC --> CONV_REPO
+    CONV_SVC --> MSG_REPO
+    TWILIO_SVC --> TWILIO_REPO
+    AI_SVC --> AI_REPO
+
+    %% Services to Repositories
+    CLOSURE_SVC -.->|uses| CONV_REPO
+    CLOSURE_SVC -.->|uses| MSG_REPO
+
+    %% Repositories inheritance
+    OWNER_REPO -.->|extends| BASE_REPO
+    USER_REPO -.->|extends| BASE_REPO
+    FEATURE_REPO -.->|extends| BASE_REPO
+    TWILIO_REPO -.->|extends| BASE_REPO
+    CONV_REPO -.->|extends| BASE_REPO
+    MSG_REPO -.->|extends| BASE_REPO
+    AI_REPO -.->|extends| BASE_REPO
+
+    %% Repositories to Database
+    OWNER_REPO --> DB_OWNERS
+    USER_REPO --> DB_USERS
+    FEATURE_REPO --> DB_FEATURES
+    TWILIO_REPO --> DB_TWILIO
+    CONV_REPO --> DB_CONV
+    MSG_REPO --> DB_MSG
+    AI_REPO --> DB_AI
+
+    %% Database relationships
+    DB_OWNERS -->|1:N| DB_USERS
+    DB_OWNERS -->|1:N| DB_FEATURES
+    DB_OWNERS -->|1:1| DB_TWILIO
+    DB_OWNERS -->|1:N| DB_CONV
+    DB_CONV -->|1:N| DB_MSG
+    DB_MSG -->|1:N| DB_AI
+    DB_FEATURES -->|1:N| DB_AI
+
+    %% Models usage
+    API_CONV -.->|uses| MODELS
+    API_CONV -.->|uses| DTOS
+    CONV_SVC -.->|uses| MODELS
+    CONV_SVC -.->|uses| ENUMS
+
+    %% Twilio Service to External
+    TWILIO_SVC -->|send| TWILIO
+
+    %% Styling
+    classDef apiStyle fill:#4CAF50,stroke:#2E7D32,stroke-width:2px,color:#fff
+    classDef serviceStyle fill:#2196F3,stroke:#1565C0,stroke-width:2px,color:#fff
+    classDef repoStyle fill:#FF9800,stroke:#E65100,stroke-width:2px,color:#fff
+    classDef dbStyle fill:#9C27B0,stroke:#4A148C,stroke-width:2px,color:#fff
+    classDef modelStyle fill:#607D8B,stroke:#263238,stroke-width:2px,color:#fff
+    classDef externalStyle fill:#F44336,stroke:#B71C1C,stroke-width:2px,color:#fff
+
+    class API_CONV,API_WEBHOOK,API_HEALTH apiStyle
+    class CONV_SVC,CLOSURE_SVC,TWILIO_SVC,AI_SVC serviceStyle
+    class OWNER_REPO,USER_REPO,FEATURE_REPO,TWILIO_REPO,CONV_REPO,MSG_REPO,AI_REPO,BASE_REPO repoStyle
+    class DB_OWNERS,DB_USERS,DB_FEATURES,DB_TWILIO,DB_CONV,DB_MSG,DB_AI dbStyle
+    class MODELS,ENUMS,DTOS modelStyle
+    class TWILIO,CLIENT externalStyle

@@ -1,0 +1,89 @@
+erDiagram
+    OWNERS ||--o{ USERS : "has"
+    OWNERS ||--o{ FEATURES : "has"
+    OWNERS ||--o| TWILIO_ACCOUNTS : "has"
+    OWNERS ||--o{ CONVERSATIONS : "owns"
+    USERS ||--o{ CONVERSATIONS : "participates"
+    CONVERSATIONS ||--o{ MESSAGES : "contains"
+    MESSAGES ||--o{ AI_RESULTS : "generates"
+    FEATURES ||--o{ AI_RESULTS : "processes"
+
+    OWNERS {
+        bigint owner_id PK
+        text name
+        text email UK
+        timestamp created_at
+        boolean active
+    }
+
+    USERS {
+        bigint user_id PK
+        bigint owner_id FK
+        text profile_name
+        text first_name
+        text last_name
+        text role "admin|agent|user"
+        text phone
+        boolean active
+        timestamp created_at
+    }
+
+    FEATURES {
+        bigint feature_id PK
+        bigint owner_id FK
+        text name
+        text description
+        boolean enabled
+        jsonb config_json
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    TWILIO_ACCOUNTS {
+        bigint tw_account_id PK
+        bigint owner_id FK
+        text account_sid
+        text auth_token
+        jsonb phone_numbers "Array"
+        timestamp created_at
+    }
+
+    CONVERSATIONS {
+        bigint conv_id PK
+        bigint owner_id FK
+        bigint user_id FK "nullable"
+        text from_number
+        text to_number
+        text status "pending|progress|closed..."
+        timestamp started_at
+        timestamp ended_at
+        timestamp updated_at
+        timestamp expires_at
+        text channel "whatsapp|sms"
+        text phone_number
+        jsonb context
+        jsonb metadata
+    }
+
+    MESSAGES {
+        bigint msg_id PK
+        bigint conv_id FK
+        text from_number
+        text to_number
+        text body
+        text direction "inbound|outbound"
+        timestamp timestamp
+        boolean sent_by_ia
+        text message_owner "user|agent|system"
+        text message_type "text|image|audio"
+        text content
+        jsonb metadata
+    }
+
+    AI_RESULTS {
+        bigint ai_result_id PK
+        bigint msg_id FK
+        bigint feature_id FK
+        jsonb result_json
+        timestamp processed_at
+    }

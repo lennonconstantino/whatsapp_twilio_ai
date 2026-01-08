@@ -1,0 +1,62 @@
+stateDiagram-v2
+    [*] --> PENDING: New conversation created
+    
+    PENDING --> PROGRESS: User/Agent sends first message
+    
+    PROGRESS --> AGENT_CLOSED: Agent closes conversation
+    PROGRESS --> SUPPORT_CLOSED: Support closes conversation
+    PROGRESS --> USER_CLOSED: User closes<br/>(detected by ClosureDetector)
+    PROGRESS --> EXPIRED: Expiration time reached<br/>(expires_at < NOW)
+    PROGRESS --> IDLE_TIMEOUT: No activity for X minutes<br/>(updated_at timeout)
+    PROGRESS --> FAILED: System error occurs
+    
+    PENDING --> EXPIRED: Expiration time reached<br/>without messages
+    PENDING --> IDLE_TIMEOUT: No activity timeout
+    
+    AGENT_CLOSED --> [*]
+    SUPPORT_CLOSED --> [*]
+    USER_CLOSED --> [*]
+    EXPIRED --> [*]
+    IDLE_TIMEOUT --> [*]
+    FAILED --> [*]
+    
+    note right of PENDING
+        Status: PENDING
+        - Conversation created
+        - Awaiting first interaction
+        - Can be extended
+    end note
+    
+    note right of PROGRESS
+        Status: PROGRESS
+        - Active conversation
+        - Messages flowing
+        - Closure detection active
+        - Can extend expiration
+    end note
+    
+    note right of USER_CLOSED
+        Closure Detection:
+        - Keywords: tchau, obrigado
+        - Pattern analysis
+        - Context evaluation
+        - Confidence >= 0.6
+        
+        Auto-close if confidence >= 0.8
+    end note
+    
+    note right of EXPIRED
+        Automatic Process:
+        - Background job checks
+        - WHERE expires_at < NOW()
+        - Default: 24 hours
+        - Can be extended
+    end note
+    
+    note right of IDLE_TIMEOUT
+        Automatic Process:
+        - Background job checks
+        - WHERE updated_at < (NOW - X)
+        - Default: 60 minutes
+        - Configurable per owner
+    end note
