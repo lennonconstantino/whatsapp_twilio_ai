@@ -141,7 +141,7 @@ class ConversationRepository(BaseRepository[Conversation]):
         ended_at: Optional[datetime] = None
     ) -> Optional[Conversation]:
         """
-        Update conversation status.
+        Update conversation status with validation.
         
         Args:
             conv_id: Conversation ID
@@ -151,6 +151,24 @@ class ConversationRepository(BaseRepository[Conversation]):
         Returns:
             Updated Conversation instance or None
         """
+        # Find current conversation to check status
+        current_conv = self.find_by_id(conv_id, id_column="conv_id")
+        if not current_conv:
+            logger.error("Conversation not found", conv_id=conv_id)
+            return None
+        
+        # Validate transition
+        current_status = ConversationStatus(current_conv.status)
+        if not self._is_valid_transition(current_status, status):
+            logger.warning(
+                "Invalid status transition",
+                conv_id=conv_id,
+                from_status=current_status.value,
+                to_status=status.value
+            )
+            # Log but don't block for now to avoid breaking existing flows
+            # In stricter mode, we could return current_conv or raise error
+        
         data = {
             "status": status.value
         }
@@ -158,7 +176,49 @@ class ConversationRepository(BaseRepository[Conversation]):
         if ended_at:
             data["ended_at"] = ended_at.isoformat()
         
-        return self.update(conv_id, data, id_column="conv_id")
+        updated = self.update(conv_id, data, id_column="conv_id")
+            
+        return updated
+
+    def _is_valid_transition(self, from_status: ConversationStatus, to_status: ConversationStatus) -> bool:
+        """Check if transition is valid."""
+        VALID_TRANSITIONS = {
+            ConversationStatus.PENDING: [
+                ConversationStatus.PROGRESS,
+                ConversationStatus.EXPIRED,
+                ConversationStatus.SUPPORT_CLOSED,
+                ConversationStatus.USER_CLOSED,
+                ConversationStatus.FAILED
+            ],
+            ConversationStatus.PROGRESS: [
+                ConversationStatus.AGENT_CLOSED,
+                ConversationStatus.SUPPORT_CLOSED,
+                ConversationStatus.USER_CLOSED,
+                ConversationStatus.IDLE_TIMEOUT,
+                ConversationStatus.EXPIRED,
+                ConversationStatus.FAILED
+            ],
+            ConversationStatus.IDLE_TIMEOUT: [
+                ConversationStatus.PROGRESS,
+                ConversationStatus.EXPIRED,
+                ConversationStatus.AGENT_CLOSED,
+                ConversationStatus.USER_CLOSED,
+                ConversationStatus.FAILED
+            ],
+            # Final states cannot transition
+            ConversationStatus.AGENT_CLOSED: [],
+            ConversationStatus.SUPPORT_CLOSED: [],
+            ConversationStatus.USER_CLOSED: [],
+            ConversationStatus.EXPIRED: [],
+            ConversationStatus.FAILED: []
+        }
+        
+        # Allow transition to same status (idempotent)
+        if from_status == to_status:
+            return True
+            
+        valid = VALID_TRANSITIONS.get(from_status, [])
+        return to_status in valid
     
     def update_timestamp(self, conv_id: int) -> Optional[Conversation]:
         """
@@ -257,9 +317,10 @@ class ConversationRepository(BaseRepository[Conversation]):
             for item in result.data or []:
                 conv = self.model_class(**item)
                 if conv.conv_id and conv.is_expired():
+                    # ✅ CORRIGIDO: Usar EXPIRED em vez de IDLE_TIMEOUT
                     updated = self.update_status(
                         conv.conv_id,
-                        ConversationStatus.IDLE_TIMEOUT,
+                        ConversationStatus.EXPIRED,
                         ended_at=datetime.now(timezone.utc)
                     )
                     if updated:

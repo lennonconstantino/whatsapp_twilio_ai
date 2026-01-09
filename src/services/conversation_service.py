@@ -148,39 +148,89 @@ class ConversationService:
         Returns:
             Created Message
         """
-        # Update conversation status to PROGRESS if it was PENDING
-        if conversation.status == ConversationStatus.PENDING.value:
-            self.conversation_repo.update_status(
-                conversation.conv_id,
-                ConversationStatus.PROGRESS
+        try:
+            # Reactivate conversation if it was in IDLE_TIMEOUT
+            if conversation.status == ConversationStatus.IDLE_TIMEOUT.value:
+                self.conversation_repo.update_status(
+                    conversation.conv_id,
+                    ConversationStatus.PROGRESS
+                )
+                conversation.status = ConversationStatus.PROGRESS
+                
+                # Add to context
+                context = conversation.context or {}
+                context['reactivated_from_idle'] = {
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'triggered_by': message_create.message_owner
+                }
+                self.conversation_repo.update_context(conversation.conv_id, context)
+                
+                logger.info(
+                    "Conversation reactivated from idle timeout",
+                    conv_id=conversation.conv_id
+                )
+
+            # Update conversation status to PROGRESS if it was PENDING
+            if conversation.status == ConversationStatus.PENDING.value:
+                # Check for cancellation before transitioning to PROGRESS
+                if self.closure_detector.detect_cancellation_in_pending(message_create, conversation):
+                     logger.info("User cancelled conversation in PENDING state", conv_id=conversation.conv_id)
+                     
+                     # Persist the message first so we have record
+                     message_data = message_create.model_dump()
+                     message_data["timestamp"] = datetime.now(timezone.utc).isoformat()
+                     created_message = self.message_repo.create(message_data)
+                     
+                     # Close conversation
+                     self.close_conversation(
+                         conversation, 
+                         ConversationStatus.USER_CLOSED
+                     )
+                     
+                     return created_message
+
+                self.conversation_repo.update_status(
+                    conversation.conv_id,
+                    ConversationStatus.PROGRESS
+                )
+                conversation.status = ConversationStatus.PROGRESS
+            
+            # Persist the message
+            message_data = message_create.model_dump()
+            message_data["timestamp"] = datetime.now(timezone.utc).isoformat()
+            created_message = self.message_repo.create(message_data)
+            
+            logger.info(
+                "Added message to conversation",
+                msg_id=created_message.msg_id if created_message else None,
+                conv_id=conversation.conv_id
             )
-            conversation.status = ConversationStatus.PROGRESS
-        
-        # Persist the message
-        message_data = message_create.model_dump()
-        message_data["timestamp"] = datetime.now(timezone.utc).isoformat()
-        created_message = self.message_repo.create(message_data)
-        
-        logger.info(
-            "Added message to conversation",
-            msg_id=created_message.msg_id if created_message else None,
-            conv_id=conversation.conv_id
-        )
-        
-        # Check closure intent if it's a user message
-        if created_message:
-            is_closure = self._check_closure_intent(conversation, created_message)
-            self.conversation_repo.close_by_message_policy(
-                conversation,
-                is_closure,
-                created_message.message_owner,
-                created_message.body or created_message.content
+            
+            # Check closure intent if it's a user message
+            if created_message:
+                is_closure = self._check_closure_intent(conversation, created_message)
+                self.conversation_repo.close_by_message_policy(
+                    conversation,
+                    is_closure,
+                    created_message.message_owner,
+                    created_message.body or created_message.content
+                )
+            
+            # Update conversation timestamp for any message owner
+            self.conversation_repo.update_timestamp(conversation.conv_id)
+            
+            return created_message
+            
+        except Exception as e:
+            self._handle_critical_error(
+                conversation, 
+                e, 
+                {
+                    "action": "add_message",
+                    "message_create": message_create.model_dump()
+                }
             )
-        
-        # Update conversation timestamp for any message owner
-        self.conversation_repo.update_timestamp(conversation.conv_id)
-        
-        return created_message
+            raise e
     
     def _check_closure_intent(
         self,
@@ -230,8 +280,7 @@ class ConversationService:
                 status = ConversationStatus(result['suggested_status'])
                 self.close_conversation(
                     conversation,
-                    status,
-                    reason=f"Auto-closed: {', '.join(result['reasons'])}"
+                    ConversationStatus(result['suggested_status'])
                 )
 
             return True
@@ -241,8 +290,7 @@ class ConversationService:
     def close_conversation(
         self,
         conversation: Conversation,
-        status: ConversationStatus,
-        reason: Optional[str] = None
+        status: ConversationStatus
     ) -> Conversation:
         """
         Close a conversation with the specified status.
@@ -250,19 +298,11 @@ class ConversationService:
         Args:
             conversation: Conversation to close
             status: Closure status
-            reason: Reason for closure (optional)
             
         Returns:
             Closed Conversation
         """
         now = datetime.now(timezone.utc)
-        
-        # Update context with closure reason if provided
-        if reason:
-            context = conversation.context or {}
-            context['closure_reason'] = reason
-            context['closed_at'] = now.isoformat()
-            self.conversation_repo.update_context(conversation.conv_id, context)
         
         # Update status
         closed_conversation = self.conversation_repo.update_status(
@@ -274,8 +314,7 @@ class ConversationService:
         logger.info(
             "Closed conversation",
             conv_id=conversation.conv_id,
-            status=status.value,
-            reason=reason
+            status=status.value
         )
         
         return closed_conversation
@@ -378,8 +417,7 @@ class ConversationService:
             try:
                 self.close_conversation(
                     conversation,
-                    ConversationStatus.IDLE_TIMEOUT,
-                    reason=f"Idle timeout after {idle_minutes} minutes"
+                    ConversationStatus.IDLE_TIMEOUT
                 )
                 count += 1
             except Exception as e:
@@ -396,8 +434,7 @@ class ConversationService:
         """Expire a conversation."""
         self.close_conversation(
             conversation,
-            ConversationStatus.EXPIRED,
-            reason="Expiration time reached"
+            ConversationStatus.EXPIRED
         )
     
     def extend_expiration(
@@ -420,4 +457,28 @@ class ConversationService:
         return self.conversation_repo.extend_expiration(
             conversation.conv_id,
             additional_minutes
+        )
+
+    def _handle_critical_error(self, conversation: Conversation, error: Exception, context: Dict[str, Any]):
+        """Marca conversa como FAILED quando erro crítico ocorre."""
+        logger.error(
+            "Critical error in conversation",
+            conv_id=conversation.conv_id,
+            error=str(error),
+            context=context
+        )
+        
+        # Atualizar contexto com detalhes do erro
+        ctx = conversation.context or {}
+        ctx['failure_details'] = {
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'error': str(error),
+            'context': context
+        }
+        self.conversation_repo.update_context(conversation.conv_id, ctx)
+        
+        # Marcar como FAILED
+        self.close_conversation(
+            conversation,
+            ConversationStatus.FAILED
         )

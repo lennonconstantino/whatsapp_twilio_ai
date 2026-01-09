@@ -3,7 +3,7 @@ Closure detector service for detecting conversation closure intent.
 """
 import re
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from ..models import Conversation, Message, MessageOwner, ConversationStatus
 from ..config import settings
@@ -74,7 +74,15 @@ class ClosureDetector:
             }
         
         # 2. Check if it's a user message
-        if message.message_owner != MessageOwner.USER:
+        # Handle both Enum objects and raw values (due to Pydantic use_enum_values=True)
+        is_user = False
+        if isinstance(message.message_owner, MessageOwner):
+            is_user = message.message_owner == MessageOwner.USER
+        else:
+            is_user = message.message_owner == MessageOwner.USER.value
+
+        if not is_user:
+            logger.debug(f"Message owner is {message.message_owner}, not USER. Skipping closure check.")
             return {
                 'should_close': False,
                 'confidence': 0.0,
@@ -84,6 +92,7 @@ class ClosureDetector:
         
         # 3. Analyze closure keywords
         keyword_score = self._analyze_keywords(message.body or message.content or "")
+        logger.debug(f"Keyword score: {keyword_score}")
         if keyword_score > 0:
             confidence += keyword_score * 0.5
             reasons.append(f'Closure keywords detected (score: {keyword_score:.2f})')
@@ -91,6 +100,7 @@ class ClosureDetector:
         # 4. Analyze recent message pattern
         if recent_messages:
             pattern_score = self._analyze_message_pattern(message, recent_messages)
+            logger.debug(f"Pattern score: {pattern_score}")
             if pattern_score > 0:
                 confidence += pattern_score * 0.3
                 reasons.append(f'Closure pattern detected (score: {pattern_score:.2f})')
@@ -102,9 +112,12 @@ class ClosureDetector:
         
         # 6. Check conversation context
         context_score = self._analyze_context(conversation)
+        logger.debug(f"Context score: {context_score}")
         if context_score > 0:
             confidence += context_score * 0.2
             reasons.append(f'Context indicates closure (score: {context_score:.2f})')
+            
+        logger.debug(f"Final confidence: {confidence}")
         
         # Final decision
         should_close = confidence >= 0.6  # 60% threshold
@@ -240,7 +253,13 @@ class ClosureDetector:
         min_duration = timedelta(
             seconds=settings.conversation.min_conversation_duration
         )
-        duration = datetime.now() - conversation.started_at
+
+        now = datetime.now(timezone.utc)
+        started_at = conversation.started_at
+        if started_at.tzinfo is None:
+            started_at = started_at.replace(tzinfo=timezone.utc)
+
+        duration = now - started_at
         
         return duration >= min_duration
     
@@ -290,3 +309,22 @@ class ClosureDetector:
         # For now, just replace global keywords
         self.closure_keywords = keywords
         self._compile_patterns()
+
+    def detect_cancellation_in_pending(self, message: Message, conversation: Conversation) -> bool:
+        """
+        Detecta se usuário quer cancelar conversa pendente.
+        
+        Args:
+            message: Mensagem a ser analisada
+            conversation: Conversa atual
+            
+        Returns:
+            True se deve cancelar, False caso contrário
+        """
+        if conversation.status != ConversationStatus.PENDING.value:
+            return False
+        
+        cancel_keywords = ['cancelar', 'desistir', 'deixa pra lá', 'esquece', 'cancel']
+        content = (message.body or message.content or "").lower()
+        
+        return any(kw in content for kw in cancel_keywords)
