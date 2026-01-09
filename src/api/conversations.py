@@ -2,6 +2,7 @@
 API routes for conversation management.
 """
 from typing import List, Optional
+from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 
@@ -193,3 +194,44 @@ async def extend_conversation(
     except Exception as e:
         logger.error("Error extending conversation", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{conv_id}/escalate", response_model=ConversationResponse)
+async def escalate_to_support(
+    conv_id: int,
+    supervisor_id: int,
+    reason: str,
+    service: ConversationService = Depends(get_conversation_service)
+):
+    """
+    Escalate conversation to supervisor/support.
+    
+    This transitions the conversation to SUPPORT_CLOSED state (conceptually),
+    marking it as escalated and handled by support.
+    """
+    conversation = service.get_conversation_by_id(conv_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    try:
+        # Update context with escalation details
+        context = conversation.context or {}
+        context['escalated'] = {
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'supervisor_id': supervisor_id,
+            'reason': reason
+        }
+        service.conversation_repo.update_context(conv_id, context)
+        
+        # Close as SUPPORT_CLOSED
+        closed = service.close_conversation(
+            conversation, 
+            ConversationStatus.SUPPORT_CLOSED,
+            closing_message=f"Escalated to supervisor {supervisor_id}: {reason}"
+        )
+        
+        return ConversationResponse.model_validate(closed)
+    except Exception as e:
+        logger.error("Error escalating conversation", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+

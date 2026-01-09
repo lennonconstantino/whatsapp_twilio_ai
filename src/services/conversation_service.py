@@ -4,6 +4,7 @@ Conversation service for managing conversations.
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta, timezone
 
+from src.models.enums import MessageOwner
 from src.models.domain import MessageCreateDTO
 
 from ..models import (
@@ -189,16 +190,55 @@ class ConversationService:
                      
                      return created_message
 
-                self.conversation_repo.update_status(
-                    conversation.conv_id,
-                    ConversationStatus.PROGRESS
-                )
-                conversation.status = ConversationStatus.PROGRESS
+                # Transicionar apenas se AGENT/SYSTEM/SUPPORT responde
+                if message_create.message_owner in [
+                    MessageOwner.AGENT,
+                    MessageOwner.SYSTEM,
+                    MessageOwner.SUPPORT
+                ]:
+                    logger.info(
+                        "Agent accepting conversation",
+                        conv_id=conversation.conv_id,
+                        agent_type=message_create.message_owner
+                    )
+                    
+                    self.conversation_repo.update_status(
+                        conversation.conv_id,
+                        ConversationStatus.PROGRESS
+                    )
+                    conversation.status = ConversationStatus.PROGRESS
+                    
+                    # ✅ Registrar quem aceitou a conversa
+                    context = conversation.context or {}
+                    context['accepted_by'] = {
+                        'timestamp': datetime.now(timezone.utc).isoformat(),
+                        'agent_type': message_create.message_owner,
+                        'message_id': None  # Será preenchido após criar mensagem
+                    }
+                    
+                    # Se message_create tiver user_id (agente específico)
+                    if hasattr(message_create, 'user_id') and message_create.user_id:
+                        context['accepted_by']['user_id'] = message_create.user_id
+                    
+                    self.conversation_repo.update_context(conversation.conv_id, context)
+                else:
+                    # Mensagem de USER em PENDING - manter em PENDING
+                    logger.debug(
+                        "User message while in PENDING - keeping in PENDING",
+                        conv_id=conversation.conv_id
+                    )
             
             # Persist the message
             message_data = message_create.model_dump()
             message_data["timestamp"] = datetime.now(timezone.utc).isoformat()
             created_message = self.message_repo.create(message_data)
+            
+            # Atualizar context com message_id se acabou de aceitar
+            if conversation.status == ConversationStatus.PROGRESS.value:
+                context = conversation.context or {}
+                if 'accepted_by' in context and not context['accepted_by'].get('message_id'):
+                    context['accepted_by']['message_id'] = created_message.msg_id
+                    self.conversation_repo.update_context(conversation.conv_id, context)
             
             logger.info(
                 "Added message to conversation",
@@ -227,7 +267,7 @@ class ConversationService:
                 e, 
                 {
                     "action": "add_message",
-                    "message_create": message_create.model_dump()
+                    "message_create": message_create.model_dump(mode='json')
                 }
             )
             raise e

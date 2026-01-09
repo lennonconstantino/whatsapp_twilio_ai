@@ -116,11 +116,23 @@ class Conversation(BaseModel):
     
     def is_active(self) -> bool:
         """Check if conversation is active."""
-        return self.status in ConversationStatus.active_statuses()
+        status = ConversationStatus(self.status)
+        return status.is_active()
+    
+    def is_paused(self) -> bool:
+        """Check if conversation is paused."""
+        status = ConversationStatus(self.status)
+        return status.is_paused()
     
     def is_closed(self) -> bool:
         """Check if conversation is closed."""
-        return self.status in ConversationStatus.closed_statuses()
+        status = ConversationStatus(self.status)
+        return status.is_closed()
+    
+    def can_receive_messages(self) -> bool:
+        """Check if conversation can receive messages."""
+        status = ConversationStatus(self.status)
+        return status.can_receive_messages()
     
     def is_expired(self) -> bool:
         """Check if conversation has expired."""

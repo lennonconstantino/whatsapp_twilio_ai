@@ -287,7 +287,13 @@ class ConversationRepository(BaseRepository[Conversation]):
         channel: Optional[str] = None,
         phone: Optional[str] = None
     ) -> None:
-        """Clean up conversations expired by timeout."""
+        """
+        Clean up conversations expired by timeout.
+        
+        Handles different expiration scenarios:
+        - PENDING/PROGRESS: Direct expiration (timeout normal)
+        - IDLE_TIMEOUT: Extended timeout exceeded
+        """
         if (owner_id and not channel) or (channel and not owner_id):
             raise ValueError("Ambos owner_id e channel devem ser fornecidos juntos ou nenhum dos dois")
         if phone and not channel:
@@ -295,10 +301,14 @@ class ConversationRepository(BaseRepository[Conversation]):
 
         try:
             now = datetime.now(timezone.utc).isoformat()
+            
+            # Check both active and paused statuses
+            statuses_to_check = [s.value for s in ConversationStatus.active_statuses()] + \
+                                [s.value for s in ConversationStatus.paused_statuses()]
 
             query = self.client.table(self.table_name)\
                 .select("*")\
-                .in_("status", [s.value for s in ConversationStatus.active_statuses()])\
+                .in_("status", statuses_to_check)\
                 .lt("expires_at", now)
 
             if owner_id and channel and not phone:
@@ -316,18 +326,73 @@ class ConversationRepository(BaseRepository[Conversation]):
             expired_count = 0
             for item in result.data or []:
                 conv = self.model_class(**item)
-                if conv.conv_id and conv.is_expired():
-                    # ✅ CORRIGIDO: Usar EXPIRED em vez de IDLE_TIMEOUT
+                
+                if not conv.conv_id or not conv.is_expired():
+                    continue
+                
+                # ✅ CORREÇÃO: Verificar estado atual antes de expirar
+                current_status = ConversationStatus(conv.status)
+                
+                if current_status in [ConversationStatus.PENDING, ConversationStatus.PROGRESS]:
+                    # Expiração normal - conversa ativa que excedeu tempo
+                    logger.info(
+                        "Expiring active conversation",
+                        conv_id=conv.conv_id,
+                        from_status=current_status.value,
+                        reason="normal_timeout"
+                    )
+                    
                     updated = self.update_status(
                         conv.conv_id,
                         ConversationStatus.EXPIRED,
                         ended_at=datetime.now(timezone.utc)
                     )
+                    
                     if updated:
+                        # Registrar motivo da expiração
+                        ctx = updated.context or {}
+                        ctx['expiration_reason'] = 'normal_timeout'
+                        ctx['previous_status'] = current_status.value
+                        self.update_context(conv.conv_id, ctx)
+                        expired_count += 1
+                
+                elif current_status == ConversationStatus.IDLE_TIMEOUT:
+                    # Expiração de conversa em idle - timeout estendido excedido
+                    logger.info(
+                        "Expiring idle conversation",
+                        conv_id=conv.conv_id,
+                        from_status=current_status.value,
+                        reason="extended_idle_timeout"
+                    )
+                    
+                    updated = self.update_status(
+                        conv.conv_id,
+                        ConversationStatus.EXPIRED,
+                        ended_at=datetime.now(timezone.utc)
+                    )
+                    
+                    if updated:
+                        # Registrar que era IDLE_TIMEOUT
+                        ctx = updated.context or {}
+                        ctx['expiration_reason'] = 'extended_idle_timeout'
+                        ctx['previous_status'] = ConversationStatus.IDLE_TIMEOUT.value
+                        
+                        # Calcular quanto tempo ficou em idle
+                        if conv.updated_at:
+                            idle_duration = datetime.now(timezone.utc) - conv.updated_at
+                            ctx['idle_duration_minutes'] = int(idle_duration.total_seconds() / 60)
+                        
+                        self.update_context(conv.conv_id, ctx)
                         expired_count += 1
 
             if expired_count > 0:
-                logger.info("Closed expired conversations", count=expired_count)
+                logger.info(
+                    "Closed expired conversations",
+                    count=expired_count,
+                    owner_id=owner_id,
+                    channel=channel
+                )
+            
         except Exception as e:
             logger.error("Error during cleanup", error=str(e))
             raise

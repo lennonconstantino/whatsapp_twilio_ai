@@ -5,11 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Form, Header
 from typing import Optional
 from pydantic import BaseModel
 
-from src.models.domain import MessageCreateDTO, TwilioWebhookResponseDTO, TwilioWhatsAppPayload, User
+from src.models.domain import Message, MessageCreateDTO, TwilioWebhookResponseDTO, TwilioWhatsAppPayload, User
 from src.utils.helpers import TwilioHelpers
 from src.config import settings
 
-from ..models import MessageCreateDTO, MessageDirection, MessageOwner, MessageType
+from ..models import MessageCreateDTO, MessageDirection, MessageOwner, MessageType, ConversationStatus
 from ..services import ConversationService, TwilioService
 from ..repositories import TwilioAccountRepository
 from ..utils import get_logger, get_db
@@ -142,6 +142,29 @@ def __receive_and_response(owner_id: int, payload: TwilioWhatsAppPayload, twilio
         channel="whatsapp"
     )
 
+    # Validar estado antes de adicionar mensagem (ISSUE #6)
+    if conversation.is_closed() or conversation.is_expired():
+        logger.warning(
+            "Attempt to add message to closed/expired conversation",
+            conv_id=conversation.conv_id,
+            status=conversation.status,
+            is_expired=conversation.is_expired()
+        )
+        
+        # Se estava expirada mas não fechada, fecha agora
+        if not conversation.is_closed() and conversation.is_expired():
+            conversation_service.close_conversation(conversation, ConversationStatus.EXPIRED)
+        
+        # Criar nova conversa forçadamente
+        conversation = conversation_service._create_new_conversation(
+            owner_id=owner_id,
+            from_number=payload.from_number,
+            to_number=payload.to_number,
+            channel="whatsapp",
+            user_id=None,
+            metadata={}
+        )
+
     # Create message inbound
     message_data = MessageCreateDTO(
         conv_id=conversation.conv_id,
@@ -232,6 +255,18 @@ def __get_owner_id(payload: TwilioWhatsAppPayload) -> int:
     logger.info("Owner resolved", owner_id=account.owner_id, to_number=to_number, account_sid=payload.account_sid)
     return account.owner_id
 
+def __verify_idempotency(payload: TwilioWhatsAppPayload, conversation_service: ConversationService) -> Message:
+    """Verify if a message has already been processed."""
+    existing_message = conversation_service.message_repo.find_by_external_id(
+        payload.message_sid
+    )
+    if existing_message:
+        logger.info("Duplicate webhook, already processed", 
+                    message_sid=payload.message_sid)
+        return existing_message
+    
+    return None
+
 @router.post("/inbound", response_model=TwilioWebhookResponseDTO)
 async def handle_inbound_message(
     request: Request,
@@ -284,12 +319,8 @@ async def handle_inbound_message(
                     raise HTTPException(status_code=403, detail="Invalid signature")
         
         # Verificar idempotência
-        existing_message = conversation_service.message_repo.find_by_external_id(
-            payload.message_sid
-        )
+        existing_message = __verify_idempotency(payload, conversation_service)
         if existing_message:
-            logger.info("Duplicate webhook, already processed", 
-                       message_sid=payload.message_sid)
             return TwilioWebhookResponseDTO(
                 success=True,
                 message="Already processed",
