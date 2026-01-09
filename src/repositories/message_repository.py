@@ -47,6 +47,36 @@ class MessageRepository(BaseRepository[Message]):
         except Exception as e:
             logger.error("Error finding messages by conversation", error=str(e))
             raise
+
+    def find_by_external_id(self, external_id: str) -> Optional[Message]:
+        """
+        Find message by external ID (Twilio MessageSid) stored in metadata.
+        
+        Args:
+            external_id: External message ID (e.g. SM...)
+            
+        Returns:
+            Message instance or None if not found
+        """
+        try:
+            # Query JSONB column metadata ->> message_sid
+            # Note: supabase-py / postgrest supports JSONB filtering
+            result = self.client.table(self.table_name)\
+                .select("*")\
+                .eq("metadata->>message_sid", external_id)\
+                .execute()
+            
+            if result.data and len(result.data) > 0:
+                return self.model_class(**result.data[0])
+            return None
+            
+        except Exception as e:
+            logger.error(
+                "Error finding message by external ID", 
+                external_id=external_id, 
+                error=str(e)
+            )
+            raise
     
     def find_recent_by_conversation(
         self,

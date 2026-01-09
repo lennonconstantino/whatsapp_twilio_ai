@@ -253,8 +253,16 @@ async def handle_inbound_message(
     
     try:
         twilio_service = TwilioService()
+        conversation_service = ConversationService()
         # Validate webhook signature and api_key - Production
         if settings.api.environment != "development":
+            # Requer pelo menos uma forma de autenticação
+            if not x_api_key and not X_Twilio_Signature:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Authentication required (X-API-Key or X-Twilio-Signature)"
+                )
+            
             # if has internal API key, validate
             if x_api_key:
                 #client_ip = request.client.host
@@ -266,7 +274,7 @@ async def handle_inbound_message(
                     raise HTTPException(403, "Invalid API key")
             
             # if has X-Twilio-Signature, validate
-            if X_Twilio_Signature:
+            elif X_Twilio_Signature:
                 is_valid = twilio_service.validate_webhook_signature(
                     str(request.url),
                     await request.form(),
@@ -275,6 +283,20 @@ async def handle_inbound_message(
                 if not is_valid:
                     raise HTTPException(status_code=403, detail="Invalid signature")
         
+        # Verificar idempotência
+        existing_message = conversation_service.message_repo.find_by_external_id(
+            payload.message_sid
+        )
+        if existing_message:
+            logger.info("Duplicate webhook, already processed", 
+                       message_sid=payload.message_sid)
+            return TwilioWebhookResponseDTO(
+                success=True,
+                message="Already processed",
+                conv_id=existing_message.conv_id,
+                msg_id=existing_message.msg_id
+            )
+
         # Owner id Tenant
         owner_id = __get_owner_id(payload)
 
