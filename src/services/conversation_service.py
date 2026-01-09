@@ -74,7 +74,15 @@ class ConversationService:
         Returns:
             Active or newly created Conversation
         """
-        self.conversation_repo.cleanup_expired_conversations(owner_id=owner_id, channel=channel)
+        # Unchanged: Removed synchronous cleanup in favor of background worker (Issue #4)
+        if settings.toggle.enable_background_tasks:
+            self.conversation_repo.cleanup_expired_conversations(owner_id=owner_id, channel=channel)
+        else:
+            logger.info(
+                "Background tasks are disabled, skipping cleanup",
+                owner_id=owner_id
+            )
+        
         # Try to find active conversation
         conversation = self.conversation_repo.find_active_conversation(
             owner_id, from_number, to_number

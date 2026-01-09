@@ -120,6 +120,13 @@ class LogSettings(BaseSettings):
     
     model_config = SettingsConfigDict(env_prefix="LOG_")
 
+class ToogleSettings(BaseSettings):
+    """Toggle settings."""
+    
+    enable_background_tasks: bool = Field(
+        default=True,
+        description="Enable background tasks worker"
+    )
 
 class Settings(BaseSettings):
     """Main application settings."""
