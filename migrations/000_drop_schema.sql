@@ -38,7 +38,38 @@ DROP TRIGGER IF EXISTS update_features_updated_at ON features;
 DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE;
 
 -- ============================================================================
--- 5. DROP TABLES (in reverse dependency order)
+-- 5. DROP JSONB INDEXES
+-- ============================================================================
+-- Features table JSONB indexes
+DROP INDEX IF EXISTS idx_features_config_gin;
+DROP INDEX IF EXISTS idx_features_config_enabled;
+
+-- Twilio accounts table JSONB indexes
+DROP INDEX IF EXISTS idx_twilio_phone_numbers_gin;
+
+-- Conversations table JSONB indexes
+DROP INDEX IF EXISTS idx_conversations_context_gin;
+DROP INDEX IF EXISTS idx_conversations_metadata_gin;
+DROP INDEX IF EXISTS idx_conversations_context_status;
+DROP INDEX IF EXISTS idx_conversations_metadata_priority;
+
+-- Messages table JSONB indexes
+DROP INDEX IF EXISTS idx_messages_metadata_gin;
+DROP INDEX IF EXISTS idx_messages_metadata_delivery_status;
+
+-- AI results table JSONB indexes
+DROP INDEX IF EXISTS idx_ai_results_json_gin;
+DROP INDEX IF EXISTS idx_ai_results_json_confidence;
+DROP INDEX IF EXISTS idx_ai_results_json_category;
+
+-- ============================================================================
+-- 6. DROP STANDARD INDEXES
+-- ============================================================================
+DROP INDEX IF EXISTS idx_conversations_session_key_active;
+DROP INDEX IF EXISTS idx_conversations_session_key;
+
+-- ============================================================================
+-- 7. DROP TABLES (in reverse dependency order)
 -- ============================================================================
 -- Drop child tables first
 DROP TABLE IF EXISTS ai_results CASCADE;
@@ -50,28 +81,10 @@ DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS owners CASCADE;
 
 -- ============================================================================
--- 6. DROP EXTENSIONS (optional - only if needed)
+-- 8. DROP EXTENSIONS (optional - only if needed)
 -- ============================================================================
 -- Uncomment if you want to remove the extension completely
 -- DROP EXTENSION IF EXISTS "uuid-ossp" CASCADE;
-
--- ============================================================================
--- Rollback instructions (if needed)
--- ============================================================================
-
--- WARNING: Only run this if you need to rollback the migration!
-
--- Drop indexes
-DROP INDEX IF EXISTS idx_conversations_session_key_active;
-DROP INDEX IF EXISTS idx_conversations_session_key;
-
--- Drop column
-ALTER TABLE conversations DROP COLUMN IF EXISTS session_key;
-
--- Note: This will NOT restore any conversations that were closed
--- during the cleanup process. Those changes are permanent.
--- Make sure you have a backup before rolling back!
-
 
 -- Re-enable foreign key checks
 SET session_replication_role = 'origin';
@@ -83,6 +96,6 @@ DO $$
 BEGIN
     RAISE NOTICE '==============================================';
     RAISE NOTICE 'Database cleanup completed successfully!';
-    RAISE NOTICE 'All tables, triggers, and policies removed.';
+    RAISE NOTICE 'All tables, triggers, policies and indexes removed.';
     RAISE NOTICE '==============================================';
 END $$;
