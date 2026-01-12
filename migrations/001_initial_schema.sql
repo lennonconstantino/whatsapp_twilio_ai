@@ -111,6 +111,35 @@ CREATE TABLE IF NOT EXISTS conversations (
     metadata     JSONB DEFAULT '{}'::jsonb
 );
 
+-- Step 1: Add session_key column (computed automatically)
+ALTER TABLE conversations 
+ADD COLUMN session_key TEXT GENERATED ALWAYS AS (
+    CASE 
+        WHEN from_number < to_number 
+        THEN from_number || '::' || to_number
+        ELSE to_number || '::' || from_number
+    END
+) STORED;
+
+COMMENT ON COLUMN conversations.session_key IS 
+'Bidirectional conversation identifier: always sorted alphabetically regardless of message direction';
+
+-- Step 2: Create unique index for active conversations
+-- This prevents duplicate active conversations for same participant pair
+CREATE UNIQUE INDEX idx_conversations_session_key_active 
+ON conversations(owner_id, session_key)
+WHERE status IN ('pending', 'progress');
+
+COMMENT ON INDEX idx_conversations_session_key_active IS
+'Ensures only one active conversation per owner and participant pair';
+
+-- Step 3: Create general index for all queries
+CREATE INDEX idx_conversations_session_key 
+ON conversations(owner_id, session_key, status);
+
+COMMENT ON INDEX idx_conversations_session_key IS
+'Index for querying conversations by owner, session_key, and status';
+
 CREATE INDEX idx_conversations_owner ON conversations(owner_id);
 CREATE INDEX idx_conversations_owner_conv ON conversations(owner_id, conv_id);
 CREATE INDEX idx_conversations_status ON conversations(status);

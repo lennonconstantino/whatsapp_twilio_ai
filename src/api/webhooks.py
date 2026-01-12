@@ -75,7 +75,7 @@ def __detemine_message_type(NumMedia: int, MediaContentType0: str) -> MessageTyp
     return message_type
 
 def __sender(owner_id: int, payload: TwilioWhatsAppPayload, twilio_service: TwilioService) -> TwilioWebhookResponseDTO:
-    print(f" Enviando via Client...")
+    logger.info("Processing local sender (outbound system message)")
 
     message_type = __detemine_message_type(payload.num_media, payload.media_content_type)
 
@@ -110,7 +110,8 @@ def __sender(owner_id: int, payload: TwilioWhatsAppPayload, twilio_service: Twil
             "status": response["status"],
             "num_media": getattr(response["message"], "num_media", 0),
             "media_url": None,
-            "media_type": None
+            "media_type": None,
+            "local_sender": True
         }
     )
     
@@ -130,6 +131,8 @@ def __sender(owner_id: int, payload: TwilioWhatsAppPayload, twilio_service: Twil
     )    
 
 def __receive_and_response(owner_id: int, payload: TwilioWhatsAppPayload, twilio_service: TwilioService) -> TwilioWebhookResponseDTO:
+    logger.info("Processing inbound message with auto-response")
+    
     # Normal Flow
     message_type = __detemine_message_type(payload.num_media, payload.media_content_type)
 
@@ -141,29 +144,6 @@ def __receive_and_response(owner_id: int, payload: TwilioWhatsAppPayload, twilio
         to_number=payload.to_number,
         channel="whatsapp"
     )
-
-    # Validar estado antes de adicionar mensagem (ISSUE #6)
-    if conversation.is_closed() or conversation.is_expired():
-        logger.warning(
-            "Attempt to add message to closed/expired conversation",
-            conv_id=conversation.conv_id,
-            status=conversation.status,
-            is_expired=conversation.is_expired()
-        )
-        
-        # Se estava expirada mas não fechada, fecha agora
-        if not conversation.is_closed() and conversation.is_expired():
-            conversation_service.close_conversation(conversation, ConversationStatus.EXPIRED)
-        
-        # Criar nova conversa forçadamente
-        conversation = conversation_service._create_new_conversation(
-            owner_id=owner_id,
-            from_number=payload.from_number,
-            to_number=payload.to_number,
-            channel="whatsapp",
-            user_id=None,
-            metadata={}
-        )
 
     # Create message inbound
     message_data = MessageCreateDTO(
@@ -214,7 +194,8 @@ def __receive_and_response(owner_id: int, payload: TwilioWhatsAppPayload, twilio
             "status": response["status"],
             "num_media": getattr(response["message"], "num_media", 0),
             "media_url": None,
-            "media_type": None
+            "media_type": None,
+            "auto_response": True
         }
     )
     

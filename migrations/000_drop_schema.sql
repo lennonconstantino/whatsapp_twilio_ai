@@ -55,6 +55,24 @@ DROP TABLE IF EXISTS owners CASCADE;
 -- Uncomment if you want to remove the extension completely
 -- DROP EXTENSION IF EXISTS "uuid-ossp" CASCADE;
 
+-- ============================================================================
+-- Rollback instructions (if needed)
+-- ============================================================================
+
+-- WARNING: Only run this if you need to rollback the migration!
+
+-- Drop indexes
+DROP INDEX IF EXISTS idx_conversations_session_key_active;
+DROP INDEX IF EXISTS idx_conversations_session_key;
+
+-- Drop column
+ALTER TABLE conversations DROP COLUMN IF EXISTS session_key;
+
+-- Note: This will NOT restore any conversations that were closed
+-- during the cleanup process. Those changes are permanent.
+-- Make sure you have a backup before rolling back!
+
+
 -- Re-enable foreign key checks
 SET session_replication_role = 'origin';
 

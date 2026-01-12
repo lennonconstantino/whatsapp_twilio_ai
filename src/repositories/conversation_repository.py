@@ -19,6 +19,87 @@ class ConversationRepository(BaseRepository[Conversation]):
         """Initialize conversation repository."""
         super().__init__(client, "conversations", Conversation)
     
+    @staticmethod
+    def calculate_session_key(number1: str, number2: str) -> str:
+        """
+        Calculate session key for two phone numbers.
+        
+        The session key is always the same regardless of order:
+        - calculate_session_key(A, B) == calculate_session_key(B, A)
+        
+        Args:
+            number1: First phone number
+            number2: Second phone number
+            
+        Returns:
+            Session key string (e.g., "+5511888888888::+5511999999999")
+        """
+        # Clean numbers (remove whatsapp: prefix if present)
+        clean1 = number1.replace("whatsapp:", "").strip()
+        clean2 = number2.replace("whatsapp:", "").strip()
+        
+        # Sort alphabetically to ensure consistency
+        numbers = sorted([clean1, clean2])
+        
+        return f"{numbers[0]}::{numbers[1]}"
+
+    def find_active_by_session_key(
+        self,
+        owner_id: int,
+        session_key: str
+    ) -> Optional[Conversation]:
+        """
+        Find active conversation by session key.
+        
+        This is the PRIMARY method for finding conversations now!
+        It's much simpler than the old approach.
+        
+        Args:
+            owner_id: Owner ID
+            session_key: Session key (use calculate_session_key to generate)
+            
+        Returns:
+            Active Conversation instance or None
+        """
+        try:
+            result = self.client.table(self.table_name)\
+                .select("*")\
+                .eq("owner_id", owner_id)\
+                .eq("session_key", session_key)\
+                .in_("status", [s.value for s in ConversationStatus.active_statuses()])\
+                .order("started_at", desc=True)\
+                .limit(1)\
+                .execute()
+            
+            if result.data:
+                return self.model_class(**result.data[0])
+            return None
+        except Exception as e:
+            logger.error("Error finding conversation by session key", error=str(e))
+            raise
+
+    def find_active_by_numbers(
+        self,
+        owner_id: int,
+        number1: str,
+        number2: str
+    ) -> Optional[Conversation]:
+        """
+        Find active conversation by phone numbers (any order).
+        
+        This is a convenience wrapper around find_active_by_session_key.
+        
+        Args:
+            owner_id: Owner ID
+            number1: First phone number
+            number2: Second phone number
+            
+        Returns:
+            Active Conversation instance or None
+        """
+        session_key = self.calculate_session_key(number1, number2)
+        return self.find_active_by_session_key(owner_id, session_key)
+
     def find_active_conversation(
         self,
         owner_id: int,
@@ -26,6 +107,9 @@ class ConversationRepository(BaseRepository[Conversation]):
         to_number: str
     ) -> Optional[Conversation]:
         """
+        DEPRECATED: Use find_active_by_numbers instead.
+        Kept for backward compatibility.
+
         Find an active conversation for the given parameters.
         
         Args:
@@ -36,24 +120,45 @@ class ConversationRepository(BaseRepository[Conversation]):
         Returns:
             Active Conversation instance or None
         """
+        logger.warning(
+            "Using deprecated find_active_conversation. "
+            "Consider migrating to find_active_by_numbers."
+        )
+        return self.find_active_by_numbers(owner_id, from_number, to_number)
+
+    def find_all_by_session_key(
+        self,
+        owner_id: int,
+        session_key: str,
+        limit: int = 10
+    ) -> List[Conversation]:
+        """
+        Find all conversations for a session key (including closed ones).
+        
+        Useful for viewing conversation history.
+        
+        Args:
+            owner_id: Owner ID
+            session_key: Session key
+            limit: Maximum number to return
+            
+        Returns:
+            List of Conversation instances (newest first)
+        """
         try:
             result = self.client.table(self.table_name)\
                 .select("*")\
                 .eq("owner_id", owner_id)\
-                .eq("from_number", from_number)\
-                .eq("to_number", to_number)\
-                .in_("status", [s.value for s in ConversationStatus.active_statuses()])\
+                .eq("session_key", session_key)\
                 .order("started_at", desc=True)\
-                .limit(1)\
+                .limit(limit)\
                 .execute()
             
-            if result.data:
-                return self.model_class(**result.data[0])
-            return None
+            return [self.model_class(**item) for item in result.data]
         except Exception as e:
-            logger.error("Error finding active conversation", error=str(e))
+            logger.error("Error finding conversations by session key", error=str(e))
             raise
-    
+
     def find_active_by_owner(self, owner_id: int, limit: int = 100) -> List[Conversation]:
         """
         Find all active conversations for an owner.
@@ -330,7 +435,7 @@ class ConversationRepository(BaseRepository[Conversation]):
                 if not conv.conv_id or not conv.is_expired():
                     continue
                 
-                # ✅ CORREÇÃO: Verificar estado atual antes de expirar
+                # Verificar estado atual antes de expirar
                 current_status = ConversationStatus(conv.status)
                 
                 if current_status in [ConversationStatus.PENDING, ConversationStatus.PROGRESS]:

@@ -74,6 +74,21 @@ class ConversationService:
         Returns:
             Active or newly created Conversation
         """
+        # Limpar números
+        from_clean = from_number.replace("whatsapp:", "").strip()
+        to_clean = to_number.replace("whatsapp:", "").strip()
+
+        # Calculate session key (this is the ONLY normalization needed!)
+        session_key = self.conversation_repo.calculate_session_key(from_clean, to_clean)
+
+        logger.info(
+            "Looking up conversation by session key",
+            owner_id=owner_id,
+            session_key=session_key,
+            from_number=from_number,
+            to_number=to_number
+        )        
+
         # Unchanged: Removed synchronous cleanup in favor of background worker (Issue #4)
         if settings.toggle.enable_background_tasks:
             self.conversation_repo.cleanup_expired_conversations(owner_id=owner_id, channel=channel)
@@ -84,23 +99,66 @@ class ConversationService:
             )
         
         # Try to find active conversation
-        conversation = self.conversation_repo.find_active_conversation(
-            owner_id, from_number, to_number
+        conversation = self.conversation_repo.find_active_by_session_key(
+            owner_id=owner_id, session_key=session_key
         )
         
         if conversation:
             logger.info(
-                "Found active conversation",
+                "Found existing conversation",
                 conv_id=conversation.conv_id,
-                owner_id=owner_id
+                session_key=session_key,
+                status=conversation.status
             )
-            return conversation
+
+            # Check if expired or closed
+            # Validar estado antes de adicionar mensagem (ISSUE #6)
+            if conversation.is_closed() or conversation.is_expired():
+                logger.warning(
+                    "Attempt to add message to closed/expired conversation",
+                    conv_id=conversation.conv_id,
+                    status=conversation.status,
+                    is_expired=conversation.is_expired()
+                )
+                
+            # Se estava expirada mas não fechada, fecha agora
+            if not conversation.is_closed() and conversation.is_expired():
+                self.close_conversation(conversation, ConversationStatus.EXPIRED)
+
+            # Create new conversation
+            conversation = self._create_new_conversation(
+                owner_id, from_number, to_number, channel, user_id, metadata or {}
+            )
         
-        # Create new conversation
-        #timeout = timeout_minutes or self.config.DEFAULT_IDLE_TIMEOUT_MINUTES
-        return self._create_new_conversation(
-            owner_id, from_number, to_number, channel, user_id, metadata
-        )
+            logger.info(
+                "Created new conversation after expired",
+                conv_id=conversation.conv_id,
+                session_key=session_key
+            )
+        else:
+            # No active conversation found, create new
+            logger.info(
+                "No active conversation found, creating new",
+                owner_id=owner_id,
+                session_key=session_key
+            )
+            
+            conversation = self._create_new_conversation(
+                owner_id=owner_id,
+                from_number=from_number,
+                to_number=to_number,
+                channel=channel,
+                user_id=user_id,
+                metadata=metadata or {}
+            )
+            
+            logger.info(
+                "Created new conversation",
+                conv_id=conversation.conv_id,
+                session_key=session_key
+            )
+        
+        return conversation
     
     def _create_new_conversation(
         self,
