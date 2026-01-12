@@ -120,7 +120,7 @@ class LogSettings(BaseSettings):
     
     model_config = SettingsConfigDict(env_prefix="LOG_")
 
-class ToogleSettings(BaseSettings):
+class ToggleSettings(BaseSettings):
     """Toggle settings."""
     
     enable_background_tasks: bool = Field(
@@ -135,6 +135,7 @@ class Settings(BaseSettings):
     conversation: ConversationSettings = Field(
         default_factory=ConversationSettings
     )
+    toggle: ToggleSettings = Field(default_factory=ToggleSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     supabase: SupabaseSettings = Field(default_factory=SupabaseSettings)
     twilio: TwilioSettings = Field(default_factory=TwilioSettings)

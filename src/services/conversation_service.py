@@ -89,7 +89,7 @@ class ConversationService:
             to_number=to_number
         )        
 
-        # Unchanged: Removed synchronous cleanup in favor of background worker (Issue #4)
+        # Cleanup expired conversations (background task)
         if settings.toggle.enable_background_tasks:
             self.conversation_repo.cleanup_expired_conversations(owner_id=owner_id, channel=channel)
         else:
@@ -111,52 +111,77 @@ class ConversationService:
                 status=conversation.status
             )
 
-            # Check if expired or closed
-            # Validar estado antes de adicionar mensagem (ISSUE #6)
-            if conversation.is_closed() or conversation.is_expired():
-                logger.warning(
-                    "Attempt to add message to closed/expired conversation",
+            # ✅ FIX: Check if expired or closed BEFORE deciding what to do
+            is_closed = conversation.is_closed()
+            is_expired = conversation.is_expired()
+            
+            logger.debug(
+                "Conversation state check",
+                conv_id=conversation.conv_id,
+                is_closed=is_closed,
+                is_expired=is_expired,
+                status=conversation.status
+            )
+            
+            # ✅ FIX: Only create new conversation if current one is closed or expired
+            if is_closed or is_expired:
+                logger.info(
+                    "Current conversation is closed/expired, creating new one",
                     conv_id=conversation.conv_id,
-                    status=conversation.status,
-                    is_expired=conversation.is_expired()
+                    is_closed=is_closed,
+                    is_expired=is_expired
                 )
                 
-            # Se estava expirada mas não fechada, fecha agora
-            if not conversation.is_closed() and conversation.is_expired():
-                self.close_conversation(conversation, ConversationStatus.EXPIRED)
+                # Close if expired but not yet closed
+                if is_expired and not is_closed:
+                    logger.info(
+                        "Closing expired conversation before creating new one",
+                        conv_id=conversation.conv_id
+                    )
+                    self.close_conversation(conversation, ConversationStatus.EXPIRED)
+                
+                # Create new conversation
+                conversation = self._create_new_conversation(
+                    owner_id, from_number, to_number, channel, user_id, metadata or {}
+                )
+            
+                logger.info(
+                    "Created new conversation after expired/closed",
+                    conv_id=conversation.conv_id,
+                    session_key=session_key
+                )
+            else:
+                # ✅ FIX: Conversation is active and valid, just return it
+                logger.info(
+                    "Returning existing active conversation",
+                    conv_id=conversation.conv_id,
+                    session_key=session_key,
+                    status=conversation.status
+                )
 
-            # Create new conversation
-            conversation = self._create_new_conversation(
-                owner_id, from_number, to_number, channel, user_id, metadata or {}
-            )
+            return conversation
+
+        # No active conversation found, create new
+        logger.info(
+            "No active conversation found, creating new",
+            owner_id=owner_id,
+            session_key=session_key
+        )
         
-            logger.info(
-                "Created new conversation after expired",
-                conv_id=conversation.conv_id,
-                session_key=session_key
-            )
-        else:
-            # No active conversation found, create new
-            logger.info(
-                "No active conversation found, creating new",
-                owner_id=owner_id,
-                session_key=session_key
-            )
-            
-            conversation = self._create_new_conversation(
-                owner_id=owner_id,
-                from_number=from_number,
-                to_number=to_number,
-                channel=channel,
-                user_id=user_id,
-                metadata=metadata or {}
-            )
-            
-            logger.info(
-                "Created new conversation",
-                conv_id=conversation.conv_id,
-                session_key=session_key
-            )
+        conversation = self._create_new_conversation(
+            owner_id=owner_id,
+            from_number=from_number,
+            to_number=to_number,
+            channel=channel,
+            user_id=user_id,
+            metadata=metadata or {}
+        )
+        
+        logger.info(
+            "Created new conversation",
+            conv_id=conversation.conv_id,
+            session_key=session_key
+        )
         
         return conversation
     
@@ -312,8 +337,8 @@ class ConversationService:
                 conv_id=conversation.conv_id
             )
             
-            # Check closure intent if it's a user message
-            if created_message:
+            # Check closure intent ONLY for USER messages
+            if created_message and self._should_check_closure(created_message):
                 is_closure = self._check_closure_intent(conversation, created_message)
                 self.conversation_repo.close_by_message_policy(
                     conversation,
@@ -588,3 +613,51 @@ class ConversationService:
             conversation,
             ConversationStatus.FAILED
         )
+
+    def _should_check_closure(self, message: Message) -> bool:
+        """
+        Determina se deve verificar intenção de closure para esta mensagem.
+        
+        Regras:
+        - Apenas mensagens de USER são verificadas
+        - Mensagens de SYSTEM/AGENT/SUPPORT/TOOL são ignoradas
+        - Isso evita overhead desnecessário e logs confusos
+        
+        Args:
+            message: Mensagem a verificar
+            
+        Returns:
+            True se deve verificar closure, False caso contrário
+            
+        Examples:
+            >>> msg_user = Message(message_owner=MessageOwner.USER, ...)
+            >>> self._should_check_closure(msg_user)
+            True
+            
+            >>> msg_system = Message(message_owner=MessageOwner.SYSTEM, ...)
+            >>> self._should_check_closure(msg_system)
+            False
+        """
+        # Handle both enum and string (due to use_enum_values=True in Pydantic)
+        if isinstance(message.message_owner, MessageOwner):
+            is_user = message.message_owner == MessageOwner.USER
+        else:
+            is_user = message.message_owner == MessageOwner.USER.value
+        
+        if not is_user:
+            logger.debug(
+                "Skipping closure check for non-user message",
+                msg_id=message.msg_id,
+                conv_id=message.conv_id,
+                message_owner=message.message_owner,
+                reason="Only USER messages trigger closure detection"
+            )
+            return False
+        
+        logger.debug(
+            "Proceeding with closure check for user message",
+            msg_id=message.msg_id,
+            conv_id=message.conv_id
+        )
+        
+        return True

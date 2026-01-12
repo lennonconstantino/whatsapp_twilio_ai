@@ -23,7 +23,7 @@ from repositories import (
     ConversationRepository,
     MessageRepository
 )
-from services import ConversationService
+from services import ConversationService, conversation_service
 from models import (
     MessageCreate,
     MessageDirection,

@@ -34,12 +34,25 @@ class ConversationRepository(BaseRepository[Conversation]):
         Returns:
             Session key string (e.g., "+5511888888888::+5511999999999")
         """
-        # Clean numbers (remove whatsapp: prefix if present)
-        clean1 = number1.replace("whatsapp:", "").strip()
-        clean2 = number2.replace("whatsapp:", "").strip()
+        # Normalize: ensure both have whatsapp: prefix
+        clean1 = number1.strip()
+        clean2 = number2.strip()
+        
+        # Add whatsapp: prefix if not present
+        if not clean1.startswith("whatsapp:"):
+            clean1 = f"whatsapp:{clean1}"
+        if not clean2.startswith("whatsapp:"):
+            clean2 = f"whatsapp:{clean2}"
         
         # Sort alphabetically to ensure consistency
         numbers = sorted([clean1, clean2])
+        
+        logger.debug(
+            "Calculated session_key",
+            number1=number1,
+            number2=number2,
+            session_key=f"{numbers[0]}::{numbers[1]}"
+        )
         
         return f"{numbers[0]}::{numbers[1]}"
 
