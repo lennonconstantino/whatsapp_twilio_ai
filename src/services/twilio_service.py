@@ -1,6 +1,7 @@
 """
 Twilio service for sending and receiving messages.
 """
+import os
 from typing import Optional, Dict, Any
 from twilio.rest import Client as TwilioClient
 from twilio.base.exceptions import TwilioRestException
@@ -31,14 +32,14 @@ class TwilioService:
         """
         db_client = get_db()
         self.twilio_repo = twilio_repo or TwilioAccountRepository(db_client)
-        self._clients: Dict[int, TwilioClient] = {}
+        self._clients: Dict[str, TwilioClient] = {}
     
-    def _get_client(self, owner_id: int) -> Optional[TwilioClient]:
+    def _get_client(self, owner_id: str) -> Optional[TwilioClient]:
         """
         Get or create Twilio client for an owner.
         
         Args:
-            owner_id: Owner ID
+            owner_id: Owner ID (ULID)
             
         Returns:
             Twilio client or None
@@ -77,9 +78,25 @@ class TwilioService:
             )
             return None
     
+    def __send_via_fake_sender(self, owner_id: str,
+                                     from_number: str,        
+                                     to_number: str,
+                                     body: str,
+                                     media_url: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        
+        return {
+            "sid": f'SM_{os.urandom(16).hex()}',
+            "status": "sent",
+            "to": to_number,
+            "from": from_number,
+            "body": body,
+            "message": "",
+            "direction": MessageDirection.OUTBOUND.value
+        }
+
     def send_message(
         self,
-        owner_id: int,
+        owner_id: str,
         from_number: str,        
         to_number: str,
         body: str,
@@ -89,7 +106,7 @@ class TwilioService:
         Send a message via Twilio.
         
         Args:
-            owner_id: Owner ID
+            owner_id: Owner ID (ULID)
             to_number: Recipient phone number
             from_number: Sender phone number (Twilio number)
             body: Message body
@@ -98,6 +115,11 @@ class TwilioService:
         Returns:
             Message data dict or None
         """
+        # Only send via fake sender in development environment
+        if settings.api.environment == "development" and settings.api.use_fake_sender:
+            logger.info("Message sent via fake sender")
+            return self.__send_via_fake_sender(owner_id, from_number, to_number, body, media_url)
+
         client = self._get_client(owner_id)
         if not client:
             logger.error("Cannot send message: no Twilio client", owner_id=owner_id)

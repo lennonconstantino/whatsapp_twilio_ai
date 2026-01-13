@@ -191,7 +191,7 @@ def __receive_and_response(owner_id: str, payload: TwilioWhatsAppPayload, twilio
         direction=MessageDirection.OUTBOUND,
         message_owner=MessageOwner.SYSTEM,
         message_type=message_type,
-        content=response["message"].body,
+        content=response["body"],
         metadata={
             "message_sid": response["sid"],
             "status": response["status"],

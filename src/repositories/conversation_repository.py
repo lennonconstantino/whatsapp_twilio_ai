@@ -265,7 +265,9 @@ class ConversationRepository(BaseRepository[Conversation]):
         self,
         conv_id: str,
         status: ConversationStatus,
-        ended_at: Optional[datetime] = None
+        ended_at: Optional[datetime] = None,
+        initiated_by: Optional[str] = None,
+        reason: Optional[str] = None
     ) -> Optional[Conversation]:
         """
         Update conversation status with validation.
@@ -274,9 +276,13 @@ class ConversationRepository(BaseRepository[Conversation]):
             conv_id: Conversation ID
             status: New status
             ended_at: Optional end timestamp
+            initiated_by: Who initiated the transition (system, user, agent)
+            reason: Reason for the transition
             
         Returns:
             Updated Conversation instance or None
+        Raises:
+            ValueError: If transition is invalid
         """
         # Find current conversation to check status
         current_conv = self.find_by_id(conv_id, id_column="conv_id")
@@ -286,22 +292,49 @@ class ConversationRepository(BaseRepository[Conversation]):
         
         # Validate transition
         current_status = ConversationStatus(current_conv.status)
+        
+        # Check if trying to transition from a closed state
+        if current_status.is_closed() and current_status != status:
+             raise ValueError(
+                f"Cannot transition from final state {current_status.value} "
+                f"to {status.value}"
+            )
+
         if not self._is_valid_transition(current_status, status):
             logger.warning(
-                "Invalid status transition",
+                "Invalid status transition attempt",
                 conv_id=conv_id,
                 from_status=current_status.value,
                 to_status=status.value
             )
-            # Log but don't block for now to avoid breaking existing flows
-            # In stricter mode, we could return current_conv or raise error
+            raise ValueError(
+                f"Invalid transition from {current_status.value} to {status.value}"
+            )
         
+        now = datetime.now(timezone.utc)
         data = {
-            "status": status.value
+            "status": status.value,
+            "updated_at": now.isoformat()
         }
         
         if ended_at:
             data["ended_at"] = ended_at.isoformat()
+            
+        # Add to status history in context
+        context = current_conv.context or {}
+        status_history = context.get('status_history', [])
+        
+        history_entry = {
+            'from_status': current_status.value,
+            'to_status': status.value,
+            'timestamp': now.isoformat(),
+            'initiated_by': initiated_by,
+            'reason': reason
+        }
+        
+        status_history.append(history_entry)
+        context['status_history'] = status_history
+        data['context'] = context
         
         updated = self.update(conv_id, data, id_column="conv_id")
             
@@ -602,7 +635,9 @@ class ConversationRepository(BaseRepository[Conversation]):
         closed = self.update_status(
             cid,
             closer_status,
-            ended_at=datetime.now(timezone.utc)
+            ended_at=datetime.now(timezone.utc),
+            initiated_by=str(message_owner.value if isinstance(message_owner, MessageOwner) else message_owner),
+            reason="message_policy"
         )
 
         if message_text:

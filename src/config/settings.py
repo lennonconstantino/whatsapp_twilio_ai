@@ -14,12 +14,12 @@ class ConversationSettings(BaseSettings):
     """Conversation-specific settings."""
     
     expiration_minutes: int = Field(
-        default=10, # 1440,
-        description="Minutes until a conversation expires"
+        default=1440, # 24 hours
+        description="Minutes until a conversation expires (Standard: 24h/1440m for PENDING/PROGRESS)"
     )
     idle_timeout_minutes: int = Field(
-        default=10,
-        description="Minutes of inactivity before timeout"
+        default=15,
+        description="Minutes of inactivity before idle timeout (Standard: 10-15m)"
     )
     min_conversation_duration: int = Field(
         default=30,
@@ -92,6 +92,10 @@ class APISettings(BaseSettings):
     environment: str = Field(
         default="development",
         description="Environment (development, staging, production)"
+    )
+    use_fake_sender: bool = Field(
+        default=False,
+        description="Use fake sender in development environment"
     )
 
     model_config = SettingsConfigDict(env_prefix="API_")

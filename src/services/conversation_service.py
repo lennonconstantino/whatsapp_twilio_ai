@@ -138,7 +138,12 @@ class ConversationService:
                         "Closing expired conversation before creating new one",
                         conv_id=conversation.conv_id
                     )
-                    self.close_conversation(conversation, ConversationStatus.EXPIRED)
+                    self.close_conversation(
+                        conversation, 
+                        ConversationStatus.EXPIRED,
+                        initiated_by="system",
+                        reason="expired_before_new"
+                    )
                 
                 # Create new conversation
                 conversation = self._create_new_conversation(
@@ -245,7 +250,9 @@ class ConversationService:
             if conversation.status == ConversationStatus.IDLE_TIMEOUT.value:
                 self.conversation_repo.update_status(
                     conversation.conv_id,
-                    ConversationStatus.PROGRESS
+                    ConversationStatus.PROGRESS,
+                    initiated_by="user",
+                    reason="reactivation_from_idle"
                 )
                 conversation.status = ConversationStatus.PROGRESS
                 
@@ -276,7 +283,9 @@ class ConversationService:
                     # Close conversation
                     self.close_conversation(
                         conversation, 
-                        ConversationStatus.USER_CLOSED
+                        ConversationStatus.USER_CLOSED,
+                        initiated_by="user",
+                        reason="user_cancellation_in_pending"
                     )
                     
                     return created_message
@@ -295,7 +304,9 @@ class ConversationService:
                     
                     self.conversation_repo.update_status(
                         conversation.conv_id,
-                        ConversationStatus.PROGRESS
+                        ConversationStatus.PROGRESS,
+                        initiated_by="agent",
+                        reason="agent_acceptance"
                     )
                     conversation.status = ConversationStatus.PROGRESS
                     
@@ -411,7 +422,9 @@ class ConversationService:
                 status = ConversationStatus(result['suggested_status'])
                 self.close_conversation(
                     conversation,
-                    ConversationStatus(result['suggested_status'])
+                    ConversationStatus(result['suggested_status']),
+                    initiated_by="system",
+                    reason="auto_closure_detection"
                 )
 
             return True
@@ -421,7 +434,9 @@ class ConversationService:
     def close_conversation(
         self,
         conversation: Conversation,
-        status: ConversationStatus
+        status: ConversationStatus,
+        initiated_by: Optional[str] = None,
+        reason: Optional[str] = None
     ) -> Conversation:
         """
         Close a conversation with the specified status.
@@ -429,6 +444,8 @@ class ConversationService:
         Args:
             conversation: Conversation to close
             status: Closure status
+            initiated_by: Who initiated closure
+            reason: Closure reason
             
         Returns:
             Closed Conversation
@@ -439,13 +456,16 @@ class ConversationService:
         closed_conversation = self.conversation_repo.update_status(
             conversation.conv_id,
             status,
-            ended_at=now
+            ended_at=now,
+            initiated_by=initiated_by,
+            reason=reason
         )
         
         logger.info(
             "Closed conversation",
             conv_id=conversation.conv_id,
-            status=status.value
+            status=status.value,
+            reason=reason
         )
         
         return closed_conversation
@@ -547,9 +567,11 @@ class ConversationService:
         for conversation in idle:
             try:
                 self.close_conversation(
-                    conversation,
-                    ConversationStatus.IDLE_TIMEOUT
-                )
+                conversation,
+                ConversationStatus.IDLE_TIMEOUT,
+                initiated_by="system",
+                reason="idle_timeout"
+            )
                 count += 1
             except Exception as e:
                 logger.error(
@@ -565,7 +587,9 @@ class ConversationService:
         """Expire a conversation."""
         self.close_conversation(
             conversation,
-            ConversationStatus.EXPIRED
+            ConversationStatus.EXPIRED,
+            initiated_by="system",
+            reason="expired"
         )
     
     def extend_expiration(
@@ -590,6 +614,106 @@ class ConversationService:
             additional_minutes
         )
 
+    def transfer_conversation(
+        self,
+        conversation: Conversation,
+        new_user_id: str,
+        reason: Optional[str] = None
+    ) -> Conversation:
+        """
+        Transfer conversation to another agent.
+        
+        Args:
+            conversation: Conversation to transfer
+            new_user_id: ID of the new agent (user)
+            reason: Reason for transfer
+            
+        Returns:
+            Updated Conversation
+        """
+        old_user_id = conversation.user_id
+        
+        # Update context
+        context = conversation.context or {}
+        context['transfer_history'] = context.get('transfer_history', [])
+        context['transfer_history'].append({
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'from_user_id': old_user_id,
+            'to_user_id': new_user_id,
+            'reason': reason
+        })
+        
+        # Update conversation
+        data = {
+            "user_id": new_user_id,
+            "context": context,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        updated_conv = self.conversation_repo.update(
+            conversation.conv_id, 
+            data, 
+            id_column="conv_id"
+        )
+        
+        logger.info(
+            "Transferred conversation",
+            conv_id=conversation.conv_id,
+            from_user=old_user_id,
+            to_user=new_user_id
+        )
+        
+        return updated_conv
+
+    def escalate_conversation(
+        self,
+        conversation: Conversation,
+        supervisor_id: str,
+        reason: str
+    ) -> Conversation:
+        """
+        Escalate conversation to supervisor.
+        
+        Keeps the conversation in PROGRESS state but marks it as escalated.
+        
+        Args:
+            conversation: Conversation to escalate
+            supervisor_id: ID of the supervisor
+            reason: Reason for escalation
+            
+        Returns:
+            Updated Conversation
+        """
+        # Update context
+        context = conversation.context or {}
+        context['escalated'] = {
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'supervisor_id': supervisor_id,
+            'reason': reason,
+            'status': 'open' # explicit status for escalation
+        }
+        
+        # Ensure status is PROGRESS
+        data = {
+            "status": ConversationStatus.PROGRESS.value,
+            "context": context,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        updated_conv = self.conversation_repo.update(
+            conversation.conv_id, 
+            data, 
+            id_column="conv_id"
+        )
+        
+        logger.info(
+            "Escalated conversation",
+            conv_id=conversation.conv_id,
+            supervisor_id=supervisor_id
+        )
+        
+        return updated_conv
+
     def _handle_critical_error(self, conversation: Conversation, error: Exception, context: Dict[str, Any]):
         """Marca conversa como FAILED quando erro crítico ocorre."""
         logger.error(
@@ -611,7 +735,9 @@ class ConversationService:
         # Marcar como FAILED
         self.close_conversation(
             conversation,
-            ConversationStatus.FAILED
+            ConversationStatus.FAILED,
+            initiated_by="system",
+            reason="critical_error"
         )
 
     def _should_check_closure(self, message: Message) -> bool:

@@ -13,39 +13,7 @@ TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID' , 'ACxxxxxxxxxxxxxxxxxxxxxxx
 TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', 'd0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
 TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER', '+14155238886')
 
-def send_via_twilio(message: str, to_number: str, media_url: str = None):
-    """Envia mensagem via Twilio"""
-    try:
-        account_sid = TWILIO_ACCOUNT_SID
-        auth_token = TWILIO_AUTH_TOKEN
-        from_number = TWILIO_PHONE_NUMBER
-        
-        client = Client(account_sid, auth_token)
-        
-        kwargs = {
-            'body': message,
-            'from_': f'whatsapp:{from_number}',
-            'to': f'whatsapp:{to_number}',
-        }
-        
-        if media_url:
-            kwargs['media_url'] = [media_url]
-        
-        msg = client.messages.create(**kwargs)
-        print(f" Mensagem enviada via Twilio!")
-        print(f"  SID: {msg.sid}")
-        print(f"  Para: {to_number}")
-        return msg
-        
-    except KeyError as e:
-        print(f" Erro: Variável de ambiente faltando: {e}")
-        return None
-    except Exception as e:
-        print(f" Erro ao enviar via Twilio: {e}")
-        return None
-
-
-def build_webhook_payload(message: str, media_url: str = None):
+def build_webhook_payload_user(message: str, media_url: str = None, from_number: str = None,):
     """Constrói payload simulando webhook do Twilio"""
     payload = {
         'MessageSid': f'SM_local_{os.urandom(16).hex()}',
@@ -53,15 +21,15 @@ def build_webhook_payload(message: str, media_url: str = None):
         'AccountSid': os.environ.get('TWILIO_ACCOUNT_SID', 'AC_test'),
         'Body': message,
         'MessageType': 'text',
-        'From': f"whatsapp:{os.environ.get('TWILIO_PHONE_NUMBER', '+14155238886')}",
-        'To': f"whatsapp:{os.environ.get('MY_PHONE_NUMBER', '+5511999999999')}",
-        'WaId': os.environ.get('TWILIO_PHONE_NUMBER', '+14155238886').replace('+', ''),
-        'ProfileName': 'Local Test User',
+        'From': f"whatsapp:{from_number}", 
+        'To': f"whatsapp:{os.environ.get('TWILIO_PHONE_NUMBER', '+14155238886')}",
+        'WaId': from_number.replace('+', '') if from_number else os.environ.get('MY_PHONE_NUMBER', '+5511999999999').replace('+', ''),
+        'ProfileName': 'Simulate Real User',
         'NumMedia': '0',
         'NumSegments': '1',
         'SmsStatus': 'received',
         'ApiVersion': '2010-04-01',
-        'LocalSender': 'True'
+        'LocalSender': 'False'
     }
     
     if media_url:
@@ -87,10 +55,10 @@ def build_webhook_payload(message: str, media_url: str = None):
     return payload
 
 
-def send_to_local_webhook(message: str, media_url: str = None, port: int = 8080):
-    """Envia para webhook local (simula Twilio)"""
+def send_to_local_webhook(message: str, media_url: str = None, from_number: str = None, port: int = 8080):
+    """Envia para webhook local (simula usuario enviando mensagem pelo whatsapp)"""
     url = f'http://localhost:{port}/webhooks/twilio/inbound'
-    payload = build_webhook_payload(message, media_url)
+    payload = build_webhook_payload_user(message, media_url, from_number)
     headers = {
         "X-API-Key": os.getenv("INTERNAL_API_KEY")  # ← Sua própria chave
     }
@@ -149,11 +117,11 @@ def extract_twiml_response(response_text: str):
         return None
 
 
-def process_local_mode(message: str, media_url: str, port: int, to_number: str):
+def process_local_mode(message: str, media_url: str, port: int, from_number: str):
     """Processa modo local: webhook + Twilio"""
     
     # 1. Enviar para webhook local
-    response = send_to_local_webhook(message, media_url, port)
+    response = send_to_local_webhook(message, media_url, from_number, port)
     if not response:
         return
     
@@ -166,8 +134,6 @@ def process_local_mode(message: str, media_url: str, port: int, to_number: str):
     
     print(f"\n Resposta do webhook: {response_text}")
 
-
-
 def main():
     parser = argparse.ArgumentParser(
         description='Enviar mensagem WhatsApp via Twilio',
@@ -175,17 +141,13 @@ def main():
         epilog="""
 Exemplos:
   # Modo local (webhook + Twilio)
-  python sender.py "Olá!" --to +5511999999999 --local
-  python sender.py "Teste" --to +5511999999999 --media https://picsum.photos/200 --local
-  
-  # Modo direto (apenas Twilio)
-  python sender.py "Olá!" --to +5511999999999
-  python sender.py "Teste" --to +5511999999999 --media https://picsum.photos/200
+  python sender_user.py "Olá!" --from +5511999999999 --local
+  python sender_user.py "Teste" --from +5511999999999 --media https://picsum.photos/200 --local
         """
     )
     
     parser.add_argument('message', help='Mensagem a enviar')
-    parser.add_argument('--to', help='Número de destino (ex: +5511999999999)')    
+    parser.add_argument('--from', dest='_from', help='Número de onde vamos mandar (ex: +5511999999999)')    
     parser.add_argument('--media', '-m', help='URL da mídia (imagem, áudio, vídeo, PDF)')
     parser.add_argument('--local', action='store_true', help='Enviar para webhook local antes do Twilio')
     parser.add_argument('--port', type=int, default=settings.api.port, help='Porta do servidor local (padrão: 8000)')
@@ -193,8 +155,8 @@ Exemplos:
     args = parser.parse_args()
     
     # Validar que tem número de destino
-    if not args.local and not args.to:
-        print(" Erro: Informe o número de destino com --to")
+    if not args.local and not args._from:
+        print(" Erro: Informe o número de onde vamos mandar com --from")
         parser.print_help()
         return
     
@@ -204,15 +166,8 @@ Exemplos:
             message=args.message,
             media_url=args.media,
             port=args.port,
-            to_number=args.to
+            from_number=args._from
         )
-    else:
-        send_via_twilio(
-            message=args.message,
-            to_number=args.to,
-            media_url=args.media
-        )
-
 
 if __name__ == "__main__":
     main()

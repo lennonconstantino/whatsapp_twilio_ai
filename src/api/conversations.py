@@ -24,8 +24,8 @@ router = APIRouter(prefix="/conversations", tags=["conversations"])
 # Response models
 class ConversationResponse(BaseModel):
     """Response model for conversation."""
-    conv_id: int
-    owner_id: int
+    conv_id: str
+    owner_id: str
     from_number: str
     to_number: str
     status: str
@@ -39,8 +39,8 @@ class ConversationResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     """Response model for message."""
-    msg_id: int
-    conv_id: int
+    msg_id: str
+    conv_id: str
     body: str
     direction: str
     timestamp: Optional[str]
@@ -54,6 +54,18 @@ class ConversationListResponse(BaseModel):
     """Response model for conversation list."""
     conversations: List[ConversationResponse]
     total: int
+
+
+class TransferRequest(BaseModel):
+    """Request model for transferring conversation."""
+    new_user_id: str
+    reason: Optional[str] = None
+
+
+class EscalationRequest(BaseModel):
+    """Request model for escalating conversation."""
+    supervisor_id: str
+    reason: str
 
 
 def get_conversation_service() -> ConversationService:
@@ -90,7 +102,7 @@ async def create_conversation(
 
 @router.get("/{conv_id}", response_model=ConversationResponse)
 async def get_conversation(
-    conv_id: int,
+    conv_id: str,
     service: ConversationService = Depends(get_conversation_service)
 ):
     """Get a conversation by ID."""
@@ -103,7 +115,7 @@ async def get_conversation(
 
 @router.get("/", response_model=ConversationListResponse)
 async def list_conversations(
-    owner_id: int = Query(..., description="Owner ID"),
+    owner_id: str = Query(..., description="Owner ID"),
     limit: int = Query(100, ge=1, le=1000),
     service: ConversationService = Depends(get_conversation_service)
 ):
@@ -118,7 +130,7 @@ async def list_conversations(
 
 @router.get("/{conv_id}/messages", response_model=List[MessageResponse])
 async def get_conversation_messages(
-    conv_id: int,
+    conv_id: str,
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     service: ConversationService = Depends(get_conversation_service)
@@ -136,7 +148,7 @@ async def get_conversation_messages(
 
 @router.post("/{conv_id}/messages", response_model=MessageResponse, status_code=201)
 async def add_message(
-    conv_id: int,
+    conv_id: str,
     message_data: MessageCreateDTO,
     service: ConversationService = Depends(get_conversation_service)
 ):
@@ -159,7 +171,7 @@ async def add_message(
 
 @router.post("/{conv_id}/close", response_model=ConversationResponse)
 async def close_conversation(
-    conv_id: int,
+    conv_id: str,
     status: ConversationStatus,
     reason: Optional[str] = None,
     service: ConversationService = Depends(get_conversation_service)
@@ -179,7 +191,7 @@ async def close_conversation(
 
 @router.post("/{conv_id}/extend", response_model=ConversationResponse)
 async def extend_conversation(
-    conv_id: int,
+    conv_id: str,
     additional_minutes: Optional[int] = None,
     service: ConversationService = Depends(get_conversation_service)
 ):
@@ -196,41 +208,55 @@ async def extend_conversation(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{conv_id}/escalate", response_model=ConversationResponse)
-async def escalate_to_support(
-    conv_id: int,
-    supervisor_id: int,
-    reason: str,
+@router.post("/{conv_id}/transfer", response_model=ConversationResponse)
+async def transfer_conversation(
+    conv_id: str,
+    transfer_data: TransferRequest,
     service: ConversationService = Depends(get_conversation_service)
 ):
     """
-    Escalate conversation to supervisor/support.
+    Transfer conversation to another agent.
     
-    This transitions the conversation to SUPPORT_CLOSED state (conceptually),
-    marking it as escalated and handled by support.
+    Keeps status as PROGRESS but changes user_id and updates history.
     """
     conversation = service.get_conversation_by_id(conv_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
     
     try:
-        # Update context with escalation details
-        context = conversation.context or {}
-        context['escalated'] = {
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'supervisor_id': supervisor_id,
-            'reason': reason
-        }
-        service.conversation_repo.update_context(conv_id, context)
-        
-        # Close as SUPPORT_CLOSED
-        closed = service.close_conversation(
-            conversation, 
-            ConversationStatus.SUPPORT_CLOSED,
-            closing_message=f"Escalated to supervisor {supervisor_id}: {reason}"
+        transferred = service.transfer_conversation(
+            conversation,
+            transfer_data.new_user_id,
+            transfer_data.reason
         )
-        
-        return ConversationResponse.model_validate(closed)
+        return ConversationResponse.model_validate(transferred)
+    except Exception as e:
+        logger.error("Error transferring conversation", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{conv_id}/escalate", response_model=ConversationResponse)
+async def escalate_conversation(
+    conv_id: str,
+    escalation_data: EscalationRequest,
+    service: ConversationService = Depends(get_conversation_service)
+):
+    """
+    Escalate conversation to supervisor.
+    
+    Keeps status as PROGRESS but adds escalation info to context.
+    """
+    conversation = service.get_conversation_by_id(conv_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    try:
+        escalated = service.escalate_conversation(
+            conversation,
+            escalation_data.supervisor_id,
+            escalation_data.reason
+        )
+        return ConversationResponse.model_validate(escalated)
     except Exception as e:
         logger.error("Error escalating conversation", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
