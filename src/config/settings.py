@@ -15,7 +15,11 @@ class ConversationSettings(BaseSettings):
     
     expiration_minutes: int = Field(
         default=1440, # 24 hours
-        description="Minutes until a conversation expires (Standard: 24h/1440m for PENDING/PROGRESS)"
+        description="Minutes until a conversation in PROGRESS expires (Standard: 24h/1440m)"
+    )
+    pending_expiration_minutes: int = Field(
+        default=2880, # 48 hours
+        description="Minutes until a conversation in PENDING expires (Standard: 48h/2880m)"
     )
     idle_timeout_minutes: int = Field(
         default=15,

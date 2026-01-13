@@ -431,6 +431,91 @@ class ConversationService:
         
         return False
     
+    def close_conversation_with_priority(
+        self,
+        conversation: Conversation,
+        status: ConversationStatus,
+        initiated_by: Optional[str] = None,
+        reason: Optional[str] = None
+    ) -> Conversation:
+        """
+        Close a conversation respecting status priority.
+        
+        Priority Order (Highest to Lowest):
+        1. FAILED
+        2. USER_CLOSED
+        3. SUPPORT_CLOSED
+        4. AGENT_CLOSED
+        5. EXPIRED / IDLE_TIMEOUT
+        
+        If conversation is already closed with a higher or equal priority status,
+        the closure request is ignored.
+        """
+        current_status = ConversationStatus(conversation.status)
+        
+        # Define priorities (lower number = higher priority)
+        priorities = {
+            ConversationStatus.FAILED: 1,
+            ConversationStatus.USER_CLOSED: 2,
+            ConversationStatus.SUPPORT_CLOSED: 3,
+            ConversationStatus.AGENT_CLOSED: 4,
+            ConversationStatus.EXPIRED: 5,
+            ConversationStatus.IDLE_TIMEOUT: 5
+        }
+        
+        # If not closed yet, just close
+        if not current_status.is_closed():
+             return self.close_conversation(conversation, status, initiated_by, reason)
+             
+        # If already closed, check priority
+        current_prio = priorities.get(current_status, 99)
+        new_prio = priorities.get(status, 99)
+        
+        if new_prio < current_prio:
+            logger.info(
+                "Overriding closure status due to higher priority",
+                conv_id=conversation.conv_id,
+                old_status=current_status.value,
+                new_status=status.value
+            )
+            return self._force_close(conversation, status, initiated_by, reason)
+            
+        logger.info(
+            "Ignoring closure request due to lower/equal priority",
+            conv_id=conversation.conv_id,
+            current_status=current_status.value,
+            ignored_status=status.value
+        )
+        return conversation
+
+    def _force_close(
+        self,
+        conversation: Conversation,
+        status: ConversationStatus,
+        initiated_by: Optional[str] = None,
+        reason: Optional[str] = None
+    ) -> Conversation:
+        """Force close conversation regardless of current status."""
+        now = datetime.now(timezone.utc)
+        
+        closed_conversation = self.conversation_repo.update_status(
+            conversation.conv_id,
+            status,
+            ended_at=now,
+            initiated_by=initiated_by,
+            reason=reason,
+            force=True
+        )
+        
+        logger.info(
+            "Force closed conversation",
+            conv_id=conversation.conv_id,
+            status=status.value,
+            reason=reason
+        )
+        
+        return closed_conversation
+
     def close_conversation(
         self,
         conversation: Conversation,

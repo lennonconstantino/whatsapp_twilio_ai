@@ -302,7 +302,8 @@ class ConversationRepository(BaseRepository[Conversation]):
         status: ConversationStatus,
         ended_at: Optional[datetime] = None,
         initiated_by: Optional[str] = None,
-        reason: Optional[str] = None
+        reason: Optional[str] = None,
+        force: bool = False
     ) -> Optional[Conversation]:
         """
         Update conversation status with validation.
@@ -313,11 +314,12 @@ class ConversationRepository(BaseRepository[Conversation]):
             ended_at: Optional end timestamp
             initiated_by: Who initiated the transition (system, user, agent)
             reason: Reason for the transition
+            force: Whether to force transition even if invalid or closed
             
         Returns:
             Updated Conversation instance or None
         Raises:
-            ValueError: If transition is invalid
+            ValueError: If transition is invalid and force is False
         """
         # Find current conversation to check status
         current_conv = self.find_by_id(conv_id, id_column="conv_id")
@@ -329,13 +331,13 @@ class ConversationRepository(BaseRepository[Conversation]):
         current_status = ConversationStatus(current_conv.status)
         
         # Check if trying to transition from a closed state
-        if current_status.is_closed() and current_status != status:
+        if not force and current_status.is_closed() and current_status != status:
              raise ValueError(
                 f"Cannot transition from final state {current_status.value} "
                 f"to {status.value}"
             )
 
-        if not self._is_valid_transition(current_status, status):
+        if not force and not self._is_valid_transition(current_status, status):
             logger.warning(
                 "Invalid status transition attempt",
                 conv_id=conv_id,
