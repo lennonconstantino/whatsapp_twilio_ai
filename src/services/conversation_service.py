@@ -53,22 +53,22 @@ class ConversationService:
     
     def get_or_create_conversation(
         self,
-        owner_id: int,
+        owner_id: str,
         from_number: str,
         to_number: str,
         channel: str = "whatsapp",
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> Conversation:
         """
         Find an active conversation or create a new one.
         
         Args:
-            owner_id: Owner ID
+            owner_id: Owner ID (ULID)
             from_number: From phone number
             to_number: To phone number
             channel: Communication channel
-            user_id: User ID (optional)
+            user_id: User ID (ULID, optional)
             metadata: Additional metadata
             
         Returns:
@@ -187,11 +187,11 @@ class ConversationService:
     
     def _create_new_conversation(
         self,
-        owner_id: int,
+        owner_id: str,
         from_number: str,
         to_number: str,
         channel: str,
-        user_id: Optional[int],
+        user_id: Optional[str],
         metadata: Optional[Dict[str, Any]]
     ) -> Conversation:
         """Create a new conversation."""
@@ -266,26 +266,26 @@ class ConversationService:
             if conversation.status == ConversationStatus.PENDING.value:
                 # Check for cancellation before transitioning to PROGRESS
                 if self.closure_detector.detect_cancellation_in_pending(message_create, conversation):
-                     logger.info("User cancelled conversation in PENDING state", conv_id=conversation.conv_id)
-                     
-                     # Persist the message first so we have record
-                     message_data = message_create.model_dump()
-                     message_data["timestamp"] = datetime.now(timezone.utc).isoformat()
-                     created_message = self.message_repo.create(message_data)
-                     
-                     # Close conversation
-                     self.close_conversation(
-                         conversation, 
-                         ConversationStatus.USER_CLOSED
-                     )
-                     
-                     return created_message
+                    logger.info("User cancelled conversation in PENDING state", conv_id=conversation.conv_id)
+                    
+                    # Persist the message first so we have record
+                    message_data = message_create.model_dump(mode='json')
+                    message_data["timestamp"] = datetime.now(timezone.utc).isoformat()
+                    created_message = self.message_repo.create(message_data)
+                    
+                    # Close conversation
+                    self.close_conversation(
+                        conversation, 
+                        ConversationStatus.USER_CLOSED
+                    )
+                    
+                    return created_message
 
                 # Transicionar apenas se AGENT/SYSTEM/SUPPORT responde
                 if message_create.message_owner in [
-                    MessageOwner.AGENT,
-                    MessageOwner.SYSTEM,
-                    MessageOwner.SUPPORT
+                    MessageOwner.AGENT.value,
+                    MessageOwner.SYSTEM.value,
+                    MessageOwner.SUPPORT.value
                 ]:
                     logger.info(
                         "Agent accepting conversation",
@@ -320,7 +320,7 @@ class ConversationService:
                     )
             
             # Persist the message
-            message_data = message_create.model_dump()
+            message_data = message_create.model_dump(mode='json')
             message_data["timestamp"] = datetime.now(timezone.utc).isoformat()
             created_message = self.message_repo.create(message_data)
             
@@ -450,12 +450,12 @@ class ConversationService:
         
         return closed_conversation
     
-    def get_conversation_by_id(self, conv_id: int) -> Optional[Conversation]:
+    def get_conversation_by_id(self, conv_id: str) -> Optional[Conversation]:
         """
         Find a conversation by ID.
         
         Args:
-            conv_id: Conversation ID
+            conv_id: Conversation ID (ULID)
             
         Returns:
             Conversation or None
@@ -464,14 +464,14 @@ class ConversationService:
     
     def get_active_conversations(
         self,
-        owner_id: int,
+        owner_id: str,
         limit: int = 100
     ) -> List[Conversation]:
         """
         Find active conversations for an owner.
         
         Args:
-            owner_id: Owner ID
+            owner_id: Owner ID (ULID)
             limit: Result limit
             
         Returns:
@@ -481,7 +481,7 @@ class ConversationService:
     
     def get_conversation_messages(
         self,
-        conv_id: int,
+        conv_id: str,
         limit: int = 100,
         offset: int = 0
     ) -> List[Message]:
@@ -489,7 +489,7 @@ class ConversationService:
         Find messages from a conversation.
         
         Args:
-            conv_id: Conversation ID
+            conv_id: Conversation ID (ULID)
             limit: Result limit
             offset: Pagination offset
             

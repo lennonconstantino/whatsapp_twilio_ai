@@ -74,7 +74,7 @@ def __detemine_message_type(NumMedia: int, MediaContentType0: str) -> MessageTyp
 
     return message_type
 
-def __sender(owner_id: int, payload: TwilioWhatsAppPayload, twilio_service: TwilioService) -> TwilioWebhookResponseDTO:
+def __sender(owner_id: str, payload: TwilioWhatsAppPayload, twilio_service: TwilioService) -> TwilioWebhookResponseDTO:
     logger.info("Processing local sender (outbound system message)")
 
     message_type = __detemine_message_type(payload.num_media, payload.media_content_type)
@@ -98,6 +98,7 @@ def __sender(owner_id: int, payload: TwilioWhatsAppPayload, twilio_service: Twil
     # Create message outbound
     message_data = MessageCreateDTO(
         conv_id=conversation.conv_id,
+        owner_id=owner_id,
         from_number=payload.from_number,
         to_number=payload.to_number,
         body=response["body"],
@@ -130,7 +131,7 @@ def __sender(owner_id: int, payload: TwilioWhatsAppPayload, twilio_service: Twil
         msg_id=message.msg_id if message else None
     )    
 
-def __receive_and_response(owner_id: int, payload: TwilioWhatsAppPayload, twilio_service: TwilioService) -> TwilioWebhookResponseDTO:
+def __receive_and_response(owner_id: str, payload: TwilioWhatsAppPayload, twilio_service: TwilioService) -> TwilioWebhookResponseDTO:
     logger.info("Processing inbound message with auto-response")
     
     # Normal Flow
@@ -148,6 +149,7 @@ def __receive_and_response(owner_id: int, payload: TwilioWhatsAppPayload, twilio
     # Create message inbound
     message_data = MessageCreateDTO(
         conv_id=conversation.conv_id,
+        owner_id=owner_id,
         from_number=payload.from_number,
         to_number=payload.to_number,
         body=payload.body,
@@ -182,6 +184,7 @@ def __receive_and_response(owner_id: int, payload: TwilioWhatsAppPayload, twilio
     # Create message outbound
     message_data = MessageCreateDTO(
         conv_id=conversation.conv_id,
+        owner_id=owner_id,
         from_number=payload.to_number,
         to_number=payload.from_number,
         body=response["body"],
@@ -214,7 +217,7 @@ def __receive_and_response(owner_id: int, payload: TwilioWhatsAppPayload, twilio
         msg_id=message.msg_id if message else None
     )
 
-def __get_owner_id(payload: TwilioWhatsAppPayload) -> int:
+def __get_owner_id(payload: TwilioWhatsAppPayload) -> str:
     # Determine owner_id from To number
     # In production, you'd look this up from twilio_accounts table
     # For now, use a placeholder

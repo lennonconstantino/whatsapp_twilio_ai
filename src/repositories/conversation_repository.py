@@ -63,7 +63,7 @@ class ConversationRepository(BaseRepository[Conversation]):
 
     def find_active_by_session_key(
         self,
-        owner_id: int,
+        owner_id: str,
         session_key: str
     ) -> Optional[Conversation]:
         """
@@ -73,7 +73,7 @@ class ConversationRepository(BaseRepository[Conversation]):
         It's much simpler than the old approach.
         
         Args:
-            owner_id: Owner ID
+            owner_id: Owner ID (ULID)
             session_key: Session key (use calculate_session_key to generate)
             
         Returns:
@@ -98,7 +98,7 @@ class ConversationRepository(BaseRepository[Conversation]):
 
     def find_active_by_numbers(
         self,
-        owner_id: int,
+        owner_id: str,
         number1: str,
         number2: str
     ) -> Optional[Conversation]:
@@ -108,7 +108,7 @@ class ConversationRepository(BaseRepository[Conversation]):
         This is a convenience wrapper around find_active_by_session_key.
         
         Args:
-            owner_id: Owner ID
+            owner_id: Owner ID (ULID)
             number1: First phone number
             number2: Second phone number
             
@@ -120,7 +120,7 @@ class ConversationRepository(BaseRepository[Conversation]):
 
     def find_active_conversation(
         self,
-        owner_id: int,
+        owner_id: str,
         from_number: str,
         to_number: str
     ) -> Optional[Conversation]:
@@ -131,7 +131,7 @@ class ConversationRepository(BaseRepository[Conversation]):
         Find an active conversation for the given parameters.
         
         Args:
-            owner_id: Owner ID
+            owner_id: Owner ID (ULID)
             from_number: From phone number
             to_number: To phone number
             
@@ -146,7 +146,7 @@ class ConversationRepository(BaseRepository[Conversation]):
 
     def find_all_by_session_key(
         self,
-        owner_id: int,
+        owner_id: str,
         session_key: str,
         limit: int = 10
     ) -> List[Conversation]:
@@ -156,7 +156,7 @@ class ConversationRepository(BaseRepository[Conversation]):
         Useful for viewing conversation history.
         
         Args:
-            owner_id: Owner ID
+            owner_id: Owner ID (ULID)
             session_key: Session key
             limit: Maximum number to return
             
@@ -306,20 +306,7 @@ class ConversationRepository(BaseRepository[Conversation]):
         updated = self.update(conv_id, data, id_column="conv_id")
             
         return updated
-    
-    def update_status(
-        self,
-        conv_id: str,
-        status: ConversationStatus
-    ) -> Optional[Conversation]:
-        """Update conversation status."""
-        data = {"status": status.value}
-        
-        if status.is_closed():
-            from datetime import datetime, timezone
-            data["ended_at"] = datetime.now(timezone.utc).isoformat()
-        
-        return self.update(conv_id, data, id_column="conv_id")    
+
     
     def find_by_session_key(
         self,
@@ -398,12 +385,12 @@ class ConversationRepository(BaseRepository[Conversation]):
         valid = VALID_TRANSITIONS.get(from_status, [])
         return to_status in valid
     
-    def update_timestamp(self, conv_id: int) -> Optional[Conversation]:
+    def update_timestamp(self, conv_id: str) -> Optional[Conversation]:
         """
         Update conversation timestamp to current time.
         
         Args:
-            conv_id: Conversation ID
+            conv_id: Conversation ID (ULID)
             
         Returns:
             Updated Conversation instance or None
@@ -413,14 +400,14 @@ class ConversationRepository(BaseRepository[Conversation]):
     
     def update_context(
         self,
-        conv_id: int,
+        conv_id: str,
         context: dict
     ) -> Optional[Conversation]:
         """
         Update conversation context.
         
         Args:
-            conv_id: Conversation ID
+            conv_id: Conversation ID (ULID)
             context: New context data
             
         Returns:
@@ -433,14 +420,14 @@ class ConversationRepository(BaseRepository[Conversation]):
     
     def extend_expiration(
         self,
-        conv_id: int,
+        conv_id: str,
         additional_minutes: int
     ) -> Optional[Conversation]:
         """
         Extend conversation expiration time.
         
         Args:
-            conv_id: Conversation ID
+            conv_id: Conversation ID (ULID)
             additional_minutes: Minutes to add to expiration
             
         Returns:
@@ -461,7 +448,7 @@ class ConversationRepository(BaseRepository[Conversation]):
 
     def cleanup_expired_conversations(
         self,
-        owner_id: Optional[int] = None,
+        owner_id: Optional[str] = None,
         channel: Optional[str] = None,
         phone: Optional[str] = None
     ) -> None:

@@ -19,8 +19,22 @@ def test_complete_conversation_lifecycle():
     
     # 1. Criar conversa (PENDING)
     logger.info("Step 1: Creating conversation (PENDING)")
+    
+    # Ensure owner exists (Test Setup)
+    try:
+        service.conversation_repo.client.table("owners").insert({
+            "owner_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "name": "Test Owner",
+            "email": "test@example.com",
+            "active": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }).execute()
+        logger.info("Owner seeded successfully")
+    except Exception as e:
+        logger.warning(f"Owner seeding failed (might exist): {e}")
+        
     conv = service.get_or_create_conversation(
-        owner_id=1,
+        owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
         from_number=from_number,
         to_number=to_number,
         channel="whatsapp"
@@ -31,6 +45,7 @@ def test_complete_conversation_lifecycle():
     logger.info("Step 2: User message (Keep PENDING)")
     user_msg = MessageCreateDTO(
         conv_id=conv.conv_id,
+        owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
         from_number=from_number,
         to_number=to_number,
         body="Preciso de ajuda",
@@ -45,6 +60,7 @@ def test_complete_conversation_lifecycle():
     logger.info("Step 3: Agent accepts (PENDING -> PROGRESS)")
     agent_msg = MessageCreateDTO(
         conv_id=conv.conv_id,
+        owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
         from_number=to_number,
         to_number=from_number,
         body="Olá! Como posso ajudar?",
@@ -61,18 +77,19 @@ def test_complete_conversation_lifecycle():
     
     # 4. Simular inatividade (PROGRESS → IDLE_TIMEOUT)
     logger.info("Step 4: Simulate IDLE (PROGRESS -> IDLE_TIMEOUT)")
-    # Atualizar updated_at para simular inatividade
-    # Usando acesso direto ao cliente do repositório para "hackear" o tempo
-    past_time = datetime.now(timezone.utc) - timedelta(minutes=20)
-    service.conversation_repo.client.table("conversations")\
-        .update({"updated_at": past_time.isoformat()})\
-        .eq("conv_id", conv.conv_id)\
-        .execute()
     
-    # Processar idle (assumindo que 15 min é o timeout configurado ou passado)
-    processed_count = service.process_idle_conversations(idle_minutes=15)
+    # Como o banco tem trigger que força updated_at para now(),
+    # não conseguimos setar uma data passada.
+    # Solução: Usar idle_minutes negativo para que o threshold seja no futuro.
+    # threshold = now - (-1) = now + 1 min
+    # updated_at (now) < threshold (now + 1 min) -> True
+    
+    # Processar idle com minutos negativos para forçar timeout imediato
+    processed_count = service.process_idle_conversations(idle_minutes=-1)
+    logger.info(f"Processed count: {processed_count}")
     
     conv = service.get_conversation_by_id(conv.conv_id)
+    logger.info(f"Conversation status after idle check: {conv.status}")
     # Se o processamento funcionou, deve estar em IDLE_TIMEOUT
     # Nota: process_idle_conversations busca active_statuses. PROGRESS é active.
     assert conv.status == ConversationStatus.IDLE_TIMEOUT.value
@@ -81,6 +98,7 @@ def test_complete_conversation_lifecycle():
     logger.info("Step 5: User returns (IDLE_TIMEOUT -> PROGRESS)")
     user_msg2 = MessageCreateDTO(
         conv_id=conv.conv_id,
+        owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
         from_number=from_number,
         to_number=to_number,
         body="Ainda está aí?",

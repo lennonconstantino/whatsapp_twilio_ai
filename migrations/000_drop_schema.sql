@@ -29,13 +29,33 @@ ALTER TABLE IF EXISTS ai_results DISABLE ROW LEVEL SECURITY;
 -- ============================================================================
 -- 3. DROP TRIGGERS
 -- ============================================================================
+-- Update timestamp triggers
 DROP TRIGGER IF EXISTS update_conversations_updated_at ON conversations;
 DROP TRIGGER IF EXISTS update_features_updated_at ON features;
+
+-- ULID generation triggers
+DROP TRIGGER IF EXISTS trigger_owners_ulid ON owners;
+DROP TRIGGER IF EXISTS trigger_users_ulid ON users;
+DROP TRIGGER IF EXISTS trigger_conversations_ulid ON conversations;
+DROP TRIGGER IF EXISTS trigger_messages_ulid ON messages;
+DROP TRIGGER IF EXISTS trigger_ai_results_ulid ON ai_results;
+DROP TRIGGER IF EXISTS set_ulid_on_insert ON messages;
+DROP TRIGGER IF EXISTS trigger_set_ulid_on_insert ON messages;
 
 -- ============================================================================
 -- 4. DROP FUNCTIONS
 -- ============================================================================
 DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE;
+DROP FUNCTION IF EXISTS generate_ulid() CASCADE;
+DROP FUNCTION IF EXISTS is_valid_ulid(TEXT) CASCADE;
+DROP FUNCTION IF EXISTS ulid_to_timestamp(TEXT) CASCADE;
+DROP FUNCTION IF EXISTS set_ulid_on_insert() CASCADE;
+DROP FUNCTION IF EXISTS set_ulid_on_insert_v2() CASCADE;
+DROP FUNCTION IF EXISTS set_owners_id_on_insert() CASCADE;
+DROP FUNCTION IF EXISTS set_users_id_on_insert() CASCADE;
+DROP FUNCTION IF EXISTS set_conversations_id_on_insert() CASCADE;
+DROP FUNCTION IF EXISTS set_messages_id_on_insert() CASCADE;
+DROP FUNCTION IF EXISTS set_ai_results_id_on_insert() CASCADE;
 
 -- ============================================================================
 -- 5. DROP JSONB INDEXES
@@ -65,8 +85,33 @@ DROP INDEX IF EXISTS idx_ai_results_json_category;
 -- ============================================================================
 -- 6. DROP STANDARD INDEXES
 -- ============================================================================
+-- Session key indexes
 DROP INDEX IF EXISTS idx_conversations_session_key_active;
 DROP INDEX IF EXISTS idx_conversations_session_key;
+
+-- ULID indexes
+DROP INDEX IF EXISTS idx_owners_ulid;
+DROP INDEX IF EXISTS idx_users_ulid;
+DROP INDEX IF EXISTS idx_users_owner_ulid_fk;
+DROP INDEX IF EXISTS idx_conversations_ulid;
+DROP INDEX IF EXISTS idx_conversations_owner_ulid_fk;
+DROP INDEX IF EXISTS idx_conversations_user_ulid_fk;
+DROP INDEX IF EXISTS idx_messages_ulid;
+DROP INDEX IF EXISTS idx_messages_conv_ulid_fk;
+DROP INDEX IF EXISTS idx_ai_results_ulid;
+DROP INDEX IF EXISTS idx_ai_results_msg_ulid_fk;
+
+-- Additional indexes
+DROP INDEX IF EXISTS idx_users_owner_id;
+DROP INDEX IF EXISTS idx_conversations_owner_id;
+DROP INDEX IF EXISTS idx_conversations_user_id;
+DROP INDEX IF EXISTS idx_messages_conv_id;
+DROP INDEX IF EXISTS idx_messages_owner_id;
+DROP INDEX IF EXISTS idx_ai_results_msg_id;
+DROP INDEX IF EXISTS idx_users_owner_phone;
+DROP INDEX IF EXISTS idx_conversations_owner_session;
+DROP INDEX IF EXISTS idx_features_owner_id;
+DROP INDEX IF EXISTS idx_twilio_accounts_owner_id;
 
 -- ============================================================================
 -- 7. DROP TABLES (in reverse dependency order)

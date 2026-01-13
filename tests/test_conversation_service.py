@@ -27,8 +27,8 @@ class TestClosureDetector:
     def test_detect_closure_keywords(self):
         """Test detection of closure keywords."""
         conversation = Conversation(
-            conv_id=1,
-            owner_id=1,
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             status=ConversationStatus.PROGRESS,
@@ -40,8 +40,9 @@ class TestClosureDetector:
         # Need AI messages to trigger pattern scoring
         recent_messages = [
             Message(
-                msg_id=9, 
-                conv_id=1, 
+                msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA9", 
+                conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", 
+                owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
                 from_number="+5511988887777", 
                 to_number="+5511999998888", 
                 body="Olá", 
@@ -50,8 +51,9 @@ class TestClosureDetector:
                 message_type=MessageType.TEXT
             ),
             Message(
-                msg_id=10, 
-                conv_id=1, 
+                msg_id="01ARZ3NDEKTSV4RRFFQ69G5F10", 
+                conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", 
+                owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
                 from_number="+5511999998888", 
                 to_number="+5511988887777", 
                 body="Posso ajudar em algo mais?", 
@@ -61,8 +63,9 @@ class TestClosureDetector:
                 sent_by_ia=True
             ),
             Message(
-                msg_id=11, 
-                conv_id=1, 
+                msg_id="01ARZ3NDEKTSV4RRFFQ69G5F11", 
+                conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", 
+                owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
                 from_number="+5511988887777", 
                 to_number="+5511999998888", 
                 body="Não, só isso.", 
@@ -71,8 +74,9 @@ class TestClosureDetector:
                 message_type=MessageType.TEXT
             ),
             Message(
-                msg_id=12, 
-                conv_id=1, 
+                msg_id="01ARZ3NDEKTSV4RRFFQ69G5F12", 
+                conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", 
+                owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
                 from_number="+5511999998888", 
                 to_number="+5511988887777", 
                 body="Entendido.", 
@@ -84,8 +88,9 @@ class TestClosureDetector:
         ]
         
         message = Message(
-            msg_id=13,
-            conv_id=1,
+            msg_id="01ARZ3NDEKTSV4RRFFQ69G5F13",
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             body="obrigado tchau",
@@ -115,8 +120,8 @@ class TestClosureDetector:
         from datetime import timezone
 
         conversation = Conversation(
-            conv_id=1,
-            owner_id=1,
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             status=ConversationStatus.PROGRESS,
@@ -125,8 +130,9 @@ class TestClosureDetector:
         )
 
         message = Message(
-            msg_id=1,
-            conv_id=1,
+            msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA1",
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             body="ok",
@@ -141,8 +147,8 @@ class TestClosureDetector:
     def test_no_closure_on_normal_message(self):
         """Test that normal messages don't trigger closure."""
         conversation = Conversation(
-            conv_id=1,
-            owner_id=1,
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             status=ConversationStatus.PROGRESS,
@@ -150,8 +156,9 @@ class TestClosureDetector:
         )
         
         message = Message(
-            msg_id=1,
-            conv_id=1,
+            msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA1",
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             body="Qual o horário de funcionamento?",
@@ -169,16 +176,17 @@ class TestClosureDetector:
     def test_explicit_closure_signal(self):
         """Test explicit closure signal in metadata."""
         conversation = Conversation(
-            conv_id=1,
-            owner_id=1,
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             status=ConversationStatus.PROGRESS
         )
         
         message = Message(
-            msg_id=1,
-            conv_id=1,
+            msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA1",
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             body="fim",
@@ -199,8 +207,8 @@ class TestClosureDetector:
     def test_detect_cancellation_in_pending(self):
         """Test detection of cancellation intent in pending state."""
         conversation = Conversation(
-            conv_id=1,
-            owner_id=1,
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             status=ConversationStatus.PENDING,
@@ -208,8 +216,9 @@ class TestClosureDetector:
         )
         
         message = Message(
-            msg_id=1,
-            conv_id=1,
+            msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA1",
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             body="quero cancelar",
@@ -224,8 +233,8 @@ class TestClosureDetector:
     def test_no_cancellation_if_not_pending(self):
         """Test that cancellation logic only applies to PENDING state."""
         conversation = Conversation(
-            conv_id=1,
-            owner_id=1,
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             status=ConversationStatus.PROGRESS,
@@ -233,8 +242,9 @@ class TestClosureDetector:
         )
         
         message = Message(
-            msg_id=1,
-            conv_id=1,
+            msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA1",
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             body="quero cancelar",
@@ -267,33 +277,33 @@ class TestConversationService:
         """Test that get_or_create returns existing active conversation."""
         # Mock existing conversation
         existing_conv = Conversation(
-            conv_id=1,
-            owner_id=1,
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             status=ConversationStatus.PROGRESS
         )
         
-        self.mock_conv_repo.find_active_conversation.return_value = existing_conv
+        self.mock_conv_repo.find_active_by_session_key.return_value = existing_conv
         
         result = self.service.get_or_create_conversation(
-            owner_id=1,
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888"
         )
         
-        assert result.conv_id == 1
-        self.mock_conv_repo.find_active_conversation.assert_called_once()
+        assert result.conv_id == "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+        self.mock_conv_repo.find_active_by_session_key.assert_called_once()
         self.mock_conv_repo.create.assert_not_called()
     
     def test_get_or_create_creates_new_conversation(self):
         """Test that get_or_create creates new conversation when none exists."""
         # Mock no existing conversation
-        self.mock_conv_repo.find_active_conversation.return_value = None
+        self.mock_conv_repo.find_active_by_session_key.return_value = None
         
         new_conv = Conversation(
-            conv_id=2,
-            owner_id=1,
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAW",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             status=ConversationStatus.PENDING
@@ -301,13 +311,13 @@ class TestConversationService:
         self.mock_conv_repo.create.return_value = new_conv
         
         result = self.service.get_or_create_conversation(
-            owner_id=1,
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888"
         )
         
-        assert result.conv_id == 2
-        self.mock_conv_repo.find_active_conversation.assert_called_once()
+        assert result.conv_id == "01ARZ3NDEKTSV4RRFFQ69G5FAW"
+        self.mock_conv_repo.find_active_by_session_key.assert_called_once()
         self.mock_conv_repo.create.assert_called_once()
 
     def test_add_message_reactivates_idle_conversation(self):
@@ -316,8 +326,8 @@ class TestConversationService:
         
         # Setup conversation in IDLE_TIMEOUT
         conversation = Conversation(
-            conv_id=1,
-            owner_id=1,
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             status=ConversationStatus.IDLE_TIMEOUT,
@@ -326,7 +336,8 @@ class TestConversationService:
         )
         
         message_create = MessageCreateDTO(
-            conv_id=1,
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             body="Olá, voltei",
@@ -337,7 +348,7 @@ class TestConversationService:
         
         # Mock create message
         created_msg = Message(
-            msg_id=1,
+            msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA1",
             **message_create.model_dump()
         )
         self.mock_msg_repo.create.return_value = created_msg
@@ -354,7 +365,7 @@ class TestConversationService:
         
         # Verify status update was called
         self.mock_conv_repo.update_status.assert_any_call(
-            1, ConversationStatus.PROGRESS
+            "01ARZ3NDEKTSV4RRFFQ69G5FAV", ConversationStatus.PROGRESS
         )
         # Verify context update was called
         self.mock_conv_repo.update_context.assert_called()
@@ -365,8 +376,8 @@ class TestConversationService:
         
         # Setup conversation in PENDING
         conversation = Conversation(
-            conv_id=1,
-            owner_id=1,
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             status=ConversationStatus.PENDING,
@@ -374,7 +385,8 @@ class TestConversationService:
         )
         
         message_create = MessageCreateDTO(
-            conv_id=1,
+            conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
             body="cancelar",
@@ -388,7 +400,7 @@ class TestConversationService:
         
         # Mock create message
         created_msg = Message(
-            msg_id=1,
+            msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA1",
             **message_create.model_dump()
         )
         self.mock_msg_repo.create.return_value = created_msg
@@ -398,7 +410,7 @@ class TestConversationService:
         
         # Verify status update to USER_CLOSED
         self.mock_conv_repo.update_status.assert_called_with(
-            1, ConversationStatus.USER_CLOSED, ended_at=unittest.mock.ANY
+            "01ARZ3NDEKTSV4RRFFQ69G5FAV", ConversationStatus.USER_CLOSED, ended_at=unittest.mock.ANY
         )
 
 
