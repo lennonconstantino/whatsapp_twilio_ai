@@ -1,7 +1,7 @@
 """
 Conversation repository for database operations.
 """
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 from supabase import Client
 
@@ -24,6 +24,41 @@ class ConversationRepository(BaseRepository[Conversation]):
         # Changed id_column from "conv_id" (int) to "conv_id" (text/ULID)
         super().__init__(client, "conversations", Conversation, validates_ulid=True)  # ✅ Enable ULID validation
     
+    def create(self, data: Dict[str, Any]) -> Optional[Conversation]:
+        """
+        Create a new conversation and log initial state history.
+        """
+        conversation = super().create(data)
+        
+        if conversation:
+            try:
+                # Log initial state to history
+                now = datetime.now(timezone.utc)
+                
+                history_data = {
+                    "conv_id": conversation.conv_id,
+                    "from_status": None,
+                    "to_status": conversation.status,
+                    "changed_by": "system",
+                    "reason": "conversation_created",
+                    "metadata": {
+                        "timestamp": now.isoformat(),
+                        "original_initiated_by": "system",
+                        "context": "creation"
+                    }
+                }
+                
+                self.client.table("conversation_state_history").insert(history_data).execute()
+                
+            except Exception as e:
+                logger.error(
+                    "Failed to write conversation state history on create",
+                    conv_id=conversation.conv_id,
+                    error=str(e)
+                )
+                
+        return conversation
+
     @staticmethod
     def calculate_session_key(number1: str, number2: str) -> str:
         """
@@ -338,6 +373,32 @@ class ConversationRepository(BaseRepository[Conversation]):
         
         updated = self.update(conv_id, data, id_column="conv_id")
             
+        # New: Persist to conversation_state_history table
+        try:
+            # Sanitize changed_by for SQL constraint
+            valid_changed_by = ['user', 'agent', 'system', 'supervisor', 'tool', 'support']
+            safe_changed_by = initiated_by if initiated_by in valid_changed_by else 'system'
+            
+            history_data = {
+                "conv_id": conv_id,
+                "from_status": current_status.value,
+                "to_status": status.value,
+                "changed_by": safe_changed_by,
+                "reason": reason,
+                "metadata": {
+                    "timestamp": now.isoformat(),
+                    "original_initiated_by": initiated_by
+                }
+            }
+            
+            self.client.table("conversation_state_history").insert(history_data).execute()
+        except Exception as e:
+            logger.error(
+                "Failed to write conversation state history",
+                conv_id=conv_id,
+                error=str(e)
+            )
+
         return updated
 
     
