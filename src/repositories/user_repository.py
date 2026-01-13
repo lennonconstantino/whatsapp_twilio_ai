@@ -15,13 +15,13 @@ class UserRepository(BaseRepository[User]):
     """Repository for User entity operations."""
     
     def __init__(self, client: Client):
-        """Initialize user repository."""
-        super().__init__(client, "users", User)
+        """Initialize user repository with ULID validation."""
+        super().__init__(client, "users", User, validates_ulid=True)  # ✅ Enable ULID validation
     
-    def find_by_owner(self, owner_id: int, limit: int = 100) -> List[User]:
+    def find_by_owner(self, owner_id: str, limit: int = 100) -> List[User]:
         """
         Find users by owner ID.
-        
+        ULID validation happens automatically in find_by().
         Args:
             owner_id: Owner ID
             limit: Maximum number of users to return
@@ -44,7 +44,7 @@ class UserRepository(BaseRepository[User]):
         users = self.find_by({"phone": phone}, limit=1)
         return users[0] if users else None
     
-    def find_active_by_owner(self, owner_id: int, limit: int = 100) -> List[User]:
+    def find_active_by_owner(self, owner_id: str, limit: int = 100) -> List[User]:
         """
         Find active users by owner ID.
         
@@ -59,7 +59,7 @@ class UserRepository(BaseRepository[User]):
     
     def find_by_role(
         self,
-        owner_id: int,
+        owner_id: str,
         role: UserRole,
         limit: int = 100
     ) -> List[User]:
@@ -79,7 +79,7 @@ class UserRepository(BaseRepository[User]):
             limit=limit
         )
     
-    def deactivate_user(self, user_id: int) -> Optional[User]:
+    def deactivate_user(self, user_id: str) -> Optional[User]:
         """
         Deactivate a user.
         
@@ -91,7 +91,7 @@ class UserRepository(BaseRepository[User]):
         """
         return self.update(user_id, {"active": False}, id_column="user_id")
     
-    def activate_user(self, user_id: int) -> Optional[User]:
+    def activate_user(self, user_id: str) -> Optional[User]:
         """
         Activate a user.
         

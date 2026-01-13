@@ -15,13 +15,17 @@ class FeatureRepository(BaseRepository[Feature]):
     """Repository for Feature entity operations."""
     
     def __init__(self, client: Client):
-        """Initialize feature repository."""
-        super().__init__(client, "features", Feature)
+        """
+        Initialize feature repository with ULID validation.
+        Note: Primary key (feature_id) is still INTEGER, but foreign key
+        (owner_id) is now ULID, so we enable validation.
+        """
+        super().__init__(client, "features", Feature, validates_ulid=True)  # ✅ Enable ULID validation
     
-    def find_by_owner(self, owner_id: int, limit: int = 100) -> List[Feature]:
+    def find_by_owner(self, owner_id: str, limit: int = 100) -> List[Feature]:
         """
         Find features by owner ID.
-        
+        owner_id is ULID, validated automatically.
         Args:
             owner_id: Owner ID
             limit: Maximum number of features to return
@@ -31,7 +35,7 @@ class FeatureRepository(BaseRepository[Feature]):
         """
         return self.find_by({"owner_id": owner_id}, limit=limit)
     
-    def find_enabled_by_owner(self, owner_id: int, limit: int = 100) -> List[Feature]:
+    def find_enabled_by_owner(self, owner_id: str, limit: int = 100) -> List[Feature]:
         """
         Find enabled features by owner ID.
         
@@ -47,7 +51,7 @@ class FeatureRepository(BaseRepository[Feature]):
             limit=limit
         )
     
-    def find_by_name(self, owner_id: int, name: str) -> Optional[Feature]:
+    def find_by_name(self, owner_id: str, name: str) -> Optional[Feature]:
         """
         Find feature by owner and name.
         

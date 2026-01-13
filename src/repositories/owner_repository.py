@@ -16,7 +16,7 @@ class OwnerRepository(BaseRepository[Owner]):
     
     def __init__(self, client: Client):
         """Initialize owner repository."""
-        super().__init__(client, "owners", Owner)
+        super().__init__(client, "owners", Owner, validates_ulid=True)  # ✅ Enable ULID validation
     
     def create_owner(self, name: str, email: str) -> Optional[Owner]:
         """
@@ -61,7 +61,7 @@ class OwnerRepository(BaseRepository[Owner]):
         """
         return self.find_by({"active": True}, limit=limit)
     
-    def deactivate_owner(self, owner_id: int) -> Optional[Owner]:
+    def deactivate_owner(self, owner_id: str) -> Optional[Owner]:
         """
         Deactivate an owner.
         
@@ -73,7 +73,7 @@ class OwnerRepository(BaseRepository[Owner]):
         """
         return self.update(owner_id, {"active": False}, id_column="owner_id")
     
-    def activate_owner(self, owner_id: int) -> Optional[Owner]:
+    def activate_owner(self, owner_id: str) -> Optional[Owner]:
         """
         Activate an owner.
         

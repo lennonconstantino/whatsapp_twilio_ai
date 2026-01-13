@@ -15,13 +15,17 @@ class TwilioAccountRepository(BaseRepository[TwilioAccount]):
     """Repository for TwilioAccount entity operations."""
     
     def __init__(self, client: Client):
-        """Initialize twilio account repository."""
-        super().__init__(client, "twilio_accounts", TwilioAccount)
+        """
+        Initialize twilio account repository.
+        Note: Primary key (tw_account_id) is still INTEGER, but foreign key
+        (owner_id) is now ULID, so we enable validation.
+        """
+        super().__init__(client, "twilio_accounts", TwilioAccount, validates_ulid=True)
     
-    def find_by_owner(self, owner_id: int) -> Optional[TwilioAccount]:
+    def find_by_owner(self, owner_id: str) -> Optional[TwilioAccount]:
         """
         Find Twilio account by owner ID.
-        
+        owner_id is ULID, validated automatically.
         Args:
             owner_id: Owner ID
             
@@ -45,6 +49,15 @@ class TwilioAccountRepository(BaseRepository[TwilioAccount]):
         return accounts[0] if accounts else None
 
     def find_by_phone_number(self, phone_number: str) -> Optional[TwilioAccount]:
+        """
+        Find Twilio account by phone number.
+        
+        Args:
+            phone_number: Phone number to search for
+            
+        Returns:
+            TwilioAccount instance or None
+        """
         try:
             result = self.client.table(self.table_name)\
                 .select("*")\

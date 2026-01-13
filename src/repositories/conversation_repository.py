@@ -13,11 +13,16 @@ logger = get_logger(__name__)
 
 
 class ConversationRepository(BaseRepository[Conversation]):
-    """Repository for Conversation entity operations."""
+    """
+    Initialize conversation repository with ULID validation.
+    Repository for Conversation entity operations.
+    Updated to support ULID primary keys.
+    """
     
     def __init__(self, client: Client):
         """Initialize conversation repository."""
-        super().__init__(client, "conversations", Conversation)
+        # Changed id_column from "conv_id" (int) to "conv_id" (text/ULID)
+        super().__init__(client, "conversations", Conversation, validates_ulid=True)  # ✅ Enable ULID validation
     
     @staticmethod
     def calculate_session_key(number1: str, number2: str) -> str:
@@ -172,7 +177,11 @@ class ConversationRepository(BaseRepository[Conversation]):
             logger.error("Error finding conversations by session key", error=str(e))
             raise
 
-    def find_active_by_owner(self, owner_id: int, limit: int = 100) -> List[Conversation]:
+    def find_by_owner(self, owner_id: str, limit: int = 100) -> List[Conversation]:
+        """Find conversations by owner ID."""
+        return self.find_by({"owner_id": owner_id}, limit=limit)
+
+    def find_active_by_owner(self, owner_id: str, limit: int = 100) -> List[Conversation]:
         """
         Find all active conversations for an owner.
         
@@ -254,7 +263,7 @@ class ConversationRepository(BaseRepository[Conversation]):
     
     def update_status(
         self,
-        conv_id: int,
+        conv_id: str,
         status: ConversationStatus,
         ended_at: Optional[datetime] = None
     ) -> Optional[Conversation]:
@@ -297,6 +306,57 @@ class ConversationRepository(BaseRepository[Conversation]):
         updated = self.update(conv_id, data, id_column="conv_id")
             
         return updated
+    
+    def update_status(
+        self,
+        conv_id: str,
+        status: ConversationStatus
+    ) -> Optional[Conversation]:
+        """Update conversation status."""
+        data = {"status": status.value}
+        
+        if status.is_closed():
+            from datetime import datetime, timezone
+            data["ended_at"] = datetime.now(timezone.utc).isoformat()
+        
+        return self.update(conv_id, data, id_column="conv_id")    
+    
+    def find_by_session_key(
+        self,
+        owner_id: str,
+        from_number: str,
+        to_number: str,
+        active_only: bool = True
+    ) -> Optional[Conversation]:
+        """Find conversation by session key."""
+        try:
+            session_key = self._build_session_key(from_number, to_number)
+            
+            query = self.client.table(self.table_name)\
+                .select("*")\
+                .eq("owner_id", owner_id)\
+                .eq("session_key", session_key)
+            
+            if active_only:
+                query = query.in_(
+                    "status",
+                    [s.value for s in ConversationStatus.active_statuses()]
+                )
+            
+            result = query.limit(1).execute()
+            
+            if result.data:
+                return self.model_class(**result.data[0])
+            return None
+        except Exception as e:
+            logger.error("Error finding conversation by session key", error=str(e))
+            raise
+
+    def _build_session_key(self, from_number: str, to_number: str) -> str:
+        """Build bidirectional session key."""
+        if from_number < to_number:
+            return f"{from_number}::{to_number}"
+        return f"{to_number}::{from_number}"        
 
     def _is_valid_transition(self, from_status: ConversationStatus, to_status: ConversationStatus) -> bool:
         """Check if transition is valid."""

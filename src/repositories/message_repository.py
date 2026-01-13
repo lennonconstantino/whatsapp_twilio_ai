@@ -15,12 +15,12 @@ class MessageRepository(BaseRepository[Message]):
     """Repository for Message entity operations."""
     
     def __init__(self, client: Client):
-        """Initialize message repository."""
-        super().__init__(client, "messages", Message)
+        """Initialize message repository with ULID validation."""
+        super().__init__(client, "messages", Message, validates_ulid=True)  # ✅ Enable ULID validation
     
     def find_by_conversation(
         self,
-        conv_id: int,
+        conv_id: str,
         limit: int = 100,
         offset: int = 0
     ) -> List[Message]:
@@ -80,7 +80,7 @@ class MessageRepository(BaseRepository[Message]):
     
     def find_recent_by_conversation(
         self,
-        conv_id: int,
+        conv_id: str,
         limit: int = 10
     ) -> List[Message]:
         """
@@ -110,7 +110,7 @@ class MessageRepository(BaseRepository[Message]):
     
     def find_user_messages(
         self,
-        conv_id: int,
+        conv_id: str,
         limit: int = 50
     ) -> List[Message]:
         """
@@ -137,7 +137,7 @@ class MessageRepository(BaseRepository[Message]):
             logger.error("Error finding user messages", error=str(e))
             raise
     
-    def count_by_conversation(self, conv_id: int) -> int:
+    def count_by_conversation(self, conv_id: str) -> int:
         """
         Count messages in a conversation.
         

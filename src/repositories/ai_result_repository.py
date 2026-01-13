@@ -15,10 +15,10 @@ class AIResultRepository(BaseRepository[AIResult]):
     """Repository for AIResult entity operations."""
     
     def __init__(self, client: Client):
-        """Initialize AI result repository."""
-        super().__init__(client, "ai_results", AIResult)
+        """Initialize AI result repository with ULID validation."""
+        super().__init__(client, "ai_results", AIResult, validates_ulid=True)  # ✅ Enable ULID validation
     
-    def find_by_message(self, msg_id: int, limit: int = 100) -> List[AIResult]:
+    def find_by_message(self, msg_id: str, limit: int = 100) -> List[AIResult]:
         """
         Find AI results by message ID.
         
@@ -33,7 +33,7 @@ class AIResultRepository(BaseRepository[AIResult]):
     
     def find_by_feature(
         self,
-        feature_id: int,
+        feature_id: str,
         limit: int = 100
     ) -> List[AIResult]:
         """
@@ -50,7 +50,7 @@ class AIResultRepository(BaseRepository[AIResult]):
     
     def find_recent_by_feature(
         self,
-        feature_id: int,
+        feature_id: str,
         limit: int = 50
     ) -> List[AIResult]:
         """
@@ -78,8 +78,8 @@ class AIResultRepository(BaseRepository[AIResult]):
     
     def create_result(
         self,
-        msg_id: int,
-        feature_id: int,
+        msg_id: str,
+        feature_id: str,
         result_json: dict
     ) -> Optional[AIResult]:
         """

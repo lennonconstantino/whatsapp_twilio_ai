@@ -274,6 +274,7 @@ def seed_sample_conversations(
     messages_data = [
         {
             "conv_id": conversation.conv_id,
+            "owner_id": conversation.owner_id,
             "from_number": MY_PHONE_NUMBER,
             "to_number": TWILIO_PHONE_NUMBER,
             "body": "Olá! Gostaria de saber mais sobre seus produtos.",
@@ -284,6 +285,7 @@ def seed_sample_conversations(
         },
         {
             "conv_id": conversation.conv_id,
+            "owner_id": conversation.owner_id,
             "from_number": TWILIO_PHONE_NUMBER,
             "to_number": MY_PHONE_NUMBER,
             "body": "Olá! Claro, terei prazer em ajudá-lo. Sobre qual produto você gostaria de saber?",
@@ -295,6 +297,7 @@ def seed_sample_conversations(
         },
         {
             "conv_id": conversation.conv_id,
+            "owner_id": conversation.owner_id,
             "from_number": MY_PHONE_NUMBER,
             "to_number": TWILIO_PHONE_NUMBER,
             "body": "Tenho interesse no plano empresarial.",
