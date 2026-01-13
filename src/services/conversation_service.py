@@ -202,7 +202,7 @@ class ConversationService:
         """Create a new conversation."""
         now = datetime.now(timezone.utc)
         expires_at = now + timedelta(
-            minutes=settings.conversation.expiration_minutes
+            minutes=settings.conversation.pending_expiration_minutes
         )
         
         data = {
@@ -302,13 +302,20 @@ class ConversationService:
                         agent_type=message_create.message_owner
                     )
                     
+                    # Calculate new expiration for PROGRESS state (standard 24h)
+                    new_expires_at = datetime.now(timezone.utc) + timedelta(
+                        minutes=settings.conversation.expiration_minutes
+                    )
+
                     self.conversation_repo.update_status(
                         conversation.conv_id,
                         ConversationStatus.PROGRESS,
                         initiated_by="agent",
-                        reason="agent_acceptance"
+                        reason="agent_acceptance",
+                        expires_at=new_expires_at
                     )
-                    conversation.status = ConversationStatus.PROGRESS
+                    conversation.status = ConversationStatus.PROGRESS.value
+                    conversation.expires_at = new_expires_at
                     
                     # ✅ Registrar quem aceitou a conversa
                     context = conversation.context or {}

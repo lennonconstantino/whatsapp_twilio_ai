@@ -303,7 +303,8 @@ class ConversationRepository(BaseRepository[Conversation]):
         ended_at: Optional[datetime] = None,
         initiated_by: Optional[str] = None,
         reason: Optional[str] = None,
-        force: bool = False
+        force: bool = False,
+        expires_at: Optional[datetime] = None
     ) -> Optional[Conversation]:
         """
         Update conversation status with validation.
@@ -315,6 +316,7 @@ class ConversationRepository(BaseRepository[Conversation]):
             initiated_by: Who initiated the transition (system, user, agent)
             reason: Reason for the transition
             force: Whether to force transition even if invalid or closed
+            expires_at: Optional new expiration timestamp
             
         Returns:
             Updated Conversation instance or None
@@ -356,6 +358,9 @@ class ConversationRepository(BaseRepository[Conversation]):
         
         if ended_at:
             data["ended_at"] = ended_at.isoformat()
+            
+        if expires_at:
+            data["expires_at"] = expires_at.isoformat()
             
         # Add to status history in context
         context = current_conv.context or {}
