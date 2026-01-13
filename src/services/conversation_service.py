@@ -138,16 +138,26 @@ class ConversationService:
                         "Closing expired conversation before creating new one",
                         conv_id=conversation.conv_id
                     )
-                    self.close_conversation(
+                    # Update local conversation object with result of close operation
+                    conversation = self.close_conversation(
                         conversation, 
                         ConversationStatus.EXPIRED,
                         initiated_by="system",
                         reason="expired_before_new"
                     )
                 
+                # Prepare metadata with previous conversation context
+                new_metadata = metadata.copy() if metadata else {}
+                new_metadata.update({
+                    "previous_conversation_id": conversation.conv_id,
+                    "previous_status": conversation.status,
+                    "previous_ended_at": conversation.ended_at.isoformat() if conversation.ended_at else datetime.now(timezone.utc).isoformat(),
+                    "linked_at": datetime.now(timezone.utc).isoformat()
+                })
+                
                 # Create new conversation
                 conversation = self._create_new_conversation(
-                    owner_id, from_number, to_number, channel, user_id, metadata or {}
+                    owner_id, from_number, to_number, channel, user_id, new_metadata
                 )
             
                 logger.info(
@@ -168,10 +178,41 @@ class ConversationService:
 
         # No active conversation found, create new
         logger.info(
-            "No active conversation found, creating new",
+            "No active conversation found, checking history and creating new",
             owner_id=owner_id,
             session_key=session_key
         )
+        
+        # Try to find the most recent previous conversation for context linking
+        # This handles cases where we are starting fresh after a FAILED or CLOSED state
+        previous_conv = None
+        try:
+            last_conversations = self.conversation_repo.find_all_by_session_key(
+                owner_id, session_key, limit=1
+            )
+            if last_conversations:
+                previous_conv = last_conversations[0]
+                logger.info(
+                    "Found previous conversation for linking",
+                    prev_conv_id=previous_conv.conv_id,
+                    prev_status=previous_conv.status
+                )
+        except Exception as e:
+            logger.warning("Failed to fetch conversation history for linking", error=str(e))
+
+        # Prepare metadata
+        new_metadata = metadata.copy() if metadata else {}
+        if previous_conv:
+             new_metadata.update({
+                 "previous_conversation_id": previous_conv.conv_id,
+                 "previous_status": previous_conv.status,
+                 "previous_ended_at": previous_conv.ended_at.isoformat() if previous_conv.ended_at else None,
+                 "linked_at": datetime.now(timezone.utc).isoformat()
+             })
+             
+             # If previous was FAILED, we might want to flag it explicitly
+             if previous_conv.status == ConversationStatus.FAILED.value:
+                 new_metadata["recovery_mode"] = True
         
         conversation = self._create_new_conversation(
             owner_id=owner_id,
@@ -179,7 +220,7 @@ class ConversationService:
             to_number=to_number,
             channel=channel,
             user_id=user_id,
-            metadata=metadata or {}
+            metadata=new_metadata
         )
         
         logger.info(
