@@ -153,6 +153,7 @@ class Conversation(BaseModel):
     phone_number: Optional[str] = None
     context: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    version: int = 1  # Optimistic Locking
     
     model_config = ConfigDict(from_attributes=True, use_enum_values=True)
     
@@ -200,6 +201,9 @@ class Conversation(BaseModel):
     
     def is_expired(self) -> bool:
         """Check if conversation has expired."""
+        if self.is_closed():
+            return False
+            
         if not self.expires_at:
             return False
         from datetime import timezone
@@ -208,6 +212,25 @@ class Conversation(BaseModel):
         if exp.tzinfo is None:
             exp = exp.replace(tzinfo=timezone.utc)
         return now_utc > exp
+    
+    def is_idle(self, minutes: int) -> bool:
+        """Check if conversation is idle."""
+        if self.is_closed():
+            return False
+        
+        # Use updated_at or fallback to started_at
+        last_activity = self.updated_at or self.started_at
+        if not last_activity:
+            return False
+            
+        from datetime import timezone, timedelta
+        now_utc = datetime.now(timezone.utc)
+        threshold = now_utc - timedelta(minutes=minutes)
+        
+        if last_activity.tzinfo is None:
+            last_activity = last_activity.replace(tzinfo=timezone.utc)
+            
+        return last_activity < threshold
 
     def __repr__(self) -> str:
         return (

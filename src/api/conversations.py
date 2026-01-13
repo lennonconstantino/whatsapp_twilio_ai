@@ -182,7 +182,13 @@ async def close_conversation(
         raise HTTPException(status_code=404, detail="Conversation not found")
     
     try:
-        closed = service.close_conversation(conversation, status, reason)
+        # Use priority-aware closure
+        closed = service.close_conversation_with_priority(
+            conversation, 
+            status, 
+            initiated_by="api_user", 
+            reason=reason
+        )
         return ConversationResponse.model_validate(closed)
     except Exception as e:
         logger.error("Error closing conversation", error=str(e))

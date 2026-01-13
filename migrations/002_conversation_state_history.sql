@@ -14,12 +14,12 @@ CREATE TABLE IF NOT EXISTS conversation_state_history (
     created_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE INDEX idx_conv_state_history_conv_id ON conversation_state_history(conv_id);
-CREATE INDEX idx_conv_state_history_created_at ON conversation_state_history(created_at);
-CREATE INDEX idx_conv_state_history_to_status ON conversation_state_history(to_status);
+CREATE INDEX IF NOT EXISTS idx_conv_state_history_conv_id ON conversation_state_history(conv_id);
+CREATE INDEX IF NOT EXISTS idx_conv_state_history_created_at ON conversation_state_history(created_at);
+CREATE INDEX IF NOT EXISTS idx_conv_state_history_to_status ON conversation_state_history(to_status);
 
 -- JSONB Index
-CREATE INDEX idx_conv_state_history_metadata_gin ON conversation_state_history USING gin(metadata);
+CREATE INDEX IF NOT EXISTS idx_conv_state_history_metadata_gin ON conversation_state_history USING gin(metadata);
 
 COMMENT ON TABLE conversation_state_history IS 'Audit trail for conversation status transitions';
 COMMENT ON COLUMN conversation_state_history.history_id IS 'Unique ULID identifier for the history entry';

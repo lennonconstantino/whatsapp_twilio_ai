@@ -117,6 +117,7 @@ DROP INDEX IF EXISTS idx_twilio_accounts_owner_id;
 -- 7. DROP TABLES (in reverse dependency order)
 -- ============================================================================
 -- Drop child tables first
+DROP TABLE IF EXISTS conversation_state_history CASCADE;
 DROP TABLE IF EXISTS ai_results CASCADE;
 DROP TABLE IF EXISTS messages CASCADE;
 DROP TABLE IF EXISTS conversations CASCADE;

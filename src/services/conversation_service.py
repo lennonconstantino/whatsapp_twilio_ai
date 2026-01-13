@@ -16,6 +16,7 @@ from ..models import (
 from ..repositories import ConversationRepository, MessageRepository
 from ..config import settings
 from ..utils import get_logger, get_db
+from ..utils.exceptions import ConcurrencyError
 from .closure_detector import ClosureDetector
 
 logger = get_logger(__name__)
@@ -287,97 +288,146 @@ class ConversationService:
             Created Message
         """
         try:
-            # Reactivate conversation if it was in IDLE_TIMEOUT
-            if conversation.status == ConversationStatus.IDLE_TIMEOUT.value:
-                self.conversation_repo.update_status(
-                    conversation.conv_id,
-                    ConversationStatus.PROGRESS,
-                    initiated_by="user",
-                    reason="reactivation_from_idle"
-                )
-                conversation.status = ConversationStatus.PROGRESS
-                
-                # Add to context
-                context = conversation.context or {}
-                context['reactivated_from_idle'] = {
-                    'timestamp': datetime.now(timezone.utc).isoformat(),
-                    'triggered_by': message_create.message_owner
-                }
-                self.conversation_repo.update_context(conversation.conv_id, context)
-                
-                logger.info(
-                    "Conversation reactivated from idle timeout",
-                    conv_id=conversation.conv_id
-                )
+            # RETRY LOOP for state transitions (Optimistic Locking)
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    # Reactivate conversation if it was in IDLE_TIMEOUT
+                    if conversation.status == ConversationStatus.IDLE_TIMEOUT.value:
+                        updated = self.conversation_repo.update_status(
+                            conversation.conv_id,
+                            ConversationStatus.PROGRESS,
+                            initiated_by="user",
+                            reason="reactivation_from_idle"
+                        )
+                        if not updated:
+                             raise ConcurrencyError("Failed to update status (concurrency)", current_version=0)
+                        conversation = updated
 
-            # Update conversation status to PROGRESS if it was PENDING
-            if conversation.status == ConversationStatus.PENDING.value:
-                # Check for cancellation before transitioning to PROGRESS
-                if self.closure_detector.detect_cancellation_in_pending(message_create, conversation):
-                    logger.info("User cancelled conversation in PENDING state", conv_id=conversation.conv_id)
-                    
-                    # Persist the message first so we have record
-                    message_data = message_create.model_dump(mode='json')
-                    message_data["timestamp"] = datetime.now(timezone.utc).isoformat()
-                    created_message = self.message_repo.create(message_data)
-                    
-                    # Close conversation
-                    self.close_conversation(
-                        conversation, 
-                        ConversationStatus.USER_CLOSED,
-                        initiated_by="user",
-                        reason="user_cancellation_in_pending"
-                    )
-                    
-                    return created_message
+                        # Add to context
+                        context = conversation.context or {}
+                        context = context.copy()
+                        context['reactivated_from_idle'] = {
+                            'timestamp': datetime.now(timezone.utc).isoformat(),
+                            'triggered_by': message_create.message_owner
+                        }
+                        updated = self.conversation_repo.update_context(
+                            conversation.conv_id, 
+                            context,
+                            expected_version=getattr(conversation, "version", None)
+                        )
+                        if not updated:
+                             raise ConcurrencyError("Failed to update context (concurrency)", current_version=0)
+                        conversation = updated
+                        
+                        logger.info(
+                            "Conversation reactivated from idle timeout",
+                            conv_id=conversation.conv_id
+                        )
 
-                # Transicionar apenas se AGENT/SYSTEM/SUPPORT responde
-                if message_create.message_owner in [
-                    MessageOwner.AGENT.value,
-                    MessageOwner.SYSTEM.value,
-                    MessageOwner.SUPPORT.value
-                ]:
-                    logger.info(
-                        "Agent accepting conversation",
+                    # Update conversation status to PROGRESS if it was PENDING
+                    if conversation.status == ConversationStatus.PENDING.value:
+                        # Check for cancellation before transitioning to PROGRESS
+                        if self.closure_detector.detect_cancellation_in_pending(message_create, conversation):
+                            logger.info("User cancelled conversation in PENDING state", conv_id=conversation.conv_id)
+                            
+                            # Persist the message first so we have record
+                            message_data = message_create.model_dump(mode='json')
+                            message_data["timestamp"] = datetime.now(timezone.utc).isoformat()
+                            created_message = self.message_repo.create(message_data)
+                            
+                            # Close conversation (close_conversation has its own retry logic now)
+                            self.close_conversation(
+                                conversation, 
+                                ConversationStatus.USER_CLOSED,
+                                initiated_by="user",
+                                reason="user_cancellation_in_pending"
+                            )
+                            
+                            return created_message
+
+                        # Transicionar apenas se AGENT/SYSTEM/SUPPORT responde
+                        if message_create.message_owner in [
+                            MessageOwner.AGENT.value,
+                            MessageOwner.SYSTEM.value,
+                            MessageOwner.SUPPORT.value
+                        ]:
+                            logger.info(
+                                "Agent accepting conversation",
+                                conv_id=conversation.conv_id,
+                                agent_type=message_create.message_owner
+                            )
+                            
+                            # Calculate new expiration for PROGRESS state (standard 24h)
+                            new_expires_at = datetime.now(timezone.utc) + timedelta(
+                                minutes=settings.conversation.expiration_minutes
+                            )
+
+                            updated = self.conversation_repo.update_status(
+                                conversation.conv_id,
+                                ConversationStatus.PROGRESS,
+                                initiated_by="agent",
+                                reason="agent_acceptance",
+                                expires_at=new_expires_at
+                            )
+                            if not updated:
+                                 raise ConcurrencyError("Failed to update status", current_version=0)
+                            conversation = updated
+                            
+                            # ✅ Registrar quem aceitou a conversa
+                            context = conversation.context or {}
+                            context = context.copy()
+                            context['accepted_by'] = {
+                                'timestamp': datetime.now(timezone.utc).isoformat(),
+                                'agent_type': message_create.message_owner,
+                                'message_id': None  # Será preenchido após criar mensagem
+                            }
+                            
+                            # Se message_create tiver user_id (agente específico)
+                            if hasattr(message_create, 'user_id') and message_create.user_id:
+                                context['accepted_by']['user_id'] = message_create.user_id
+                            
+                            updated = self.conversation_repo.update_context(
+                                conversation.conv_id, 
+                                context,
+                                expected_version=getattr(conversation, "version", None)
+                            )
+                            if not updated:
+                                 raise ConcurrencyError("Failed to update context", current_version=0)
+                            conversation = updated
+                        else:
+                            # Mensagem de USER em PENDING - manter em PENDING
+                            logger.debug(
+                                "User message while in PENDING - keeping in PENDING",
+                                conv_id=conversation.conv_id
+                            )
+                    
+                    # If we complete the block without ConcurrencyError, break the retry loop
+                    break
+                    
+                except (ConcurrencyError, ValueError) as e:
+                    # If ValueError, check if it's due to status mismatch (race condition)
+                    is_transition_error = isinstance(e, ValueError) and "transition" in str(e)
+                    
+                    if not isinstance(e, ConcurrencyError) and not is_transition_error:
+                        raise e
+
+                    if attempt == max_retries - 1:
+                        logger.error("Max retries reached for add_message state transition", conv_id=conversation.conv_id)
+                        raise
+                    
+                    # Reload conversation and retry
+                    logger.warning(
+                        "Concurrency/State conflict in add_message, retrying...",
                         conv_id=conversation.conv_id,
-                        agent_type=message_create.message_owner
+                        error=str(e),
+                        attempt=attempt+1
                     )
-                    
-                    # Calculate new expiration for PROGRESS state (standard 24h)
-                    new_expires_at = datetime.now(timezone.utc) + timedelta(
-                        minutes=settings.conversation.expiration_minutes
-                    )
+                    refreshed = self.conversation_repo.find_by_id(conversation.conv_id, id_column="conv_id")
+                    if not refreshed:
+                        raise ValueError(f"Conversation {conversation.conv_id} not found during retry")
+                    conversation = refreshed
 
-                    self.conversation_repo.update_status(
-                        conversation.conv_id,
-                        ConversationStatus.PROGRESS,
-                        initiated_by="agent",
-                        reason="agent_acceptance",
-                        expires_at=new_expires_at
-                    )
-                    conversation.status = ConversationStatus.PROGRESS.value
-                    conversation.expires_at = new_expires_at
-                    
-                    # ✅ Registrar quem aceitou a conversa
-                    context = conversation.context or {}
-                    context['accepted_by'] = {
-                        'timestamp': datetime.now(timezone.utc).isoformat(),
-                        'agent_type': message_create.message_owner,
-                        'message_id': None  # Será preenchido após criar mensagem
-                    }
-                    
-                    # Se message_create tiver user_id (agente específico)
-                    if hasattr(message_create, 'user_id') and message_create.user_id:
-                        context['accepted_by']['user_id'] = message_create.user_id
-                    
-                    self.conversation_repo.update_context(conversation.conv_id, context)
-                else:
-                    # Mensagem de USER em PENDING - manter em PENDING
-                    logger.debug(
-                        "User message while in PENDING - keeping in PENDING",
-                        conv_id=conversation.conv_id
-                    )
-            
             # Persist the message
             message_data = message_create.model_dump(mode='json')
             message_data["timestamp"] = datetime.now(timezone.utc).isoformat()
@@ -387,8 +437,18 @@ class ConversationService:
             if conversation.status == ConversationStatus.PROGRESS.value:
                 context = conversation.context or {}
                 if 'accepted_by' in context and not context['accepted_by'].get('message_id'):
+                    context = context.copy()
                     context['accepted_by']['message_id'] = created_message.msg_id
-                    self.conversation_repo.update_context(conversation.conv_id, context)
+                    # Use update_context which now has optimistic locking support
+                    # We might want a mini-retry here too, but it's less critical
+                    try:
+                        self.conversation_repo.update_context(
+                            conversation.conv_id, 
+                            context,
+                            expected_version=getattr(conversation, "version", None)
+                        )
+                    except ConcurrencyError:
+                        logger.warning("Failed to update accepted_by message_id due to concurrency", conv_id=conversation.conv_id)
             
             logger.info(
                 "Added message to conversation",
@@ -407,7 +467,15 @@ class ConversationService:
                 )
             
             # Update conversation timestamp for any message owner
-            self.conversation_repo.update_timestamp(conversation.conv_id)
+            # Retry this as well since it's common
+            try:
+                self.conversation_repo.update_timestamp(conversation.conv_id)
+            except ConcurrencyError:
+                # If timestamp update fails, it's not critical, but we can try once more
+                # Getting fresh version first
+                refreshed = self.conversation_repo.find_by_id(conversation.conv_id, id_column="conv_id")
+                if refreshed:
+                    self.conversation_repo.update_timestamp(refreshed.conv_id)
             
             return created_message
             
@@ -541,35 +609,52 @@ class ConversationService:
         conversation: Conversation,
         status: ConversationStatus,
         initiated_by: Optional[str] = None,
-        reason: Optional[str] = None
+        reason: Optional[str] = None,
+        auto_retry: bool = True
     ) -> Conversation:
         """Force close conversation regardless of current status."""
         now = datetime.now(timezone.utc)
         
-        closed_conversation = self.conversation_repo.update_status(
-            conversation.conv_id,
-            status,
-            ended_at=now,
-            initiated_by=initiated_by,
-            reason=reason,
-            force=True
-        )
-        
-        logger.info(
-            "Force closed conversation",
-            conv_id=conversation.conv_id,
-            status=status.value,
-            reason=reason
-        )
-        
-        return closed_conversation
+        # Retry loop for force close
+        max_retries = 3 if auto_retry else 1
+        for attempt in range(max_retries):
+            try:
+                closed_conversation = self.conversation_repo.update_status(
+                    conversation.conv_id,
+                    status,
+                    ended_at=now,
+                    initiated_by=initiated_by,
+                    reason=reason,
+                    force=True
+                )
+                
+                logger.info(
+                    "Force closed conversation",
+                    conv_id=conversation.conv_id,
+                    status=status.value,
+                    reason=reason
+                )
+                
+                return closed_conversation
+            except ConcurrencyError:
+                if attempt == max_retries - 1:
+                    logger.error("Max retries reached for force_close (or auto_retry=False)", conv_id=conversation.conv_id)
+                    raise
+                
+                # Reload conversation
+                logger.warning("Concurrency conflict in force_close, retrying...", conv_id=conversation.conv_id)
+                refreshed = self.conversation_repo.find_by_id(conversation.conv_id, id_column="conv_id")
+                if not refreshed:
+                    raise ValueError(f"Conversation {conversation.conv_id} not found during retry")
+                conversation = refreshed
 
     def close_conversation(
         self,
         conversation: Conversation,
         status: ConversationStatus,
         initiated_by: Optional[str] = None,
-        reason: Optional[str] = None
+        reason: Optional[str] = None,
+        auto_retry: bool = True
     ) -> Conversation:
         """
         Close a conversation with the specified status.
@@ -579,29 +664,45 @@ class ConversationService:
             status: Closure status
             initiated_by: Who initiated closure
             reason: Closure reason
+            auto_retry: Whether to retry on ConcurrencyError
             
         Returns:
             Closed Conversation
         """
         now = datetime.now(timezone.utc)
         
-        # Update status
-        closed_conversation = self.conversation_repo.update_status(
-            conversation.conv_id,
-            status,
-            ended_at=now,
-            initiated_by=initiated_by,
-            reason=reason
-        )
-        
-        logger.info(
-            "Closed conversation",
-            conv_id=conversation.conv_id,
-            status=status.value,
-            reason=reason
-        )
-        
-        return closed_conversation
+        # Retry loop for close
+        max_retries = 3 if auto_retry else 1
+        for attempt in range(max_retries):
+            try:
+                # Update status
+                closed_conversation = self.conversation_repo.update_status(
+                    conversation.conv_id,
+                    status,
+                    ended_at=now,
+                    initiated_by=initiated_by,
+                    reason=reason
+                )
+                
+                logger.info(
+                    "Closed conversation",
+                    conv_id=conversation.conv_id,
+                    status=status.value,
+                    reason=reason
+                )
+                
+                return closed_conversation
+            except ConcurrencyError:
+                if attempt == max_retries - 1:
+                    logger.error("Max retries reached for close_conversation (or auto_retry=False)", conv_id=conversation.conv_id)
+                    raise
+                
+                # Reload conversation
+                logger.warning("Concurrency conflict in close_conversation, retrying...", conv_id=conversation.conv_id)
+                refreshed = self.conversation_repo.find_by_id(conversation.conv_id, id_column="conv_id")
+                if not refreshed:
+                    raise ValueError(f"Conversation {conversation.conv_id} not found during retry")
+                conversation = refreshed
     
     def get_conversation_by_id(self, conv_id: str) -> Optional[Conversation]:
         """
@@ -666,8 +767,34 @@ class ConversationService:
         
         for conversation in expired:
             try:
-                self._expire_conversation(conversation)
+                # Try to expire with auto_retry=False to handle race conditions manually
+                self.close_conversation(
+                    conversation,
+                    ConversationStatus.EXPIRED,
+                    initiated_by="system",
+                    reason="expired",
+                    auto_retry=False
+                )
                 count += 1
+            except ConcurrencyError:
+                # Reload and re-check expiration condition
+                logger.info("Concurrency conflict during expiration, re-evaluating", conv_id=conversation.conv_id)
+                try:
+                    refreshed = self.conversation_repo.find_by_id(conversation.conv_id, id_column="conv_id")
+                    if refreshed and refreshed.is_expired():
+                        # Still expired, try again (safe to retry now)
+                        self.close_conversation(
+                            refreshed,
+                            ConversationStatus.EXPIRED,
+                            initiated_by="system",
+                            reason="expired",
+                            auto_retry=True
+                        )
+                        count += 1
+                    else:
+                        logger.info("Conversation no longer expired after reload", conv_id=conversation.conv_id)
+                except Exception as e:
+                    logger.error("Error recovering from expiration concurrency", conv_id=conversation.conv_id, error=str(e))
             except Exception as e:
                 logger.error(
                     "Error expiring conversation",
@@ -699,13 +826,34 @@ class ConversationService:
         
         for conversation in idle:
             try:
+                # Try to close with auto_retry=False
                 self.close_conversation(
-                conversation,
-                ConversationStatus.IDLE_TIMEOUT,
-                initiated_by="system",
-                reason="idle_timeout"
-            )
+                    conversation,
+                    ConversationStatus.IDLE_TIMEOUT,
+                    initiated_by="system",
+                    reason="idle_timeout",
+                    auto_retry=False
+                )
                 count += 1
+            except ConcurrencyError:
+                # Reload and re-check idle condition
+                logger.info("Concurrency conflict during idle timeout, re-evaluating", conv_id=conversation.conv_id)
+                try:
+                    refreshed = self.conversation_repo.find_by_id(conversation.conv_id, id_column="conv_id")
+                    if refreshed and refreshed.is_idle(idle_minutes):
+                        # Still idle, try again
+                        self.close_conversation(
+                            refreshed,
+                            ConversationStatus.IDLE_TIMEOUT,
+                            initiated_by="system",
+                            reason="idle_timeout",
+                            auto_retry=True
+                        )
+                        count += 1
+                    else:
+                        logger.info("Conversation no longer idle after reload", conv_id=conversation.conv_id)
+                except Exception as e:
+                    logger.error("Error recovering from idle concurrency", conv_id=conversation.conv_id, error=str(e))
             except Exception as e:
                 logger.error(
                     "Error closing idle conversation",
@@ -715,15 +863,6 @@ class ConversationService:
         
         logger.info(f"Closed {count} idle conversations")
         return count
-    
-    def _expire_conversation(self, conversation: Conversation):
-        """Expire a conversation."""
-        self.close_conversation(
-            conversation,
-            ConversationStatus.EXPIRED,
-            initiated_by="system",
-            reason="expired"
-        )
     
     def extend_expiration(
         self,
@@ -764,39 +903,62 @@ class ConversationService:
         Returns:
             Updated Conversation
         """
-        old_user_id = conversation.user_id
+        # Retry loop for Optimistic Locking
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Use current version if first attempt, otherwise refresh
+                if attempt > 0:
+                    refreshed = self.conversation_repo.find_by_id(conversation.conv_id, id_column="conv_id")
+                    if not refreshed:
+                         raise ValueError(f"Conversation {conversation.conv_id} not found during retry")
+                    conversation = refreshed
+                
+                old_user_id = conversation.user_id
+                
+                # Update context
+                context = conversation.context or {}
+                # Create a copy to avoid mutating the object if retry fails (though we reload anyway)
+                context = context.copy()
+                context['transfer_history'] = context.get('transfer_history', [])
+                context['transfer_history'].append({
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'from_user_id': old_user_id,
+                    'to_user_id': new_user_id,
+                    'reason': reason
+                })
+                
+                # Update conversation
+                data = {
+                    "user_id": new_user_id,
+                    "context": context,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+                
+                updated_conv = self.conversation_repo.update(
+                    conversation.conv_id, 
+                    data, 
+                    id_column="conv_id",
+                    expected_version=getattr(conversation, "version", None)
+                )
+                
+                logger.info(
+                    "Transferred conversation",
+                    conv_id=conversation.conv_id,
+                    from_user=old_user_id,
+                    to_user=new_user_id
+                )
+                
+                return updated_conv
+                
+            except ConcurrencyError:
+                if attempt == max_retries - 1:
+                    logger.error("Max retries reached for transfer_conversation", conv_id=conversation.conv_id)
+                    raise
+                logger.warning("Concurrency conflict in transfer_conversation, retrying...", conv_id=conversation.conv_id)
         
-        # Update context
-        context = conversation.context or {}
-        context['transfer_history'] = context.get('transfer_history', [])
-        context['transfer_history'].append({
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'from_user_id': old_user_id,
-            'to_user_id': new_user_id,
-            'reason': reason
-        })
-        
-        # Update conversation
-        data = {
-            "user_id": new_user_id,
-            "context": context,
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
-        
-        updated_conv = self.conversation_repo.update(
-            conversation.conv_id, 
-            data, 
-            id_column="conv_id"
-        )
-        
-        logger.info(
-            "Transferred conversation",
-            conv_id=conversation.conv_id,
-            from_user=old_user_id,
-            to_user=new_user_id
-        )
-        
-        return updated_conv
+        # Should be unreachable due to raise in loop
+        return conversation
 
     def escalate_conversation(
         self,
@@ -817,35 +979,57 @@ class ConversationService:
         Returns:
             Updated Conversation
         """
-        # Update context
-        context = conversation.context or {}
-        context['escalated'] = {
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'supervisor_id': supervisor_id,
-            'reason': reason,
-            'status': 'open' # explicit status for escalation
-        }
+        # Retry loop for Optimistic Locking
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Use current version if first attempt, otherwise refresh
+                if attempt > 0:
+                    refreshed = self.conversation_repo.find_by_id(conversation.conv_id, id_column="conv_id")
+                    if not refreshed:
+                         raise ValueError(f"Conversation {conversation.conv_id} not found during retry")
+                    conversation = refreshed
+
+                # Update context
+                context = conversation.context or {}
+                # Create a copy
+                context = context.copy()
+                context['escalated'] = {
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'supervisor_id': supervisor_id,
+                    'reason': reason,
+                    'status': 'open' # explicit status for escalation
+                }
+                
+                # Ensure status is PROGRESS
+                data = {
+                    "status": ConversationStatus.PROGRESS.value,
+                    "context": context,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }
+                
+                updated_conv = self.conversation_repo.update(
+                    conversation.conv_id, 
+                    data, 
+                    id_column="conv_id",
+                    expected_version=getattr(conversation, "version", None)
+                )
+                
+                logger.info(
+                    "Escalated conversation",
+                    conv_id=conversation.conv_id,
+                    supervisor_id=supervisor_id
+                )
+                
+                return updated_conv
+
+            except ConcurrencyError:
+                if attempt == max_retries - 1:
+                    logger.error("Max retries reached for escalate_conversation", conv_id=conversation.conv_id)
+                    raise
+                logger.warning("Concurrency conflict in escalate_conversation, retrying...", conv_id=conversation.conv_id)
         
-        # Ensure status is PROGRESS
-        data = {
-            "status": ConversationStatus.PROGRESS.value,
-            "context": context,
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
-        
-        updated_conv = self.conversation_repo.update(
-            conversation.conv_id, 
-            data, 
-            id_column="conv_id"
-        )
-        
-        logger.info(
-            "Escalated conversation",
-            conv_id=conversation.conv_id,
-            supervisor_id=supervisor_id
-        )
-        
-        return updated_conv
+        return conversation
 
     def _handle_critical_error(self, conversation: Conversation, error: Exception, context: Dict[str, Any]):
         """Marca conversa como FAILED quando erro crítico ocorre."""

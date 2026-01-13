@@ -1,13 +1,14 @@
 """
 Conversation repository for database operations.
 """
-from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta, timezone
+from typing import Optional, List, Dict, Any, Union
+from datetime import datetime, timezone, timedelta
 from supabase import Client
 
 from .base import BaseRepository
 from ..models import Conversation, ConversationStatus, MessageOwner
 from ..utils import get_logger
+from ..utils.exceptions import ConcurrencyError
 
 logger = get_logger(__name__)
 
@@ -28,6 +29,10 @@ class ConversationRepository(BaseRepository[Conversation]):
         """
         Create a new conversation and log initial state history.
         """
+        # Ensure version is initialized for Optimistic Locking
+        if "version" not in data:
+            data["version"] = 1
+
         conversation = super().create(data)
         
         if conversation:
@@ -296,6 +301,81 @@ class ConversationRepository(BaseRepository[Conversation]):
             logger.error("Error finding idle conversations", error=str(e))
             raise
     
+    def update(
+        self, 
+        id_value: Union[int, str], 
+        data: Dict[str, Any], 
+        id_column: str = "conv_id",
+        expected_version: Optional[int] = None
+    ) -> Optional[Conversation]:
+        """
+        Update a conversation with Optimistic Locking.
+        
+        Overrides BaseRepository.update to ensure version consistency.
+        
+        Args:
+            id_value: Conversation ID
+            data: Data to update
+            id_column: ID column name
+            expected_version: Expected version of the record (for Optimistic Locking)
+            
+        Returns:
+            Updated Conversation
+            
+        Raises:
+            ConcurrencyError: If version conflict detected
+        """
+        # Determine version to check against
+        current_version = expected_version
+        
+        if current_version is None:
+            # Fallback: Get current version from DB (less safe for read-modify-write)
+            current = self.find_by_id(id_value, id_column)
+            if not current:
+                return None
+            current_version = getattr(current, "version", 1)
+        
+        # Increment version
+        data["version"] = current_version + 1
+        
+        try:
+            result = self.client.table(self.table_name)\
+                .update(data)\
+                .eq(id_column, id_value)\
+                .eq("version", current_version)\
+                .execute()
+            
+            if not result.data:
+                # Update failed - check if it was due to version mismatch
+                check = self.find_by_id(id_value, id_column)
+                if check:
+                    actual_version = getattr(check, "version", "?")
+                    # Only warn if versions differ (real conflict)
+                    if actual_version != current_version:
+                        logger.warning(
+                            "Optimistic locking conflict in generic update",
+                            conv_id=id_value,
+                            expected_version=current_version,
+                            actual_version=actual_version
+                        )
+                        raise ConcurrencyError(
+                            f"Concurrency conflict: Expected version {current_version}, found {actual_version}",
+                            current_version=current_version
+                        )
+                return None
+            
+            return self.model_class(**result.data[0])
+            
+        except Exception as e:
+            if isinstance(e, ConcurrencyError):
+                raise
+            logger.error(
+                "Error updating conversation",
+                conv_id=id_value,
+                error=str(e)
+            )
+            raise
+
     def update_status(
         self,
         conv_id: str,
@@ -378,7 +458,46 @@ class ConversationRepository(BaseRepository[Conversation]):
         context['status_history'] = status_history
         data['context'] = context
         
-        updated = self.update(conv_id, data, id_column="conv_id")
+        # Optimistic Locking: Increment version and check against current
+        current_version = getattr(current_conv, "version", 1)
+        data["version"] = current_version + 1
+        
+        # Perform update with version check
+        try:
+            result = self.client.table(self.table_name)\
+                .update(data)\
+                .eq("conv_id", conv_id)\
+                .eq("version", current_version)\
+                .execute()
+            
+            if not result.data:
+                # Update failed - likely version mismatch
+                check = self.find_by_id(conv_id, id_column="conv_id")
+                if check:
+                    logger.warning(
+                        "Optimistic locking conflict detected",
+                        conv_id=conv_id,
+                        expected_version=current_version,
+                        actual_version=getattr(check, "version", "?")
+                    )
+                    raise ConcurrencyError(
+                        f"Concurrency conflict: Expected version {current_version}, found {getattr(check, 'version', '?')}",
+                        current_version=current_version
+                    )
+                else:
+                    return None
+            
+            updated = self.model_class(**result.data[0])
+
+        except Exception as e:
+            if isinstance(e, ConcurrencyError):
+                raise
+            logger.error(
+                "Error updating conversation status",
+                conv_id=conv_id,
+                error=str(e)
+            )
+            raise
             
         # New: Persist to conversation_state_history table
         try:
@@ -502,7 +621,8 @@ class ConversationRepository(BaseRepository[Conversation]):
     def update_context(
         self,
         conv_id: str,
-        context: dict
+        context: dict,
+        expected_version: Optional[int] = None
     ) -> Optional[Conversation]:
         """
         Update conversation context.
@@ -510,6 +630,7 @@ class ConversationRepository(BaseRepository[Conversation]):
         Args:
             conv_id: Conversation ID (ULID)
             context: New context data
+            expected_version: Expected version for Optimistic Locking
             
         Returns:
             Updated Conversation instance or None
@@ -517,7 +638,7 @@ class ConversationRepository(BaseRepository[Conversation]):
         data = {
             "context": context
         }
-        return self.update(conv_id, data, id_column="conv_id")
+        return self.update(conv_id, data, id_column="conv_id", expected_version=expected_version)
     
     def extend_expiration(
         self,
@@ -608,11 +729,15 @@ class ConversationRepository(BaseRepository[Conversation]):
                         reason="normal_timeout"
                     )
                     
-                    updated = self.update_status(
-                        conv.conv_id,
-                        ConversationStatus.EXPIRED,
-                        ended_at=datetime.now(timezone.utc)
-                    )
+                    try:
+                        updated = self.update_status(
+                            conv.conv_id,
+                            ConversationStatus.EXPIRED,
+                            ended_at=datetime.now(timezone.utc)
+                        )
+                    except ConcurrencyError:
+                        logger.warning("Concurrency conflict during cleanup (active), skipping", conv_id=conv.conv_id)
+                        continue
                     
                     if updated:
                         # Registrar motivo da expiração
@@ -631,11 +756,15 @@ class ConversationRepository(BaseRepository[Conversation]):
                         reason="extended_idle_timeout"
                     )
                     
-                    updated = self.update_status(
-                        conv.conv_id,
-                        ConversationStatus.EXPIRED,
-                        ended_at=datetime.now(timezone.utc)
-                    )
+                    try:
+                        updated = self.update_status(
+                            conv.conv_id,
+                            ConversationStatus.EXPIRED,
+                            ended_at=datetime.now(timezone.utc)
+                        )
+                    except ConcurrencyError:
+                        logger.warning("Concurrency conflict during cleanup (idle), skipping", conv_id=conv.conv_id)
+                        continue
                     
                     if updated:
                         # Registrar que era IDLE_TIMEOUT
