@@ -117,7 +117,7 @@ class TwilioService:
         """
         # Only send via fake sender in development environment
         if settings.api.environment == "development" and settings.api.use_fake_sender:
-            logger.info("Message sent via fake sender")
+            logger.warning("Message sent via fake sender")
             return self.__send_via_fake_sender(owner_id, from_number, to_number, body, media_url)
 
         client = self._get_client(owner_id)

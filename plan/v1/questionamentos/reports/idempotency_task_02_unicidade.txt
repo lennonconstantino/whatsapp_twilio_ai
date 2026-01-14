@@ -1,0 +1,21 @@
+Tarefa: Adicionar garantia de unicidade de MessageSid no banco e camada de repositório
+
+Resumo:
+- A unicidade lógica de MessageSid já é aplicada via busca anterior (find_by_external_id) no webhook.
+- Para reforçar em cenários de alta concorrência, a recomendação é criar uma constraint ou índice único baseado em metadata->>message_sid na tabela messages.
+
+Sugestão de constraint no Postgres/Supabase (ajustar conforme naming):
+- ALTER TABLE messages
+    ADD CONSTRAINT messages_message_sid_unique
+    UNIQUE ((metadata->>'message_sid'));
+
+Impacto arquitetural:
+- A fonte de verdade da idempotência passa a ser o banco (garantia forte), com a lógica de aplicação tratando eventuais violações como sinais de idempotência.
+- O código permanece compatível mesmo sem a constraint aplicada; a verificação prévia por find_by_external_id continua válida.
+
+Pontos de atenção:
+- É necessário aplicar a constraint via pipeline de migrations existente do projeto.
+- Em ambientes com mensagens sem message_sid (outros canais), a constraint deve ser ajustada para considerar apenas registros Twilio, se necessário.
+
+Próximos passos:
+- Ajustar o fluxo do webhook para combinar a verificação de idempotência atual com o tratamento do caso de unicidade no momento da criação da mensagem.

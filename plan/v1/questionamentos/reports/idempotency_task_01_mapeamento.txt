@@ -1,0 +1,15 @@
+Tarefa: Mapear criação de mensagens e ponto central para idempotência
+
+Resumo:
+- A criação de mensagens está centralizada em ConversationService.add_message.
+- Todos os fluxos de API (webhooks, conversas) usam ConversationService.add_message.
+- O Twilio MessageSid é armazenado em metadata.message_sid do MessageCreateDTO.
+- A verificação de idempotência atual ocorre no webhook (__verify_idempotency) via MessageRepository.find_by_external_id.
+
+Impacto arquitetural:
+- Há um único ponto de persistência de mensagens (MessageRepository.create), o que facilita reforçar garantias de idempotência.
+- A idempotência hoje depende apenas de consulta ao banco, sem constraint de unicidade para message_sid.
+
+Próximos passos:
+- Adicionar garantia de unicidade de MessageSid no banco (nível de persistência).
+- Ajustar o fluxo de criação de mensagens para tratar violações de unicidade como caso de idempotência.

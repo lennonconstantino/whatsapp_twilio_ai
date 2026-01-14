@@ -1,0 +1,22 @@
+Tarefa: Ajustar fluxo de webhook para usar unicidade e tratar duplicatas
+
+Resumo:
+- O fluxo atual de webhook Twilio já aplica idempotência lógica via __verify_idempotency, usando MessageRepository.find_by_external_id para buscar por metadata.message_sid.
+- Com a recomendação de constraint única em metadata->>message_sid, o fluxo continua válido e passa a contar com uma garantia adicional no banco em cenários de alta concorrência.
+
+Comportamento consolidado:
+- Para a primeira chegada de um MessageSid:
+  - __verify_idempotency não encontra registro e o fluxo segue para criar a mensagem via ConversationService.add_message.
+- Para retries normais do Twilio (mesmo MessageSid):
+  - __verify_idempotency encontra a mensagem existente e o endpoint responde reaproveitando conv_id e msg_id, sem nova escrita.
+- Em cenários de corrida onde duas instâncias processam o mesmo MessageSid ao mesmo tempo:
+  - Com a constraint aplicada, o banco impede duplicatas; erros de unicidade podem ser tratados como casos de idempotência na camada de persistência, se necessário.
+
+Impacto arquitetural:
+- A idempotência de webhook fica apoiada em dois níveis:
+  - Verificação lógica prévia (find_by_external_id) para o caminho feliz.
+  - Garantia estrutural de unicidade no banco para cenários de alta concorrência.
+
+Pontos de atenção:
+- É importante alinhar as migrations de banco para garantir a constraint de unicidade em ambientes de produção.
+- Para outros canais que não usam Twilio/MessageSid, a constraint deve ser projetada para não impactar fluxos existentes.
