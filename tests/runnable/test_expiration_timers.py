@@ -7,14 +7,14 @@ from datetime import datetime, timedelta, timezone
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
-from src.services.conversation_service import ConversationService
-from src.repositories.conversation_repository import ConversationRepository
-from src.repositories.message_repository import MessageRepository
-from src.repositories.user_repository import UserRepository
-from src.repositories.owner_repository import OwnerRepository
-from src.models.domain import ConversationStatus, MessageOwner, MessageCreateDTO
-from src.utils.database import get_db
-from src.config import settings
+from src.modules.conversation.services.conversation_service import ConversationService
+from src.modules.conversation.repositories.conversation_repository import ConversationRepository
+from src.modules.conversation.repositories.message_repository import MessageRepository
+from src.modules.identity.repositories.user_repository import UserRepository
+from src.modules.identity.repositories.owner_repository import OwnerRepository
+from src.core.models.domain import ConversationStatus, MessageOwner, MessageCreateDTO
+from src.core.database.session import get_db
+from src.core.config import settings
 
 class TestExpirationTimers(unittest.TestCase):
     def setUp(self):

@@ -6,10 +6,10 @@ from datetime import datetime, timezone
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
-from src.models.domain import Conversation
-from src.models.enums import ConversationStatus
-from src.services.conversation_service import ConversationService
-from src.utils.custom_ulid import generate_ulid
+from src.core.models.domain import Conversation
+from src.core.models.enums import ConversationStatus
+from src.modules.conversation.services.conversation_service import ConversationService
+from src.core.utils.custom_ulid import generate_ulid
 
 # Setup simple logger
 import logging

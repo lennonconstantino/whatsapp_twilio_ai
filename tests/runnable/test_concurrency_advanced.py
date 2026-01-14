@@ -7,13 +7,13 @@ from typing import Dict, Any
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from src.services.conversation_service import ConversationService
-from src.repositories.conversation_repository import ConversationRepository
-from src.repositories.owner_repository import OwnerRepository
-from src.repositories.user_repository import UserRepository
-from src.models.domain import Conversation, ConversationStatus
-from src.utils import get_db, get_logger
-from src.utils.exceptions import ConcurrencyError
+from src.modules.conversation.services.conversation_service import ConversationService
+from src.modules.conversation.repositories.conversation_repository import ConversationRepository
+from src.modules.identity.repositories.owner_repository import OwnerRepository
+from src.modules.identity.repositories.user_repository import UserRepository
+from src.core.models.domain import Conversation, ConversationStatus
+from src.core.utils import get_db, get_logger
+from src.core.utils.exceptions import ConcurrencyError
 
 logger = get_logger(__name__)
 

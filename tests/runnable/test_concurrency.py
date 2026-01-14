@@ -6,13 +6,13 @@ from unittest.mock import MagicMock, patch
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from src.services.conversation_service import ConversationService
-from src.repositories.conversation_repository import ConversationRepository
-from src.repositories.owner_repository import OwnerRepository
-from src.models.domain import Conversation, ConversationStatus, MessageCreateDTO
-from src.models.enums import MessageOwner
-from src.utils import get_db, get_logger
-from src.utils.exceptions import ConcurrencyError
+from src.modules.conversation.services.conversation_service import ConversationService
+from src.modules.conversation.repositories.conversation_repository import ConversationRepository
+from src.modules.identity.repositories.owner_repository import OwnerRepository
+from src.core.models.domain import Conversation, ConversationStatus, MessageCreateDTO
+from src.core.models.enums import MessageOwner
+from src.core.utils import get_db, get_logger
+from src.core.utils.exceptions import ConcurrencyError
 from datetime import datetime
 
 logger = get_logger(__name__)

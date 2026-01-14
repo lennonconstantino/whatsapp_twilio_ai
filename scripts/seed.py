@@ -13,17 +13,24 @@ load_dotenv()
 # sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from datetime import datetime, timedelta
-from src.config import settings
-from src.utils import get_db, configure_logging, get_logger
-from src.repositories import (
-    OwnerRepository,
-    UserRepository,
+from postgrest.exceptions import APIError
+from src.core.config import settings
+from src.core.utils import get_db, configure_logging, get_logger
+from src.modules.identity.repositories.owner_repository import OwnerRepository
+from src.modules.identity.repositories.user_repository import UserRepository
+from src.modules.identity.repositories.feature_repository import (
     FeatureRepository,
-    TwilioAccountRepository,
-    ConversationRepository,
-    MessageRepository
 )
-from src.models import (
+from src.modules.channels.twilio.repositories.account_repository import (
+    TwilioAccountRepository,
+)
+from src.modules.conversation.repositories.conversation_repository import (
+    ConversationRepository,
+)
+from src.modules.conversation.repositories.message_repository import (
+    MessageRepository,
+)
+from src.core.models import (
     UserRole,
     ConversationStatus,
     MessageOwner,
@@ -237,11 +244,10 @@ def seed_sample_conversations(
     """Seed sample conversation data."""
     logger.info("Seeding sample conversations...")
     
-    # Create a sample conversation for Acme
     now = datetime.now()
     conv_data = {
         "owner_id": owners[0].owner_id,
-        "user_id": users[1].user_id,  # Paul User
+        "user_id": users[1].user_id,
         "from_number": TWILIO_PHONE_NUMBER,
         "to_number": MY_PHONE_NUMBER,
         "status": ConversationStatus.PROGRESS.value,
@@ -255,19 +261,25 @@ def seed_sample_conversations(
         },
         "metadata": {}
     }
-    
-    # Check if conversation exists
+
     existing = conversation_repo.find_active_conversation(
         conv_data["owner_id"],
         conv_data["from_number"],
         conv_data["to_number"]
     )
-    
+
     if existing:
         logger.info("Sample conversation already exists")
         return
-    
-    conversation = conversation_repo.create(conv_data)
+
+    try:
+        conversation = conversation_repo.create(conv_data)
+    except APIError as e:
+        payload = e.args[0] if e.args else {}
+        if isinstance(payload, dict) and payload.get("code") == "23505":
+            logger.info("Sample conversation already exists due to unique constraint")
+            return
+        raise
     logger.info(f"Created sample conversation: {conversation.conv_id}")
     
     # Add sample messages

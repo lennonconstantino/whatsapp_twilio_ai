@@ -5,9 +5,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from .api import conversations, webhooks
-from .utils import configure_logging, get_logger
-from .config import settings
+from .modules.conversation.api import conversations
+from .modules.channels.twilio.api import webhooks
+from .core.utils import configure_logging, get_logger
+from .core.config import settings
 
 configure_logging()
 logger = get_logger(__name__)
