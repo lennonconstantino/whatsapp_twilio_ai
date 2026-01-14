@@ -15,10 +15,10 @@ ngrok http 8080
 ```
 
 3. get webhook url https://2f581f2aa5ee.ngrok-free.app
-![1766091013961](image/README/1766091013961.png)
+![1766091013961](docs/image/README/1766091013961.png)
 
 4. adding the webhook + '/whatsapp'
-![1766091086351](image/README/1766091086351.png)
+![1766091086351](docs/image/README/1766091086351.png)
 
 ---
 
