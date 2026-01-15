@@ -4,21 +4,18 @@ Conversation service for managing conversations.
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta, timezone
 
-from src.core.models.enums import MessageOwner
-from src.core.models.domain import MessageCreateDTO
-
-from src.core.models import (
-    Conversation,
-    Message,
-    ConversationStatus,
-    MessageCreateDTO
-)
+from src.modules.conversation.dtos.message_dto import MessageCreateDTO
+from src.modules.conversation.enums.conversation_status import ConversationStatus
+from src.modules.conversation.enums.message_owner import MessageOwner
+from src.modules.conversation.models.conversation import Conversation
+from src.modules.conversation.models.message import Message
 from src.modules.conversation.repositories.conversation_repository import ConversationRepository
 from src.modules.conversation.repositories.message_repository import MessageRepository
+
 from src.core.config import settings
 from src.core.utils import get_logger, get_db
 from src.core.utils.exceptions import ConcurrencyError
-from src.modules.intelligence.services.closure_detector import ClosureDetector
+from src.modules.conversation.components.closure_detector import ClosureDetector
 
 logger = get_logger(__name__)
 

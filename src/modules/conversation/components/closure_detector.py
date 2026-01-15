@@ -5,7 +5,8 @@ import re
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 
-from src.core.models import Conversation, Message, MessageOwner, ConversationStatus
+from src.modules.conversation.models.conversation import Conversation, ConversationStatus
+from src.modules.conversation.models.message import Message, MessageOwner
 from src.core.config import settings
 from src.core.utils import get_logger
 

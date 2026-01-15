@@ -1,19 +1,17 @@
+
 """
 API routes for conversation management.
 """
 from typing import List, Optional
-from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 
-from src.core.models.domain import ConversationCreateDTO, MessageCreateDTO
-
-from src.core.models import (
-    Conversation,
-    Message,
-    ConversationStatus
-)
+from src.modules.conversation.dtos.conversation_dto import ConversationCreateDTO
+from src.modules.conversation.dtos.message_dto import MessageCreateDTO
+from src.modules.conversation.enums.conversation_status import ConversationStatus
 from src.modules.conversation.services.conversation_service import ConversationService
+
+
 from src.core.utils import get_logger
 
 logger = get_logger(__name__)

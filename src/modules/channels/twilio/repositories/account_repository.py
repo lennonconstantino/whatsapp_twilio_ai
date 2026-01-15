@@ -4,8 +4,8 @@ Twilio Account repository for database operations.
 from typing import Optional, List
 from supabase import Client
 
+from src.modules.channels.twilio.models.domain import TwilioAccount
 from src.core.database.base_repository import BaseRepository
-from src.core.models import TwilioAccount
 from src.core.utils import get_logger
 
 logger = get_logger(__name__)

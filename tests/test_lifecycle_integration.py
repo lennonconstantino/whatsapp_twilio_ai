@@ -1,11 +1,11 @@
 from datetime import datetime, timezone
 
-from src.modules.conversation.services.conversation_service import (
-    ConversationService,
-)
-from src.core.models.domain import MessageCreateDTO
-from src.core.models.enums import ConversationStatus, MessageOwner
+
 from src.core.utils import get_logger
+from src.modules.conversation.services.conversation_service import ConversationService
+from src.modules.conversation.dtos.message_dto import MessageCreateDTO
+from src.modules.conversation.enums.conversation_status import ConversationStatus
+from src.modules.conversation.enums.message_owner import MessageOwner
 
 
 logger = get_logger(__name__)

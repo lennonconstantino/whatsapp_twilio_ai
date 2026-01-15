@@ -5,7 +5,7 @@ from typing import Optional, List
 from supabase import Client
 
 from src.core.database.base_repository import BaseRepository
-from src.core.models import Feature
+from src.modules.identity.models.feature import Feature
 from src.core.utils import get_logger
 
 logger = get_logger(__name__)

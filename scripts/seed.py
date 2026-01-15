@@ -2,9 +2,7 @@
 Seed script to populate initial data.
 Creates sample owners, users, features, and configurations.
 """
-import sys
 import os
-from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,25 +16,15 @@ from src.core.config import settings
 from src.core.utils import get_db, configure_logging, get_logger
 from src.modules.identity.repositories.owner_repository import OwnerRepository
 from src.modules.identity.repositories.user_repository import UserRepository
-from src.modules.identity.repositories.feature_repository import (
-    FeatureRepository,
-)
-from src.modules.channels.twilio.repositories.account_repository import (
-    TwilioAccountRepository,
-)
-from src.modules.conversation.repositories.conversation_repository import (
-    ConversationRepository,
-)
-from src.modules.conversation.repositories.message_repository import (
-    MessageRepository,
-)
-from src.core.models import (
-    UserRole,
-    ConversationStatus,
-    MessageOwner,
-    MessageType,
-    MessageDirection
-)
+from src.modules.identity.repositories.feature_repository import FeatureRepository
+from src.modules.channels.twilio.repositories.account_repository import TwilioAccountRepository
+from src.modules.conversation.repositories.conversation_repository import ConversationRepository
+from src.modules.conversation.repositories.message_repository import MessageRepository
+from src.modules.conversation.enums.message_direction import MessageDirection
+from src.modules.conversation.enums.message_owner import MessageOwner
+from src.modules.conversation.enums.conversation_status import ConversationStatus
+from src.modules.conversation.enums.message_type import MessageType
+from src.modules.identity.enums.user_role import UserRole
 
 configure_logging()
 logger = get_logger(__name__)

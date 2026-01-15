@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any
 from twilio.rest import Client as TwilioClient
 from twilio.base.exceptions import TwilioRestException
 
-from src.core.models import TwilioAccount, Message, MessageDirection
+from src.modules.conversation.enums.message_direction import MessageDirection
 from src.modules.channels.twilio.repositories.account_repository import TwilioAccountRepository
 from src.core.config import settings
 from src.core.utils import get_logger, get_db

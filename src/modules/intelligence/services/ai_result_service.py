@@ -2,9 +2,10 @@
 AI Result service for managing AI processing results.
 """
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+#from datetime import datetime
 
-from src.core.models import AIResult, Message, Feature
+#from src.core.models import AIResult, Message, Feature
+from src.modules.intelligence.models.ai_result import AIResult
 from src.modules.intelligence.repositories.ai_result_repository import AIResultRepository
 from src.core.utils import get_logger, get_db
 

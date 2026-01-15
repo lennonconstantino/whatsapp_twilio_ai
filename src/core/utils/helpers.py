@@ -2,7 +2,8 @@
 import os
 import requests
 
-from src.core.models.domain import User
+from src.modules.identity.models.user import User
+
 
 class TwilioHelpers:
     """Helper para chamar funcoes utils de forma simples"""

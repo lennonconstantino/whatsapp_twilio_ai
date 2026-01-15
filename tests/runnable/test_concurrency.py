@@ -9,9 +9,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")
 from src.modules.conversation.services.conversation_service import ConversationService
 from src.modules.conversation.repositories.conversation_repository import ConversationRepository
 from src.modules.identity.repositories.owner_repository import OwnerRepository
-from src.core.models.domain import Conversation, ConversationStatus, MessageCreateDTO
-from src.core.models.enums import MessageOwner
-from src.core.utils import get_db, get_logger
+from src.modules.conversation.models.conversation import Conversation
+from src.modules.conversation.enums.conversation_status import ConversationStatus  # noqa: E402, E501
+from src.modules.conversation.enums.message_owner import MessageOwner  # noqa: E402, E501
+from src.modules.conversation.dtos.message_dto import MessageCreateDTO
+from src.core.database.session import get_db
+from src.core.utils import get_logger
 from src.core.utils.exceptions import ConcurrencyError
 from datetime import datetime
 

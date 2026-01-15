@@ -4,8 +4,9 @@ Message repository for database operations.
 from typing import List, Optional
 from supabase import Client
 
+from src.modules.conversation.enums.message_owner import MessageOwner
+from src.modules.conversation.models.message import Message
 from src.core.database.base_repository import BaseRepository
-from src.core.models import Message, MessageOwner
 from src.core.utils import get_logger
 
 logger = get_logger(__name__)

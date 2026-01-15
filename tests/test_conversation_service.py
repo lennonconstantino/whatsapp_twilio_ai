@@ -4,18 +4,14 @@ from datetime import datetime, timedelta
 import unittest.mock
 from unittest.mock import Mock
 
-from src.core.models import (
-    Conversation,
-    Message,
-    ConversationStatus,
-    MessageOwner,
-    MessageDirection,
-    MessageType,
-)
-from src.modules.conversation.services.conversation_service import (
-    ConversationService
-)
-from src.modules.intelligence.services.closure_detector import ClosureDetector
+from src.modules.conversation.enums.message_owner import MessageOwner
+from src.modules.conversation.services.conversation_service import ConversationService
+from src.modules.conversation.components.closure_detector import ClosureDetector
+from src.modules.conversation.models.conversation import Conversation, ConversationStatus
+from src.modules.conversation.models.message import Message
+from src.modules.conversation.enums.message_direction import MessageDirection
+from src.modules.conversation.enums.message_type import MessageType
+
 
 
 class TestClosureDetector:
@@ -331,7 +327,7 @@ class TestConversationService:
 
     def test_add_message_reactivates_idle_conversation(self):
         """Reactivate IDLE_TIMEOUT conversation when message is added."""
-        from src.core.models import MessageCreateDTO
+        from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 
         conversation = Conversation(
             conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
@@ -381,7 +377,7 @@ class TestConversationService:
 
     def test_add_message_cancels_pending_conversation(self):
         """Test that user cancellation in PENDING closes conversation."""
-        from src.core.models import MessageCreateDTO
+        from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 
         conversation = Conversation(
             conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",

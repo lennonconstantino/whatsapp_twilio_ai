@@ -26,11 +26,10 @@ from src.modules.identity.repositories.user_repository import (  # noqa: E402
 from src.modules.identity.repositories.owner_repository import (  # noqa: E402
     OwnerRepository
 )
-from src.core.models.domain import (  # noqa: E402
-    ConversationStatus,
-    MessageOwner,
-    MessageCreateDTO
-)
+
+from src.modules.conversation.enums.conversation_status import ConversationStatus  # noqa: E402, E501
+from src.modules.conversation.enums.message_owner import MessageOwner  # noqa: E402, E501
+from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.core.database.session import get_db  # noqa: E402
 from src.core.utils.exceptions import ConcurrencyError  # noqa: E402
 

@@ -5,10 +5,13 @@ from typing import Optional, List, Dict, Any, Union
 from datetime import datetime, timezone, timedelta
 from supabase import Client
 
+from src.modules.conversation.enums.conversation_status import ConversationStatus
+from src.modules.conversation.enums.message_owner import MessageOwner
+from src.modules.conversation.models.conversation import Conversation
 from src.core.database.base_repository import BaseRepository
-from src.core.models import Conversation, ConversationStatus, MessageOwner
 from src.core.utils import get_logger
 from src.core.utils.exceptions import ConcurrencyError
+
 
 logger = get_logger(__name__)
 

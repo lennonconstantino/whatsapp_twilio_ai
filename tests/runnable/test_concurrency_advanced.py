@@ -11,7 +11,8 @@ from src.modules.conversation.services.conversation_service import ConversationS
 from src.modules.conversation.repositories.conversation_repository import ConversationRepository
 from src.modules.identity.repositories.owner_repository import OwnerRepository
 from src.modules.identity.repositories.user_repository import UserRepository
-from src.core.models.domain import Conversation, ConversationStatus
+from src.modules.conversation.models.conversation import Conversation
+from src.modules.conversation.enums.conversation_status import ConversationStatus  # noqa: E402, E501
 from src.core.utils import get_db, get_logger
 from src.core.utils.exceptions import ConcurrencyError
 

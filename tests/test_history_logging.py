@@ -2,11 +2,8 @@ import unittest
 from unittest.mock import MagicMock
 from datetime import datetime, timezone
 
-from src.modules.conversation.repositories.conversation_repository import (
-    ConversationRepository,
-)
-from src.core.models import Conversation, ConversationStatus
-
+from src.modules.conversation.repositories.conversation_repository import ConversationRepository
+from src.modules.conversation.models.conversation import Conversation, ConversationStatus
 
 class TestHistoryLogging(unittest.TestCase):
     def setUp(self):

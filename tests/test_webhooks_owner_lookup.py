@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from src.main import app
 from src.modules.channels.twilio.api import webhooks
-from src.core.models.domain import TwilioAccount
+from src.modules.channels.twilio.models.domain import TwilioAccount
 
 
 class FakeTwilioAccountRepository:

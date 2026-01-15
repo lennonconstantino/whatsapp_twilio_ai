@@ -12,10 +12,9 @@ Features:
 """
 import time
 import signal
-import sys
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from src.modules.conversation.services.conversation_service import ConversationService
 from src.core.utils import get_logger

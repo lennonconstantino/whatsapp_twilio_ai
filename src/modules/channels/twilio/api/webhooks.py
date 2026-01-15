@@ -3,17 +3,25 @@ API routes for Twilio webhook integration.
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, Form, Header
 from typing import Optional
-from pydantic import BaseModel
 
-from src.core.models.domain import Message, MessageCreateDTO, TwilioWebhookResponseDTO, TwilioWhatsAppPayload, User
 from src.core.utils.helpers import TwilioHelpers
+from src.core.utils import get_logger, get_db
 from src.core.config import settings
 
-from src.core.models import MessageCreateDTO, MessageDirection, MessageOwner, MessageType, ConversationStatus
+
+from src.modules.identity.models.user import User
+from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.modules.conversation.services.conversation_service import ConversationService
+from src.modules.conversation.enums.message_direction import MessageDirection
+from src.modules.conversation.enums.message_owner import MessageOwner
+from src.modules.conversation.enums.message_type import MessageType
+from src.modules.conversation.models.message import Message
+
+from src.modules.channels.twilio.dtos import TwilioWebhookResponseDTO
+from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
 from src.modules.channels.twilio.services.twilio_service import TwilioService
 from src.modules.channels.twilio.repositories.account_repository import TwilioAccountRepository
-from src.core.utils import get_logger, get_db
+
 
 logger = get_logger(__name__)
 
