@@ -33,3 +33,12 @@ mypy==1.13.0
 
 python-multipart
 python-ulid
+
+# llms
+colorama
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-google-genai>=0.1.0
+langchain-groq
+langchain-ollama
+langchain-openai

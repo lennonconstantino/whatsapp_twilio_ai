@@ -54,6 +54,8 @@ migrate:
 
 seed:
 	python -m scripts.seed
+	@echo "---"
+	python -m scripts.seed_feature_finance
 
 shell:
 	python -i -c "from src.utils import get_db; from src.repositories import *; from src.services import *; db = get_db()"

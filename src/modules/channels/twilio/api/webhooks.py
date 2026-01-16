@@ -22,6 +22,7 @@ from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
 from src.modules.channels.twilio.services.twilio_service import TwilioService
 from src.modules.channels.twilio.repositories.account_repository import TwilioAccountRepository
 
+from src.modules.ai.lchain.feature.finance.finance_agent import finance_agent
 
 logger = get_logger(__name__)
 
@@ -174,6 +175,7 @@ def __receive_and_response(owner_id: str, payload: TwilioWhatsAppPayload, twilio
         }
     )
     
+    # save message inbound
     message = conversation_service.add_message(conversation, message_data)
     
     logger.info(
@@ -185,7 +187,8 @@ def __receive_and_response(owner_id: str, payload: TwilioWhatsAppPayload, twilio
     # outbound
     # TODO
     user = User(owner_id=owner_id, profile_name="User Profile", first_name="User", last_name="Profile")
-    response_text = TwilioHelpers.generate_response(user_message=payload.body, user=user)
+    #response_text = TwilioHelpers.generate_response(user_message=payload.body, user=user)
+    response_text = finance_agent.run(user_input=payload.body, param_manager_id="1")
 
     # send message to twilio whatsapp
     response = twilio_service.send_message(owner_id=owner_id, from_number=payload.to_number, to_number=payload.from_number, body=response_text)
@@ -211,6 +214,7 @@ def __receive_and_response(owner_id: str, payload: TwilioWhatsAppPayload, twilio
         }
     )
     
+    # save message outbound
     message = conversation_service.add_message(conversation, message_data)        
     
     logger.info(
