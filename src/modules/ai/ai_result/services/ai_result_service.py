@@ -5,8 +5,8 @@ from typing import Optional, List, Dict, Any
 #from datetime import datetime
 
 #from src.core.models import AIResult, Message, Feature
-from src.modules.intelligence.models.ai_result import AIResult
-from src.modules.intelligence.repositories.ai_result_repository import AIResultRepository
+from src.modules.ai.ai_result.models.ai_result import AIResult
+from src.modules.ai.ai_result.repositories.ai_result_repository import AIResultRepository
 from src.core.utils import get_logger, get_db
 
 logger = get_logger(__name__)

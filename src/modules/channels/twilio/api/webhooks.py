@@ -1,6 +1,7 @@
 """
 API routes for Twilio webhook integration.
 """
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request, Form, Header
 from typing import Optional
 
@@ -10,6 +11,7 @@ from src.core.config import settings
 
 
 from src.modules.identity.models.user import User
+from src.modules.identity.repositories.user_repository import UserRepository
 from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.modules.conversation.services.conversation_service import ConversationService
 from src.modules.conversation.enums.message_direction import MessageDirection
@@ -22,7 +24,7 @@ from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
 from src.modules.channels.twilio.services.twilio_service import TwilioService
 from src.modules.channels.twilio.repositories.account_repository import TwilioAccountRepository
 
-from src.modules.ai.lchain.feature.finance.finance_agent import finance_agent
+from src.modules.ai.engines.lchain.feature.finance.finance_agent import finance_agent
 
 logger = get_logger(__name__)
 
@@ -184,11 +186,27 @@ def __receive_and_response(owner_id: str, payload: TwilioWhatsAppPayload, twilio
         msg_id=message.msg_id if message else None
     )
 
-    # outbound
-    # TODO
-    user = User(owner_id=owner_id, profile_name="User Profile", first_name="User", last_name="Profile")
-    #response_text = TwilioHelpers.generate_response(user_message=payload.body, user=user)
-    response_text = finance_agent.run(user_input=payload.body, param_manager_id="1")
+    # get user for process message with agent
+    user_repo = UserRepository(get_db())
+    search_phone = payload.from_number.replace("whatsapp:", "").strip() if payload.from_number else ""
+    user = user_repo.find_by_phone(search_phone)
+
+    # create correlation_id
+    correlation_id = payload.message_sid or str(uuid.uuid4())
+
+    agent_context = {
+        "owner_id": owner_id, 
+        "correlation_id": correlation_id,
+        "user": user.model_dump() if user else None,
+        "channel": "whatsapp",
+        "memory": None,
+        "additional_context": "",
+    }
+
+    if user:
+        response_text = finance_agent.run(user_input=payload.body, **agent_context)
+    else:
+        response_text = "Desculpe, não encontrei seu cadastro. Por favor entre em contato com o suporte."
 
     # send message to twilio whatsapp
     response = twilio_service.send_message(owner_id=owner_id, from_number=payload.to_number, to_number=payload.from_number, body=response_text)

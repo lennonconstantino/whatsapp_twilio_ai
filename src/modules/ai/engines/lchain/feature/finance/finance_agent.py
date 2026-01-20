@@ -1,13 +1,13 @@
-from src.modules.ai.lchain.core.agents.rounting_agent import RoutingAgent
-from src.modules.ai.lchain.feature.finance.models.models import Customer, Expense, Revenue
-from src.modules.ai.lchain.core.utils.utils import generate_query_context
-from src.modules.ai.lchain.core.agents.task_agent import TaskAgent
+from src.modules.ai.engines.lchain.core.agents.routing_agent import RoutingAgent
+from src.modules.ai.engines.lchain.feature.finance.models.models import Customer, Expense, Revenue
+from src.modules.ai.engines.lchain.core.utils.utils import generate_query_context
+from src.modules.ai.engines.lchain.core.agents.task_agent import TaskAgent
 
-from src.modules.ai.lchain.feature.finance.tools.query import query_data_tool
-from src.modules.ai.lchain.feature.finance.tools.add import add_customer_tool, add_expense_tool, add_revenue_tool
+from src.modules.ai.engines.lchain.feature.finance.tools.query import query_data_tool
+from src.modules.ai.engines.lchain.feature.finance.tools.add import add_customer_tool, add_expense_tool, add_revenue_tool
 
-from src.modules.ai.lchain.feature.finance.task import SYSTEM_MESSAGE as TASK_SYSTEM_MESSAGE
-from src.modules.ai.lchain.feature.finance.routing import SYSTEM_MESSAGE as ROUTING_SYSTEM_MESSAGE, PROMPT_EXTRA
+from src.modules.ai.engines.lchain.feature.finance.prompts.task import SYSTEM_MESSAGE as TASK_SYSTEM_MESSAGE
+from src.modules.ai.engines.lchain.feature.finance.prompts.routing import SYSTEM_MESSAGE as ROUTING_SYSTEM_MESSAGE, PROMPT_EXTRA
 
 query_task_agent = TaskAgent(
     name="query_agent",
@@ -50,4 +50,4 @@ finance_agent = RoutingAgent(
     ],
     system_message=ROUTING_SYSTEM_MESSAGE,
     prompt_extra=PROMPT_EXTRA
-)
+) 

@@ -3,8 +3,8 @@ from abc import abstractmethod
 from typing import Any, Callable, Optional, Type, Union
 
 from pydantic import BaseModel, ConfigDict
-from src.modules.ai.lchain.core.utils.utils import convert_to_langchain_tool, convert_to_openai_tool
-from src.modules.ai.lchain.core.models.tool_result import ToolResult
+from src.modules.ai.engines.lchain.core.utils.utils import convert_to_langchain_tool, convert_to_openai_tool
+from src.modules.ai.engines.lchain.core.models.tool_result import ToolResult
 
 from langchain_core.tools import BaseTool
 

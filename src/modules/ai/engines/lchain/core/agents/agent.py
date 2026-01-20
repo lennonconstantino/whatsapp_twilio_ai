@@ -4,12 +4,11 @@ from typing import Dict, Any, List, Optional
 from colorama import Fore
 import colorama
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
-from src.modules.ai.lchain.core.tools.tool import Tool
-from src.modules.ai.lchain.core.utils.utils import parse_function_args, run_tool_from_response
-from src.modules.ai.lchain.core.models.step_result import StepResult
-from src.modules.ai.lchain.core.models.tool_result import ToolResult
+from src.modules.ai.engines.lchain.core.tools.tool import Tool
+from src.modules.ai.engines.lchain.core.utils.utils import parse_function_args, run_tool_from_response
+from src.modules.ai.engines.lchain.core.models.step_result import StepResult
+from src.modules.ai.engines.lchain.core.models.tool_result import ToolResult
 from src.modules.ai.infrastructure.llm import LLM, models
-
 
 class Agent:
 
@@ -23,10 +22,7 @@ class Agent:
             examples: List[dict] = None,
             context: str = None,
             user_context: str = None,
-            conversation_provider: Any = None, #Optional[ConversationProviderProtocol] = None,  # Nova dependência
-            manager_id: Optional[str] = None,  # Para persistência
-            channel: Optional[str] = None,
-            phone: Optional[str] = None,
+            agent_context: Dict[str, Any] = None,
     ):
         self.tools = tools
         self.llm = llm
@@ -37,17 +33,10 @@ class Agent:
         self.verbose = verbose
         self.examples = examples or []
         self.context = context or ""
-        self.user_context = user_context
-        self.conversation_provider = conversation_provider or None
-        self.manager_id = manager_id or None
-        self.channel = channel or None
-        self.phone = phone or None
+        self.user_context = user_context or ""
+        self.agent_context = agent_context or {}
 
-    def to_console(self, tag: str, message: str, color: str = "green"):
-        color_prefix = Fore.__dict__.get(color.upper(), "")
-        print(color_prefix + f"{tag}: {message}{colorama.Style.RESET_ALL}")
-
-    def run(self, user_input: str, context: str = None):
+    def run(self, body: str, context: str = None):
         # Converter tools para formato LangChain
         langchain_tools = [tool.langchain_tool_schema for tool in self.tools]
         system_message = self.system_message.format(context=context)
@@ -56,10 +45,10 @@ class Agent:
             context = context if context else self.user_context
 
         if context:
-            user_input = f"{context}\n---\n\nUser Message: {user_input}"
+            body = f"{context}\n---\n\nUser Message: {body}"
 
         self.to_console("START", f"====== Starting Agent ======")
-        self.to_console("START", f"Input:\n'''{user_input}'''")
+        self.to_console("START", f"Input:\n'''{body}'''")
         self.to_console("START", f"Manager: {self.manager_id}")
         self.to_console("START", f"Channel: {self.channel}")
         self.to_console("START", f"Phone: {self.phone}")
@@ -67,7 +56,7 @@ class Agent:
         self.step_history = [
             {"role": "system", "content": system_message},
             *self.examples,
-            {"role": "user", "content": user_input}
+            {"role": "user", "content": body}
         ]
 
         step_result = None
@@ -276,60 +265,7 @@ class Agent:
                     processed_tool_message_ids.add(tool_call_id)
         
         return langchain_messages
-
-'''
-    TODO:
-        - Adicionar suporte para outros tipos de mensagens (system, function)
-        - Implementar registro de mensagens no conversation_provider se disponível
-
-    def to_conversation(self, manager_id: str, message: AIMessage, MessageOwner: MessageOwner):
-        # Registrar mensagem no conversation_provider estiver disponível
-        conversation_uuid = None
-        if self.conversation_provider and manager_id:
-            try:
-                if MessageOwner == MessageOwner.TOOL:
-                    message_data=MessageData(
-                        message=json.dumps(message.tool_calls, indent=2, ensure_ascii=False),
-                        channel=self.channel,
-                        type=MessageType.TEXT,
-                        owner=MessageOwner.TOOL,
-                        meta={ 
-                            "id": message.id,
-                            "type": message.type,
-                            "content": message.content,
-                            "tool_calls": message.tool_calls,
-                            "usage_metadata": message.usage_metadata 
-                        }, 
-                    )
-
-                if MessageOwner == MessageOwner.AGENT_LOG:
-                    message_data=MessageData(
-                        message=message.content if message.content != '' else "calling tool",
-                        channel=self.channel,
-                        type=MessageType.TEXT,
-                        owner=MessageOwner.AGENT_LOG,
-                        meta={ 
-                            "id": message.id,
-                            "type": message.type,
-                            "content": message.content,
-                            "response_metadata": message.response_metadata,
-                            "additional_kwargs": message.additional_kwargs,
-                            "usage_metadata": message.usage_metadata 
-                        }, 
-                    )
-
-                conversation_uuid = self.conversation_provider.record_message(
-                    message_data=message_data,
-                    manager_id=manager_id,
-                    channel=self.channel,
-                    phone=self.phone,
-                )                
-                self._log_agent_event("MESSAGE_RECORDED", f"Conversation: {conversation_uuid} - content: {message_data.meta}")
-            except Exception as e:
-                self._log_agent_event("CONVERSATION_ERROR", f"Failed to record user message: {e}")
-
-    def _log_agent_event(self, event_type: str, message: str):
-        """Log estruturado para eventos de routing"""
-        self.to_console("[{__file__}]",f"{event_type}: {message}", color="blue")
-
-'''
+    
+    def to_console(self, tag: str, message: str, color: str = "green"):
+        color_prefix = Fore.__dict__.get(color.upper(), "")
+        print(color_prefix + f"{tag}: {message}{colorama.Style.RESET_ALL}")    

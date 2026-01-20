@@ -4,7 +4,7 @@ from datetime import datetime
 from src.core.database.base_repository import BaseRepository
 from src.core.database.session import get_db
 from src.core.utils.logging import get_logger
-from src.modules.ai.lchain.feature.finance.models.models import Customer, CustomerCreate, CustomerUpdate, Expense, ExpenseCreate, ExpenseUpdate, Invoice, InvoiceCreate, InvoiceUpdate, Revenue, RevenueCreate, RevenueUpdate
+from src.modules.ai.engines.lchain.feature.finance.models.models import Customer, CustomerCreate, CustomerUpdate, Expense, ExpenseCreate, ExpenseUpdate, Invoice, InvoiceCreate, InvoiceUpdate, Revenue, RevenueCreate, RevenueUpdate
 
 
 logger = get_logger(__name__)

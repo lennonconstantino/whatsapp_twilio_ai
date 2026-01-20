@@ -2,9 +2,9 @@ from typing import Type
 from pydantic import BaseModel
 
 
-from src.modules.ai.lchain.core.tools.tool import Tool
-from src.modules.ai.lchain.core.models.tool_result import ToolResult
-from src.modules.ai.lchain.core.models.report_schema import ReportSchema
+from src.modules.ai.engines.lchain.core.tools.tool import Tool
+from src.modules.ai.engines.lchain.core.models.tool_result import ToolResult
+from src.modules.ai.engines.lchain.core.models.report_schema import ReportSchema
 
 class ReportTool(Tool):
     name: str = "report_tool"

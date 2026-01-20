@@ -5,7 +5,7 @@ from typing import List, Optional
 from supabase import Client
 
 from src.core.database.base_repository import BaseRepository
-from src.core.models import AIResult
+from src.modules.ai.ai_result.models.ai_result import AIResult
 from src.core.utils import get_logger
 
 logger = get_logger(__name__)

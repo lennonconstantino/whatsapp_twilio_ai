@@ -1,10 +1,10 @@
 
-from typing import Any, Type, Callable, Optional, List, Union
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from typing import Any, Dict, Type, Callable, Optional, List
+from pydantic import BaseModel, ConfigDict, Field
 
-from src.modules.ai.lchain.core.utils.utils import convert_to_openai_tool, convert_to_langchain_tool
-from src.modules.ai.lchain.core.agents.agent import Agent
-from src.modules.ai.lchain.core.tools.report_tool import report_tool
+from src.modules.ai.engines.lchain.core.utils.utils import convert_to_openai_tool, convert_to_langchain_tool
+from src.modules.ai.engines.lchain.core.agents.agent import Agent
+from src.modules.ai.engines.lchain.core.tools.report_tool import report_tool
 
 from langchain_core.tools import BaseTool
 
@@ -16,30 +16,15 @@ class TaskAgent(BaseModel):
     description: str
     arg_model: Type[BaseModel] = EmptyArgModel
     access_roles: List[str] = Field(default_factory=lambda: ["all"])
-
+    routing_example: List[dict] = Field(default_factory=list)
+    model_config = ConfigDict(arbitrary_types_allowed=True)    
     create_context: Optional[Callable] = None
     create_user_context: Optional[Callable] = None
     tool_loader: Optional[Callable] = None
     system_message: Optional[str] = None
-
-    tools: List[BaseTool]  # Mudança: agora aceita BaseTool do LangChain
+    tools: List[BaseTool]
     examples: Optional[List[dict]] = None
-    routing_example: List[dict] = Field(default_factory=list)
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    #conversation_provider: Optional[ConversationProviderProtocol] = None  # Nova dependência
-    conversation_provider: Optional[Any] = Field(default=None)
-    manager_id: Optional[str] = None
-    channel: Optional[str] = None
-    phone: Optional[str] = None
-
-    
-    # @field_validator('conversation_provider')
-    # @classmethod
-    # def validate_conversation_provider(cls, v):
-    #     # Aqui você pode fazer validação customizada se necessário
-    #     return v
-
+    agent_context: Optional[Dict[str, Any]] = None
 
     def load_agent(self, **kwargs) -> Agent:
         input_kwargs = self.arg_model(**kwargs)
@@ -60,10 +45,7 @@ class TaskAgent(BaseModel):
             user_context=user_context,
             system_message=self.system_message,
             examples=self.examples,
-            conversation_provider=self.conversation_provider,
-            manager_id=self.manager_id,
-            channel=self.channel,
-            phone=self.phone,
+            agent_context=self.agent_context or {},
         )
 
     @property

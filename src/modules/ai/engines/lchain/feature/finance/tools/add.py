@@ -1,11 +1,11 @@
 from typing import Type
 from pydantic import BaseModel
 
-from src.modules.ai.lchain.feature.finance.models.models import Customer, CustomerCreate, Expense, ExpenseCreate, Revenue, RevenueCreate
-from src.modules.ai.lchain.feature.finance.repositories.repository_finance import get_customer_repository, get_expense_repository, get_revenue_repository
-from src.modules.ai.lchain.feature.finance.models import *
-from src.modules.ai.lchain.core.models.tool_result import ToolResult
-from src.modules.ai.lchain.core.tools.tool import Tool
+from src.modules.ai.engines.lchain.feature.finance.models.models import Customer, CustomerCreate, Expense, ExpenseCreate, Revenue, RevenueCreate
+from src.modules.ai.engines.lchain.feature.finance.repositories.repository_finance import get_customer_repository, get_expense_repository, get_revenue_repository
+from src.modules.ai.engines.lchain.feature.finance.models import *
+from src.modules.ai.engines.lchain.core.models.tool_result import ToolResult
+from src.modules.ai.engines.lchain.core.tools.tool import Tool
 
 def add_expense_to_db(data: dict) -> str:
     """

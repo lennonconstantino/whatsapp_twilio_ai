@@ -15,9 +15,9 @@ from src.core.config import settings
 from src.core.utils import get_db, configure_logging, get_logger
 
 # Import finance repositories and models
-from src.modules.ai.lchain.feature.finance.repositories.repository_finance import get_revenue_repository, get_expense_repository, get_customer_repository, get_invoice_repository
+from src.modules.ai.engines.lchain.feature.finance.repositories.repository_finance import get_revenue_repository, get_expense_repository, get_customer_repository, get_invoice_repository
 
-from src.modules.ai.lchain.feature.finance.models.models import RevenueCreate, ExpenseCreate, CustomerCreate, InvoiceCreate
+from src.modules.ai.engines.lchain.feature.finance.models.models import RevenueCreate, ExpenseCreate, CustomerCreate, InvoiceCreate
 
 configure_logging()
 logger = get_logger(__name__)
