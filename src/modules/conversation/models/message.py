@@ -15,6 +15,7 @@ class Message(BaseModel):
     msg_id: Optional[str] = None  # Changed from int to str (ULID)
     conv_id: str  # Changed to ULID
     owner_id: str  # Added: ULID (denormalized from conversation)
+    correlation_id: Optional[str] = None  # Trace ID
     from_number: str
     to_number: str
     body: str

@@ -37,17 +37,19 @@ class AIResultService:
     
     def create_result(
         self,
-        msg_id: int,
+        msg_id: str,
         feature_id: int,
-        result_json: Dict[str, Any]
+        result_json: Dict[str, Any],
+        correlation_id: Optional[str] = None
     ) -> Optional[AIResult]:
         """
         Create a new AI processing result.
         
         Args:
-            msg_id: Message ID
+            msg_id: Message ID (ULID)
             feature_id: Feature ID that processed the message
             result_json: AI processing result data
+            correlation_id: Optional Trace ID
             
         Returns:
             Created AIResult or None
@@ -56,14 +58,16 @@ class AIResultService:
             result = self.ai_result_repo.create_result(
                 msg_id=msg_id,
                 feature_id=feature_id,
-                result_json=result_json
+                result_json=result_json,
+                correlation_id=correlation_id
             )
             
             logger.info(
                 "AI result created",
                 ai_result_id=result.ai_result_id if result else None,
                 msg_id=msg_id,
-                feature_id=feature_id
+                feature_id=feature_id,
+                correlation_id=correlation_id
             )
             
             return result
@@ -73,6 +77,7 @@ class AIResultService:
                 "Error creating AI result",
                 msg_id=msg_id,
                 feature_id=feature_id,
+                correlation_id=correlation_id,
                 error=str(e)
             )
             raise

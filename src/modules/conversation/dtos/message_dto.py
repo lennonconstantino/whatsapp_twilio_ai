@@ -18,6 +18,7 @@ class MessageCreateDTO(BaseModel):
     """DTO for creating a message."""
     conv_id: str  # ULID
     owner_id: str  # ULID
+    correlation_id: Optional[str] = None  # Trace ID
     from_number: str
     to_number: str
     body: str

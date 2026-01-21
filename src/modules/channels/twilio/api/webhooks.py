@@ -89,6 +89,9 @@ def __detemine_message_type(NumMedia: int, MediaContentType0: str) -> MessageTyp
 def __sender(owner_id: str, payload: TwilioWhatsAppPayload, twilio_service: TwilioService) -> TwilioWebhookResponseDTO:
     logger.info("Processing local sender (outbound system message)")
 
+    # create correlation_id (Trace ID)
+    correlation_id = payload.message_sid or str(uuid.uuid4())
+
     message_type = __detemine_message_type(payload.num_media, payload.media_content_type)
 
     # Get or create conversation
@@ -118,6 +121,7 @@ def __sender(owner_id: str, payload: TwilioWhatsAppPayload, twilio_service: Twil
         message_owner=MessageOwner.SYSTEM,
         message_type=message_type,
         content=response["body"],
+        correlation_id=correlation_id,
         metadata={
             "message_sid": response["sid"],
             "status": response["status"],
@@ -133,7 +137,8 @@ def __sender(owner_id: str, payload: TwilioWhatsAppPayload, twilio_service: Twil
     logger.info(
         "Processed outbound message",
         conv_id=conversation.conv_id,
-        msg_id=message.msg_id if message else None
+        msg_id=message.msg_id if message else None,
+        correlation_id=correlation_id
     )
 
     return TwilioWebhookResponseDTO(
@@ -145,6 +150,9 @@ def __sender(owner_id: str, payload: TwilioWhatsAppPayload, twilio_service: Twil
 
 def __receive_and_response(owner_id: str, payload: TwilioWhatsAppPayload, twilio_service: TwilioService) -> TwilioWebhookResponseDTO:
     logger.info("Processing inbound message with auto-response")
+    
+    # create correlation_id (Trace ID)
+    correlation_id = payload.message_sid or str(uuid.uuid4())
     
     # Normal Flow
     message_type = __detemine_message_type(payload.num_media, payload.media_content_type)
@@ -169,6 +177,7 @@ def __receive_and_response(owner_id: str, payload: TwilioWhatsAppPayload, twilio
         message_owner=MessageOwner.USER,
         message_type=message_type,
         content=payload.body,
+        correlation_id=correlation_id,
         metadata={
             "message_sid": payload.message_sid,
             "num_media": payload.num_media,
@@ -183,7 +192,8 @@ def __receive_and_response(owner_id: str, payload: TwilioWhatsAppPayload, twilio
     logger.info(
         "Processed inbound message",
         conv_id=conversation.conv_id,
-        msg_id=message.msg_id if message else None
+        msg_id=message.msg_id if message else None,
+        correlation_id=correlation_id
     )
 
     # TODO: Add validation for user
@@ -191,10 +201,6 @@ def __receive_and_response(owner_id: str, payload: TwilioWhatsAppPayload, twilio
     user_repo = UserRepository(get_db())
     search_phone = payload.from_number.replace("whatsapp:", "").strip() if payload.from_number else ""
     user = user_repo.find_by_phone(search_phone)
-
-    # TODO: Add validation for user
-    # create correlation_id
-    correlation_id = payload.message_sid or str(uuid.uuid4())
 
     # TODO: Add validation for user
     agent_context = {
@@ -225,6 +231,7 @@ def __receive_and_response(owner_id: str, payload: TwilioWhatsAppPayload, twilio
         message_owner=MessageOwner.SYSTEM,
         message_type=message_type,
         content=response["body"],
+        correlation_id=correlation_id,
         metadata={
             "message_sid": response["sid"],
             "status": response["status"],
@@ -241,7 +248,8 @@ def __receive_and_response(owner_id: str, payload: TwilioWhatsAppPayload, twilio
     logger.info(
         "Processed outbound message",
         conv_id=conversation.conv_id,
-        msg_id=message.msg_id if message else None
+        msg_id=message.msg_id if message else None,
+        correlation_id=correlation_id
     )
 
     return TwilioWebhookResponseDTO(

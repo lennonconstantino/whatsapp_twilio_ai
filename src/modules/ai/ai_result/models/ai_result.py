@@ -15,6 +15,7 @@ class AIResult(BaseModel):
     """
     ai_result_id: Optional[str] = None  # Changed from int to str (ULID)
     msg_id: str  # Changed to ULID
+    correlation_id: Optional[str] = None  # Trace ID
     feature_id: int  # Keeping as int
     result_json: Dict[str, Any]
     processed_at: Optional[datetime] = None

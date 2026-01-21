@@ -79,8 +79,9 @@ class AIResultRepository(BaseRepository[AIResult]):
     def create_result(
         self,
         msg_id: str,
-        feature_id: str,
-        result_json: dict
+        feature_id: int,
+        result_json: dict,
+        correlation_id: Optional[str] = None
     ) -> Optional[AIResult]:
         """
         Create a new AI result.
@@ -89,6 +90,7 @@ class AIResultRepository(BaseRepository[AIResult]):
             msg_id: Message ID
             feature_id: Feature ID
             result_json: AI processing result
+            correlation_id: Optional Trace ID
             
         Returns:
             Created AIResult instance or None
@@ -98,4 +100,8 @@ class AIResultRepository(BaseRepository[AIResult]):
             "feature_id": feature_id,
             "result_json": result_json
         }
+        
+        if correlation_id:
+            data["correlation_id"] = correlation_id
+            
         return self.create(data)
