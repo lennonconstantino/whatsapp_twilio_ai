@@ -6,6 +6,7 @@ from supabase import Client
 
 from src.core.database.base_repository import BaseRepository
 from src.modules.ai.ai_result.models.ai_result import AIResult
+from src.modules.ai.ai_result.enums.ai_result_type import AIResultType
 from src.core.utils import get_logger
 
 logger = get_logger(__name__)
@@ -81,6 +82,7 @@ class AIResultRepository(BaseRepository[AIResult]):
         msg_id: str,
         feature_id: int,
         result_json: dict,
+        result_type: AIResultType = AIResultType.AGENT_LOG,
         correlation_id: Optional[str] = None
     ) -> Optional[AIResult]:
         """
@@ -90,6 +92,7 @@ class AIResultRepository(BaseRepository[AIResult]):
             msg_id: Message ID
             feature_id: Feature ID
             result_json: AI processing result
+            result_type: Type of result (TOOL, AGENT_LOG)
             correlation_id: Optional Trace ID
             
         Returns:
@@ -98,7 +101,8 @@ class AIResultRepository(BaseRepository[AIResult]):
         data = {
             "msg_id": msg_id,
             "feature_id": feature_id,
-            "result_json": result_json
+            "result_json": result_json,
+            "result_type": result_type.value if hasattr(result_type, 'value') else result_type
         }
         
         if correlation_id:

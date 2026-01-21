@@ -202,12 +202,14 @@ def __receive_and_response(owner_id: str, payload: TwilioWhatsAppPayload, twilio
     search_phone = payload.from_number.replace("whatsapp:", "").strip() if payload.from_number else ""
     user = user_repo.find_by_phone(search_phone)
 
-    # TODO: Add validation for user
+    # TODO: Add validation for user and get feature_id from context
     agent_context = {
         "owner_id": owner_id, 
         "correlation_id": correlation_id,
+        "msg_id": message.msg_id if message else None,
         "user": user.model_dump() if user else None,
         "channel": "whatsapp",
+        "feature_id": 1, # TODO: Add feature_id to context
         "memory": None,
         "additional_context": "",
     }

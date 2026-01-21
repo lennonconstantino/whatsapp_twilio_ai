@@ -4,6 +4,9 @@ from typing import Any, Dict, List
 import colorama
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
+from src.modules.ai.ai_result.enums.ai_result_type import AIResultType
+from src.modules.ai.ai_result.services.ai_log_thought_service import AILogThoughtService
+
 from src.modules.ai.engines.lchain.core.models.agent_context import AgentContext
 from src.modules.ai.engines.lchain.core.agents.task_agent import TaskAgent
 from src.modules.ai.infrastructure.llm import LLM, models
@@ -38,6 +41,7 @@ class RoutingAgent:
         self.examples = self.load_examples(examples)
         self.context = context or ""
         self.agent_context = agent_context or {}
+        self.ai_log_thought_service = AILogThoughtService()
 
     def run(self, user_input: str, **kwargs):
         # Coleta todos os contextos disponíveis
@@ -58,6 +62,8 @@ class RoutingAgent:
         self.agent_context = AgentContext(
             owner_id=ctx_data.get("owner_id"), 
             correlation_id=ctx_data.get("correlation_id"),
+            feature_id=ctx_data.get("feature_id"),
+            msg_id=ctx_data.get("msg_id"),
             user_input=user_input,
             user=ctx_data.get("user"),
             channel=ctx_data.get("channel"),
@@ -104,6 +110,14 @@ class RoutingAgent:
         response = model_with_tools.invoke(messages)
         # TODO
         #self.to_conversation(manager_id, response, MessageOwner.AGENT_LOG)
+        self.ai_log_thought_service.log_agent_thought(
+            agent_context=self.agent_context,
+            user_input="",
+            output=response.content,
+            history=self.step_history,
+            result_type=AIResultType.AGENT_LOG,
+            message=response
+        )        
         
         self.step_history.append(response)
         self.to_console("RESPONSE", response.content if response.content else "None", color="blue")
@@ -115,7 +129,15 @@ class RoutingAgent:
         
         # TODO
         #self.to_conversation(manager_id, response, MessageOwner.TOOL)
-            
+        self.ai_log_thought_service.log_agent_thought(
+            agent_context=self.agent_context,
+            user_input="",
+            output=response.content,
+            history=self.step_history,
+            result_type=AIResultType.TOOL,
+            message=response
+        )        
+        
         # Extrair informações da tool call
         tool_call = response.tool_calls[0]
         tool_name = tool_call["name"]
@@ -126,7 +148,7 @@ class RoutingAgent:
 
         # Preparar e executar o agente
         agent = self.prepare_agent(tool_name, tool_args)
-        return agent.run(user_input=user_input)
+        return agent.run(body=user_input)
 
     def prepare_agent(self, tool_name: str, tool_kwargs: Dict[str, Any]):
         for task_agent in self.task_agents:

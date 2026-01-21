@@ -2,10 +2,9 @@
 AI Result service for managing AI processing results.
 """
 from typing import Optional, List, Dict, Any
-#from datetime import datetime
 
-#from src.core.models import AIResult, Message, Feature
 from src.modules.ai.ai_result.models.ai_result import AIResult
+from src.modules.ai.ai_result.enums.ai_result_type import AIResultType
 from src.modules.ai.ai_result.repositories.ai_result_repository import AIResultRepository
 from src.core.utils import get_logger, get_db
 
@@ -40,6 +39,7 @@ class AIResultService:
         msg_id: str,
         feature_id: int,
         result_json: Dict[str, Any],
+        result_type: AIResultType = AIResultType.AGENT_LOG,
         correlation_id: Optional[str] = None
     ) -> Optional[AIResult]:
         """
@@ -49,6 +49,7 @@ class AIResultService:
             msg_id: Message ID (ULID)
             feature_id: Feature ID that processed the message
             result_json: AI processing result data
+            result_type: Type of result (TOOL, AGENT_LOG)
             correlation_id: Optional Trace ID
             
         Returns:
@@ -59,6 +60,7 @@ class AIResultService:
                 msg_id=msg_id,
                 feature_id=feature_id,
                 result_json=result_json,
+                result_type=result_type,
                 correlation_id=correlation_id
             )
             
@@ -67,6 +69,7 @@ class AIResultService:
                 ai_result_id=result.ai_result_id if result else None,
                 msg_id=msg_id,
                 feature_id=feature_id,
+                result_type=result_type.value if hasattr(result_type, 'value') else result_type,
                 correlation_id=correlation_id
             )
             
@@ -84,14 +87,14 @@ class AIResultService:
     
     def get_results_by_message(
         self,
-        msg_id: int,
+        msg_id: str,
         limit: int = 100
     ) -> List[AIResult]:
         """
         Get all AI results for a message.
         
         Args:
-            msg_id: Message ID
+            msg_id: Message ID (ULID)
             limit: Maximum number of results
             
         Returns:

@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Type, Union
 import re
 
 from pydantic import BaseModel, field_validator, Field
@@ -34,7 +34,7 @@ class WhereStatement(BaseModel):
         "lt (less than), gte (greater than or equal), lte (less than or equal), "
         "ne (not equal), ct (contains/like)"
     )
-    value: str = Field(description="Value for comparison")
+    value: Union[str, int, float, bool] = Field(description="Value for comparison")
     
     @field_validator('operator')
     @classmethod
@@ -86,7 +86,7 @@ class QueryConfig(BaseModel):
         default=["*"],
         description="Columns to select"
     )
-    where: List[Union[WhereStatement, str, list, None]] = Field(
+    where: Optional[Union[List[Union[WhereStatement, Dict[str, Any]]], Dict[str, Any]]] = Field(
         default=[],
         description="Filter conditions"
     )
@@ -96,12 +96,16 @@ class QueryConfig(BaseModel):
     def validate_where(cls, v):
         """Valida e normaliza condições WHERE"""
         if not v:
-            return v
+            return []
+            
+        # Se for um dicionário único, converter para lista de condições
+        if isinstance(v, dict):
+            return cls._parse_dict_condition(v)
         
         result = []
         for item in v:
             if item is None:
-                result.append(None)
+                continue
             elif isinstance(item, WhereStatement):
                 result.append(item)
             elif isinstance(item, str):
@@ -122,12 +126,75 @@ class QueryConfig(BaseModel):
                     raise ValueError(
                         f"Could not parse where condition list: {item}"
                     )
+            elif isinstance(item, dict):
+                # Se for um dicionário dentro da lista
+                # Pode ser um WhereStatement em dict ou um filtro mongo-style
+                if "column" in item and "operator" in item:
+                    # Formato padrão WhereStatement
+                    try:
+                        result.append(WhereStatement(**item))
+                    except Exception as e:
+                         raise ValueError(f"Invalid WhereStatement dict: {e}")
+                else:
+                    # Tentar parsear como mongo-style
+                    parsed_list = cls._parse_dict_condition(item)
+                    result.extend(parsed_list)
             else:
                 raise ValueError(
                     f"Invalid where condition type: {type(item)}"
                 )
         
         return result
+
+    @staticmethod
+    def _parse_dict_condition(condition_dict: Dict[str, Any]) -> List[WhereStatement]:
+        """
+        Parse dictionary conditions (MongoDB style or simple key-value).
+        
+        Examples:
+            {'city': 'São Paulo'} -> [WhereStatement(column='city', operator='eq', value='São Paulo')]
+            {'date': {'$gte': '2024-01-01'}} -> [WhereStatement(column='date', operator='gte', value='2024-01-01')]
+        """
+        results = []
+        mongo_op_map = {
+            '$eq': 'eq',
+            '$gt': 'gt',
+            '$gte': 'gte',
+            '$lt': 'lt',
+            '$lte': 'lte',
+            '$ne': 'ne',
+            '$in': 'in', # Not fully supported yet, map to eq or custom handling needed
+            '$like': 'ct',
+            '$ilike': 'ct'
+        }
+        
+        for key, value in condition_dict.items():
+            # Skip internal keys if any
+            if key.startswith('_'):
+                continue
+                
+            if isinstance(value, dict):
+                # Nested condition: key is column, value is operator dict
+                # Example: 'date': {'$gte': '...'}
+                for op, val in value.items():
+                    internal_op = mongo_op_map.get(op, 'eq')
+                    # Remove $ from op if not in map but starts with $
+                    if internal_op == 'eq' and op.startswith('$'):
+                         internal_op = op[1:]
+                    
+                    results.append(WhereStatement(
+                        column=key,
+                        operator=internal_op,
+                        value=val
+                    ))
+            else:
+                # Simple equality: key is column, value is value
+                results.append(WhereStatement(
+                    column=key,
+                    operator='eq',
+                    value=value
+                ))
+        return results
     
     @staticmethod
     def _parse_sql_condition(condition: str) -> WhereStatement:

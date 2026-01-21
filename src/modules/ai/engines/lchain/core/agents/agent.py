@@ -1,9 +1,12 @@
 import json
 import uuid
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from colorama import Fore
 import colorama
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+
+from src.modules.ai.ai_result.enums.ai_result_type import AIResultType
+from src.modules.ai.ai_result.services.ai_log_thought_service import AILogThoughtService
 from src.modules.ai.engines.lchain.core.tools.tool import Tool
 from src.modules.ai.engines.lchain.core.utils.utils import parse_function_args, run_tool_from_response
 from src.modules.ai.engines.lchain.core.models.step_result import StepResult
@@ -35,6 +38,7 @@ class Agent:
         self.context = context or ""
         self.user_context = user_context or ""
         self.agent_context = agent_context or {}
+        self.ai_log_thought_service = AILogThoughtService()
 
     def run(self, body: str, context: str = None):
         # Converter tools para formato LangChain
@@ -49,9 +53,16 @@ class Agent:
 
         self.to_console("START", f"====== Starting Agent ======")
         self.to_console("START", f"Input:\n'''{body}'''")
-        self.to_console("START", f"Manager: {self.manager_id}")
-        self.to_console("START", f"Channel: {self.channel}")
-        self.to_console("START", f"Phone: {self.phone}")
+        
+        # Safe access to agent_context attributes if it's a dict or object
+        owner_id = self.agent_context.get("owner_id") if isinstance(self.agent_context, dict) else getattr(self.agent_context, "owner_id", "N/A")
+        channel = self.agent_context.get("channel") if isinstance(self.agent_context, dict) else getattr(self.agent_context, "channel", "N/A")
+        user = self.agent_context.get("user") if isinstance(self.agent_context, dict) else getattr(self.agent_context, "user", {})
+        phone = user.get("phone") if user else "N/A"
+
+        self.to_console("START", f"Owner: {owner_id}")
+        self.to_console("START", f"Channel: {channel}")
+        self.to_console("START", f"Phone: {phone}")
 
         self.step_history = [
             {"role": "system", "content": system_message},
@@ -137,6 +148,14 @@ class Agent:
         tool_result = run_tool_from_response(response, tools=self.tools)
         # TODO: Verificar se é necessário salvar a mensagem da tool no histórico
         # self.to_conversation(self.manager_id, response, MessageOwner.TOOL)
+        self.ai_log_thought_service.log_agent_thought(
+            agent_context=self.agent_context,
+            user_input="",
+            output=response.content,
+            history=self.step_history,
+            result_type=AIResultType.TOOL,
+            message=response
+        )
         
         # Extrair informações do response para criar a mensagem de tool
         first_tool_call = response.tool_calls[0]
