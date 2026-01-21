@@ -45,8 +45,15 @@ class RoutingAgent:
         memory_formatted = ""
         task_formatted = ""
 
+        # Handle self.agent_context being either dict or AgentContext object
+        current_agent_context = self.agent_context
+        if hasattr(current_agent_context, "model_dump"):
+            current_agent_context = current_agent_context.model_dump()
+        elif not isinstance(current_agent_context, dict):
+            current_agent_context = {}
+
         # Merge context data from self.agent_context and kwargs
-        ctx_data = {**self.agent_context, **kwargs}
+        ctx_data = {**current_agent_context, **kwargs}
 
         self.agent_context = AgentContext(
             owner_id=ctx_data.get("owner_id"), 

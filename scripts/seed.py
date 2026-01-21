@@ -81,6 +81,22 @@ def seed_users(user_repo: UserRepository, owners):
             "role": UserRole.USER.value,
             "phone": MY_PHONE_NUMBER,
         },
+        {
+            "owner_id": owners[0].owner_id,
+            "profile_name": "Richard Mans",
+            "first_name": "Richard",
+            "last_name": "Mans",
+            "role": UserRole.USER.value,
+            "phone": "+5511920019497",
+        }, 
+        {
+            "owner_id": owners[0].owner_id,
+            "profile_name": "Wellington Silva",
+            "first_name": "Wellington",
+            "last_name": "Silva",
+            "role": UserRole.USER.value,
+            "phone": "+5511954233316",
+        },
         # TechStart users
         {
             "owner_id": owners[1].owner_id,

@@ -186,14 +186,17 @@ def __receive_and_response(owner_id: str, payload: TwilioWhatsAppPayload, twilio
         msg_id=message.msg_id if message else None
     )
 
+    # TODO: Add validation for user
     # get user for process message with agent
     user_repo = UserRepository(get_db())
     search_phone = payload.from_number.replace("whatsapp:", "").strip() if payload.from_number else ""
     user = user_repo.find_by_phone(search_phone)
 
+    # TODO: Add validation for user
     # create correlation_id
     correlation_id = payload.message_sid or str(uuid.uuid4())
 
+    # TODO: Add validation for user
     agent_context = {
         "owner_id": owner_id, 
         "correlation_id": correlation_id,
