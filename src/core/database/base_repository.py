@@ -323,3 +323,70 @@ class BaseRepository(Generic[T]):
                 error=str(e)
             )
             raise
+
+    def query_dynamic(
+        self, 
+        select_columns: List[str] = None, 
+        filters: List[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Execute a dynamic query with custom selection and filters.
+        
+        Args:
+            select_columns: List of columns to select (default: ["*"])
+            filters: List of filter dictionaries with keys:
+                     - column: str
+                     - operator: str (eq, gt, lt, gte, lte, ne, ct, in)
+                     - value: Any
+                     
+        Returns:
+            List of records as dictionaries
+        """
+        try:
+            # Determine selection
+            select_str = "*"
+            if select_columns and select_columns != ["*"]:
+                select_str = ", ".join(select_columns)
+            
+            query = self.client.table(self.table_name).select(select_str)
+            
+            # Apply filters
+            if filters:
+                for f in filters:
+                    column = f.get("column")
+                    operator = f.get("operator", "eq")
+                    value = f.get("value")
+                    
+                    if not column:
+                        continue
+                        
+                    # Basic validation for ULIDs in filters could be added here
+                    
+                    if operator == "eq":
+                        query = query.eq(column, value)
+                    elif operator == "gt":
+                        query = query.gt(column, value)
+                    elif operator == "lt":
+                        query = query.lt(column, value)
+                    elif operator == "gte":
+                        query = query.gte(column, value)
+                    elif operator == "lte":
+                        query = query.lte(column, value)
+                    elif operator == "ne":
+                        query = query.neq(column, value)
+                    elif operator == "ct" or operator == "ilike":
+                        query = query.ilike(column, f"%{value}%")
+                    elif operator == "in":
+                        query = query.in_(column, value)
+                    elif operator == "is":
+                         query = query.is_(column, value)
+            
+            result = query.execute()
+            return result.data
+            
+        except Exception as e:
+            logger.error(
+                f"Error executing dynamic query in {self.table_name}",
+                error=str(e)
+            )
+            raise

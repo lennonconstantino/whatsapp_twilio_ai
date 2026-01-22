@@ -86,7 +86,7 @@ class QueryConfig(BaseModel):
         default=["*"],
         description="Columns to select"
     )
-    where: Optional[Union[List[Union[WhereStatement, Dict[str, Any]]], Dict[str, Any]]] = Field(
+    where: Optional[Union[List[Union[WhereStatement, Dict[str, Any]]], Dict[str, Any], str]] = Field(
         default=[],
         description="Filter conditions"
     )
@@ -98,6 +98,20 @@ class QueryConfig(BaseModel):
         if not v:
             return []
             
+        # Se for string, tentar parsear (suporta AND)
+        if isinstance(v, str):
+            conditions = re.split(r'\s+AND\s+', v, flags=re.IGNORECASE)
+            result = []
+            for cond in conditions:
+                parsed = cls._parse_sql_condition(cond)
+                if parsed:
+                    result.append(parsed)
+                else:
+                    raise ValueError(
+                        f"Could not parse where condition: '{cond}'"
+                    )
+            return result
+
         # Se for um dicionário único, converter para lista de condições
         if isinstance(v, dict):
             return cls._parse_dict_condition(v)
@@ -308,27 +322,17 @@ def supabase_query_from_config(
     # Obter campos disponíveis no modelo
     available_fields = set(model_class.model_fields.keys())
     
-    # Construir query base
-    client = repository.client
-    table_name = repository.table_name
-    
-    # Determinar colunas para selecionar
-    if not query_config.select_columns or query_config.select_columns == ["*"]:
-        select_str = "*"
-    else:
-        # Validar que colunas existem
+    # Validar colunas para selecionar
+    if query_config.select_columns and query_config.select_columns != ["*"]:
         for column in query_config.select_columns:
             if column not in available_fields:
                 raise ValueError(
                     f"Column {column} not found in model {model_class.__name__}. "
                     f"Available: {sorted(available_fields)}"
                 )
-        select_str = ", ".join(query_config.select_columns)
-    
-    # Iniciar query
-    query = client.table(table_name).select(select_str)
-    
-    # Aplicar filtros WHERE
+
+    # Preparar filtros
+    filters = []
     if query_config.where:
         for where in query_config.where:
             if not where:
@@ -341,27 +345,19 @@ def supabase_query_from_config(
                     f"Available: {sorted(available_fields)}"
                 )
             
-            # Aplicar filtro baseado no operador
-            if where.operator == "eq":
-                query = query.eq(where.column, where.value)
-            elif where.operator == "gt":
-                query = query.gt(where.column, where.value)
-            elif where.operator == "lt":
-                query = query.lt(where.column, where.value)
-            elif where.operator == "gte":
-                query = query.gte(where.column, where.value)
-            elif where.operator == "lte":
-                query = query.lte(where.column, where.value)
-            elif where.operator == "ne":
-                query = query.neq(where.column, where.value)
-            elif where.operator == "ct":
-                # Usar ilike para case-insensitive contains
-                query = query.ilike(where.column, f"%{where.value}%")
+            # Adicionar ao filtro
+            filters.append({
+                "column": where.column,
+                "operator": where.operator,
+                "value": where.value
+            })
     
-    # Executar query
+    # Executar query via repository (Abstração correta)
     try:
-        result = query.execute()
-        return result.data
+        return repository.query_dynamic(
+            select_columns=query_config.select_columns,
+            filters=filters
+        )
     except Exception as e:
         raise RuntimeError(f"Query execution failed: {str(e)}")
 
