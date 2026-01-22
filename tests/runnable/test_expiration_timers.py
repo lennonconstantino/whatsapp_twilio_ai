@@ -19,6 +19,8 @@ from src.core.database.session import get_db
 from src.core.config import settings
 
 
+from src.modules.conversation.components.closure_detector import ClosureDetector
+
 class TestExpirationTimers(unittest.TestCase):
     def setUp(self):
         self.db = get_db()
@@ -26,7 +28,7 @@ class TestExpirationTimers(unittest.TestCase):
         self.msg_repo = MessageRepository(self.db)
         self.user_repo = UserRepository(self.db)
         self.owner_repo = OwnerRepository(self.db)
-        self.service = ConversationService(self.repo, self.msg_repo)
+        self.service = ConversationService(self.repo, self.msg_repo, ClosureDetector())
 
         # Create unique owner for isolation
         import uuid

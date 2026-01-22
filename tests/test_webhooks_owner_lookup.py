@@ -2,13 +2,13 @@ import pytest
 from httpx import AsyncClient
 from types import SimpleNamespace
 
+from dependency_injector import providers
 from src.main import app
-from src.modules.channels.twilio.api import webhooks
 from src.modules.channels.twilio.models.domain import TwilioAccount
 
 
 class FakeTwilioAccountRepository:
-    def __init__(self, client):
+    def __init__(self, client=None):
         pass
 
     def find_by_account_sid(self, account_sid: str):
@@ -29,7 +29,7 @@ class FakeTwilioAccountRepository:
 
 
 class FakeTwilioService:
-    def __init__(self):
+    def __init__(self, twilio_repo=None):
         pass
 
     def send_message(
@@ -56,7 +56,7 @@ class FakeTwilioService:
 
 
 class FakeConversationService:
-    def __init__(self):
+    def __init__(self, conversation_repo=None, message_repo=None, closure_detector=None):
         self.message_repo = SimpleNamespace(
             find_by_external_id=lambda external_id: None,
         )
@@ -81,39 +81,45 @@ class FakeConversationService:
 
 
 @pytest.mark.asyncio
-async def test_owner_lookup_inbound_local_sender(monkeypatch):
-    monkeypatch.setattr(
-        webhooks,
-        "TwilioAccountRepository",
-        FakeTwilioAccountRepository,
+async def test_owner_lookup_inbound_local_sender():
+    # Override dependencies
+    app.container.twilio_account_repository.override(
+        providers.Factory(FakeTwilioAccountRepository)
     )
-    monkeypatch.setattr(webhooks, "TwilioService", FakeTwilioService)
-    monkeypatch.setattr(
-        webhooks,
-        "ConversationService",
-        FakeConversationService,
+    app.container.twilio_service.override(
+        providers.Factory(FakeTwilioService)
     )
-
-    payload = {
-        "MessageSid": "SM_local_123",
-        "AccountSid": "AC_test",
-        "Body": "Olá",
-        "MessageType": "text",
-        "ProfileName": "Tester",
-        "From": "whatsapp:+5511999999999",
-        "To": "whatsapp:+14155238886",
-        "NumMedia": "0",
-        "NumSegments": "1",
-        "SmsStatus": "received",
-        "ApiVersion": "2010-04-01",
-        "LocalSender": "True",
-    }
-
-    async with AsyncClient(app=app, base_url="http://test") as ac:
-        resp = await ac.post("/webhooks/twilio/inbound", data=payload)
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["success"] is True
-    assert data["conv_id"] == "01ARZ3NDEKTSV4RRFFQ69G5FAV"
-    assert data["msg_id"] == "01ARZ3NDEKTSV4RRFFQ69G5FA1"
+    app.container.conversation_service.override(
+        providers.Factory(FakeConversationService)
+    )
+    
+    try:
+        payload = {
+            "MessageSid": "SM_local_123",
+            "AccountSid": "AC_test",
+            "Body": "Olá",
+            "MessageType": "text",
+            "ProfileName": "Tester",
+            "From": "whatsapp:+5511999999999",
+            "To": "whatsapp:+14155238886",
+            "NumMedia": "0",
+            "NumSegments": "1",
+            "SmsStatus": "received",
+            "ApiVersion": "2010-04-01",
+            "LocalSender": "True",
+        }
+    
+        async with AsyncClient(app=app, base_url="http://test") as ac:
+            resp = await ac.post("/webhooks/twilio/inbound", data=payload)
+    
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["conv_id"] == "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+        assert data["msg_id"] == "01ARZ3NDEKTSV4RRFFQ69G5FA1"
+        
+    finally:
+        # Reset overrides
+        app.container.twilio_account_repository.reset_override()
+        app.container.twilio_service.reset_override()
+        app.container.conversation_service.reset_override()

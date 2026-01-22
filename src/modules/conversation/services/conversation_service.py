@@ -13,7 +13,7 @@ from src.modules.conversation.repositories.conversation_repository import Conver
 from src.modules.conversation.repositories.message_repository import MessageRepository
 
 from src.core.config import settings
-from src.core.utils import get_logger, get_db
+from src.core.utils import get_logger
 from src.core.utils.exceptions import ConcurrencyError
 from src.modules.conversation.components.closure_detector import ClosureDetector
 
@@ -33,9 +33,9 @@ class ConversationService:
     
     def __init__(
         self,
-        conversation_repo: Optional[ConversationRepository] = None,
-        message_repo: Optional[MessageRepository] = None,
-        closure_detector: Optional[ClosureDetector] = None
+        conversation_repo: ConversationRepository,
+        message_repo: MessageRepository,
+        closure_detector: ClosureDetector
     ):
         """
         Initialize the service.
@@ -45,15 +45,9 @@ class ConversationService:
             message_repo: Message repository
             closure_detector: Closure intent detector
         """
-        if conversation_repo and message_repo:
-            self.conversation_repo = conversation_repo
-            self.message_repo = message_repo
-        else:
-            db_client = get_db()
-            self.conversation_repo = conversation_repo or ConversationRepository(db_client)
-            self.message_repo = message_repo or MessageRepository(db_client)
-            
-        self.closure_detector = closure_detector or ClosureDetector()
+        self.conversation_repo = conversation_repo
+        self.message_repo = message_repo
+        self.closure_detector = closure_detector
     
     def get_or_create_conversation(
         self,

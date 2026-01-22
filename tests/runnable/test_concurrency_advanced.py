@@ -9,6 +9,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")
 
 from src.modules.conversation.services.conversation_service import ConversationService
 from src.modules.conversation.repositories.conversation_repository import ConversationRepository
+from src.modules.conversation.repositories.message_repository import MessageRepository
+from src.modules.conversation.components.closure_detector import ClosureDetector
 from src.modules.identity.repositories.owner_repository import OwnerRepository
 from src.modules.identity.repositories.user_repository import UserRepository
 from src.modules.conversation.models.conversation import Conversation
@@ -22,9 +24,10 @@ class TestConcurrencyAdvanced:
     def setup_method(self):
         self.db = get_db()
         self.repo = ConversationRepository(self.db)
+        self.msg_repo = MessageRepository(self.db)
         self.owner_repo = OwnerRepository(self.db)
         self.user_repo = UserRepository(self.db)
-        self.service = ConversationService(self.repo)
+        self.service = ConversationService(self.repo, self.msg_repo, ClosureDetector())
         
         email = f"test_adv_{int(datetime.now().timestamp())}@example.com"
         owner = self.owner_repo.create_owner(name="Concurrency Adv Test", email=email)

@@ -32,7 +32,7 @@ from src.modules.conversation.enums.message_owner import MessageOwner  # noqa: E
 from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.core.database.session import get_db  # noqa: E402
 from src.core.utils.exceptions import ConcurrencyError  # noqa: E402
-
+from src.modules.conversation.components.closure_detector import ClosureDetector
 
 class TestRaceConditions(unittest.TestCase):
     def setUp(self):
@@ -43,7 +43,7 @@ class TestRaceConditions(unittest.TestCase):
         self.msg_repo = MessageRepository(self.db)
         self.user_repo = UserRepository(self.db)
         self.owner_repo = OwnerRepository(self.db)
-        self.service = ConversationService(self.repo, self.msg_repo)
+        self.service = ConversationService(self.repo, self.msg_repo, ClosureDetector())
 
         # Create a test owner with unique identifier
         import uuid

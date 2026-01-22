@@ -1,8 +1,11 @@
 from datetime import datetime, timezone
 
 
-from src.core.utils import get_logger
+from src.core.utils import get_logger, get_db
 from src.modules.conversation.services.conversation_service import ConversationService
+from src.modules.conversation.repositories.conversation_repository import ConversationRepository
+from src.modules.conversation.repositories.message_repository import MessageRepository
+from src.modules.conversation.components.closure_detector import ClosureDetector
 from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.modules.conversation.enums.conversation_status import ConversationStatus
 from src.modules.conversation.enums.message_owner import MessageOwner
@@ -12,7 +15,11 @@ logger = get_logger(__name__)
 
 
 def test_complete_conversation_lifecycle():
-    service = ConversationService()
+    db = get_db()
+    repo = ConversationRepository(db)
+    msg_repo = MessageRepository(db)
+    closure = ClosureDetector()
+    service = ConversationService(repo, msg_repo, closure)
 
     import random
 
