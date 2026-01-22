@@ -21,6 +21,7 @@ from src.modules.identity.services.identity_service import IdentityService
 from src.modules.channels.twilio.services.twilio_service import TwilioService
 from src.modules.conversation.services.conversation_service import ConversationService
 from src.modules.channels.twilio.services.webhook_service import TwilioWebhookService
+from src.modules.conversation.components.closure_detector import ClosureDetector
 
 
 class Container(containers.DeclarativeContainer):
@@ -80,6 +81,10 @@ class Container(containers.DeclarativeContainer):
     )
     
     # Services
+    closure_detector = providers.Factory(
+        ClosureDetector
+    )
+
     owner_service = providers.Factory(
         OwnerService,
         repository=owner_repository
@@ -109,7 +114,8 @@ class Container(containers.DeclarativeContainer):
     conversation_service = providers.Factory(
         ConversationService,
         conversation_repo=conversation_repository,
-        message_repo=message_repository
+        message_repo=message_repository,
+        closure_detector=closure_detector
     )
     
     twilio_webhook_service = providers.Factory(

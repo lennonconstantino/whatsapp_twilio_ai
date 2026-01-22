@@ -45,9 +45,14 @@ class ConversationService:
             message_repo: Message repository
             closure_detector: Closure intent detector
         """
-        db_client = get_db()
-        self.conversation_repo = conversation_repo or ConversationRepository(db_client)
-        self.message_repo = message_repo or MessageRepository(db_client)
+        if conversation_repo and message_repo:
+            self.conversation_repo = conversation_repo
+            self.message_repo = message_repo
+        else:
+            db_client = get_db()
+            self.conversation_repo = conversation_repo or ConversationRepository(db_client)
+            self.message_repo = message_repo or MessageRepository(db_client)
+            
         self.closure_detector = closure_detector or ClosureDetector()
     
     def get_or_create_conversation(
