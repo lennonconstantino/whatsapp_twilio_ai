@@ -150,14 +150,35 @@ def seed_features(feature_repo: FeatureRepository, owners):
         },
         {
             "owner_id": owners[0].owner_id,
-            "name": "Sentiment Analysis",
-            "description": "Analyze customer sentiment in conversations",
+            "name": "AI Chat Assistant",
+            "description": "AI-powered chat assistant for customer support",
+            "enabled": True,
+            "config_json": {
+                "model": "gpt-4",
+                "temperature": 0.7,
+                "max_tokens": 500
+            }
+        },        
+        {
+            "owner_id": owners[0].owner_id,
+            "name": "finance_agent",
+            "description": "AI-powered assistant for financial queries",
             "enabled": True,
             "config_json": {
                 "threshold": 0.6,
                 "alerts": True
             }
         },
+        {
+            "owner_id": owners[0].owner_id,
+            "name": "generic_agent",
+            "description": "Generic AI assistant for customer support",
+            "enabled": True,
+            "config_json": {
+                "threshold": 0.6,
+                "alerts": True
+            }
+        },        
         {
             "owner_id": owners[0].owner_id,
             "name": "Auto Response",

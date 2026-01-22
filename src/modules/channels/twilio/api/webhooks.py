@@ -12,6 +12,12 @@ from src.core.config import settings
 
 from src.modules.identity.models.user import User
 from src.modules.identity.repositories.user_repository import UserRepository
+from src.modules.identity.repositories.feature_repository import FeatureRepository
+from src.modules.identity.repositories.owner_repository import OwnerRepository
+from src.modules.identity.services.user_service import UserService
+from src.modules.identity.services.feature_service import FeatureService
+from src.modules.identity.services.owner_service import OwnerService
+from src.modules.identity.services.identity_service import IdentityService
 from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.modules.conversation.services.conversation_service import ConversationService
 from src.modules.conversation.enums.message_direction import MessageDirection
@@ -196,20 +202,36 @@ def __receive_and_response(owner_id: str, payload: TwilioWhatsAppPayload, twilio
         correlation_id=correlation_id
     )
 
-    # TODO: Add validation for user
-    # get user for process message with agent
-    user_repo = UserRepository(get_db())
-    search_phone = payload.from_number.replace("whatsapp:", "").strip() if payload.from_number else ""
-    user = user_repo.find_by_phone(search_phone)
+    # Initialize Services
+    db = get_db()
+    
+    # Identity & User Services
+    user_repo = UserRepository(db)
+    #owner_repo = OwnerRepository(db)
+    user_service = UserService(user_repo)
+    #owner_service = OwnerService(owner_repo)
+    #identity_service = IdentityService(owner_service, user_service)
+    
+    # Feature Service
+    feature_repo = FeatureRepository(db)
+    feature_service = FeatureService(feature_repo)
 
-    # TODO: Add validation for user and get feature_id from context
+    # Get User
+    search_phone = payload.from_number.replace("whatsapp:", "").strip() if payload.from_number else ""
+    user = user_service.get_user_by_phone(search_phone)
+    
+    result = feature_service.validate_feature_path("src/modules/ai/engines/lchain/feature")
+
+    # Get Feature (finance_agent)
+    feature = feature_service.get_feature_by_name(owner_id, result["feature"]+"_agent")
+
     agent_context = {
         "owner_id": owner_id, 
         "correlation_id": correlation_id,
         "msg_id": message.msg_id if message else None,
         "user": user.model_dump() if user else None,
         "channel": "whatsapp",
-        "feature_id": 1, # TODO: Add feature_id to context
+        "feature_id": feature.feature_id if feature else None,
         "memory": None,
         "additional_context": "",
     }

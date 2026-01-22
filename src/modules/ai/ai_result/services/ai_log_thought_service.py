@@ -39,7 +39,8 @@ class AILogThoughtService:
         history: list, 
         result_type: AIResultType,
         message: AIMessage,
-        metadata: dict = None
+        metadata: dict = None,
+        error_msg: str = None
     ):
         try:
             self._log_result(
@@ -49,16 +50,10 @@ class AILogThoughtService:
                 history=history,
                 result_type=result_type,
                 message=message,
-                metadata=metadata
+                metadata=metadata,
+                error_msg=error_msg
             )
         except Exception as e:
-            self._log_error(
-                agent_context=agent_context,
-                user_input=user_input,
-                result_type=result_type,
-                message=message,
-                error_msg=str(e)
-            )
             logger.error(f"Failed to log AI Result: {e}")
 
     def _log_result(
@@ -69,7 +64,8 @@ class AILogThoughtService:
         history: list, 
         result_type: AIResultType,
         message: AIMessage,
-        metadata: dict = None
+        metadata: dict = None,
+        error_msg: str = None
     ):
         """
         Persist the result of a successful AI execution.
@@ -79,7 +75,7 @@ class AILogThoughtService:
             user_input: The original user input.
             output: The final output from the agent.
             history: The step-by-step execution history.
-            result_type: The type of result (e.g., success, error).
+            result_type: The type of result (e.g., log, tool).
             message: The AIMessage object that caused the result.
             metadata: Additional metadata.
         """
@@ -88,66 +84,51 @@ class AILogThoughtService:
             # Otherwise fallback to correlation_id (which might be Twilio SID and cause FK error if not in messages table)
             msg_id_to_use = agent_context.msg_id if agent_context.msg_id else agent_context.correlation_id
             
-            self.ai_result_service.create_result(
-                msg_id=msg_id_to_use,
-                feature_id=agent_context.feature_id,
-                result_type=result_type,
-                correlation_id=agent_context.correlation_id,
-                result_json={
-                    "status": "success",
-                    "input": user_input,
-                    "output": output,
-                    "message": json.dumps(message.tool_calls, indent=2, ensure_ascii=False),
-                    "history": self._serialize_history(history),
-                    "metadata": {
-                        "id": message.id,
-                        "type": message.type,
-                        "content": message.content,
-                        "tool_calls": message.tool_calls,
-                        "usage_metadata": message.usage_metadata
+            if result_type == AIResultType.TOOL: 
+                self.ai_result_service.create_result(
+                    msg_id=msg_id_to_use,
+                    feature_id=agent_context.feature_id,
+                    result_type=result_type,
+                    correlation_id=agent_context.correlation_id,
+                    result_json={
+                        "status": "success",
+                        "input": user_input,
+                        "output": output,
+                        "message": json.dumps(message.tool_calls, indent=2, ensure_ascii=False),
+                        "history": self._serialize_history(history),
+                        "metadata": {
+                            "id": message.id,
+                            "type": message.type,
+                            "content": message.content,
+                            "tool_calls": message.tool_calls,
+                            "usage_metadata": message.usage_metadata
+                        }
                     }
-                }
-            )
+                )
+
+            elif result_type == AIResultType.AGENT_LOG:
+                self.ai_result_service.create_result(
+                    msg_id=msg_id_to_use,
+                    feature_id=agent_context.feature_id,
+                    result_type=result_type,
+                    correlation_id=agent_context.correlation_id,
+                    result_json={
+                        "status": "error",
+                        "input": user_input,
+                        "error": error_msg,
+                        "message": message.content if message.content != '' else "calling tool",
+                        "metadata": {
+                            "id": message.id,
+                            "type": message.type,
+                            "content": message.content,
+                            "response_metadata": message.response_metadata,
+                            "additional_kwargs": message.additional_kwargs,
+                            "usage_metadata": message.usage_metadata 
+                        }
+                    }
+                )                
         except Exception as e:
             logger.error(f"Failed to persist AI Result: {e}")
-
-    def _log_error(self, agent_context: AgentContext, user_input: str, result_type: AIResultType, message: AIMessage, error_msg: str):
-        """
-        Persist the result of a failed AI execution.
-        
-        Args:
-            agent_context: The execution context.
-            user_input: The original user input.
-            result_type: The type of result (e.g., error).
-            message: The AIMessage object that caused the error.
-            error_msg: The error message description.
-        """
-        try:
-            # Use msg_id from context if available
-            msg_id_to_use = agent_context.msg_id if agent_context.msg_id else agent_context.correlation_id
-
-            self.ai_result_service.create_result(
-                msg_id=msg_id_to_use,
-                feature_id=agent_context.feature_id,
-                result_type=result_type,
-                correlation_id=agent_context.correlation_id,
-                result_json={
-                    "status": "error",
-                    "input": user_input,
-                    "error": error_msg,
-                    "message": message.content if message.content != '' else "calling tool",
-                    "metadata": {
-                        "id": message.id,
-                        "type": message.type,
-                        "content": message.content,
-                        "response_metadata": message.response_metadata,
-                        "additional_kwargs": message.additional_kwargs,
-                        "usage_metadata": message.usage_metadata 
-                    }
-                }
-            )
-        except Exception as e:
-            logger.error(f"Failed to persist AI Error Result: {e}")
 
     def _serialize_history(self, history: list) -> list:
         """

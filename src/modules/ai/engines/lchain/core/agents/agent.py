@@ -146,8 +146,7 @@ class Agent:
 
         self.to_console("Tool Call", f"Name: {tool_name}\nArgs: {tool_kwargs}\nMessage: {response.content}", "magenta")
         tool_result = run_tool_from_response(response, tools=self.tools)
-        # TODO: Verificar se é necessário salvar a mensagem da tool no histórico
-        # self.to_conversation(self.manager_id, response, MessageOwner.TOOL)
+
         self.ai_log_thought_service.log_agent_thought(
             agent_context=self.agent_context,
             user_input="",

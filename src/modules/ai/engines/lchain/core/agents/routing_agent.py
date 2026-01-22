@@ -108,8 +108,7 @@ class RoutingAgent:
         model = self.llm[LLM]
         model_with_tools = model.bind_tools(tools)
         response = model_with_tools.invoke(messages)
-        # TODO
-        #self.to_conversation(manager_id, response, MessageOwner.AGENT_LOG)
+
         self.ai_log_thought_service.log_agent_thought(
             agent_context=self.agent_context,
             user_input="",
@@ -126,9 +125,7 @@ class RoutingAgent:
         if not response.tool_calls:
             self.to_console("NO TOOL CALLS", "No tool calls found in the response.")
             return response.content
-        
-        # TODO
-        #self.to_conversation(manager_id, response, MessageOwner.TOOL)
+
         self.ai_log_thought_service.log_agent_thought(
             agent_context=self.agent_context,
             user_input="",
@@ -154,10 +151,6 @@ class RoutingAgent:
         for task_agent in self.task_agents:
             if task_agent.name == tool_name:
                 # Propagar informações de contexto do RoutingAgent para o TaskAgent
-                # task_agent.conversation_provider = self.conversation_provider
-                # task_agent.manager_id = self.manager_id
-                # task_agent.channel = self.channel
-                # task_agent.phone = self.phone
                 task_agent.agent_context = self.agent_context
                 
                 input_kwargs = task_agent.arg_model.model_validate(tool_kwargs)
