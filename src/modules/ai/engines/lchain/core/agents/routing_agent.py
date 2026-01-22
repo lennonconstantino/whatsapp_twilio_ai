@@ -156,7 +156,10 @@ class RoutingAgent:
                 task_agent.agent_context = self.agent_context
                 
                 input_kwargs = task_agent.arg_model.model_validate(tool_kwargs)
-                return task_agent.load_agent(**input_kwargs.model_dump())
+                return task_agent.load_agent(
+                    ai_log_thought_service=self.ai_log_thought_service,
+                    **input_kwargs.model_dump()
+                )
         raise ValueError(f"Task Agent {tool_name} not found")
 
     def load_examples(self, examples: List[dict] = None):

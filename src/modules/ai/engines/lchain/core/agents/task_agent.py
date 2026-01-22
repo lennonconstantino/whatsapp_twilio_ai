@@ -2,6 +2,7 @@
 from typing import Any, Dict, Type, Callable, Optional, List
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.modules.ai.ai_result.services.ai_log_thought_service import AILogThoughtService
 from src.modules.ai.engines.lchain.core.utils.utils import convert_to_openai_tool, convert_to_langchain_tool
 from src.modules.ai.engines.lchain.core.agents.agent import Agent
 from src.modules.ai.engines.lchain.core.tools.report_tool import report_tool
@@ -26,7 +27,7 @@ class TaskAgent(BaseModel):
     examples: Optional[List[dict]] = None
     agent_context: Optional[Dict[str, Any]] = None
 
-    def load_agent(self, **kwargs) -> Agent:
+    def load_agent(self, ai_log_thought_service: AILogThoughtService = None, **kwargs) -> Agent:
         input_kwargs = self.arg_model(**kwargs)
         kwargs = input_kwargs.model_dump()
 
@@ -46,6 +47,7 @@ class TaskAgent(BaseModel):
             system_message=self.system_message,
             examples=self.examples,
             agent_context=self.agent_context or {},
+            ai_log_thought_service=ai_log_thought_service,
         )
 
     @property

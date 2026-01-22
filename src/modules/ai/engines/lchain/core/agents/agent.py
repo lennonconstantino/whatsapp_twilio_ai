@@ -74,9 +74,14 @@ class Agent:
 
         step_result = None
         i = 0
+        last_valid_content = None
 
         while i < self.max_steps:
             step_result = self.run_step(self.step_history, langchain_tools)
+            
+            if step_result.content and str(step_result.content).strip():
+                last_valid_content = step_result.content
+
             if step_result.event == "finish":
                 break
             elif step_result.event == "error":
@@ -86,8 +91,13 @@ class Agent:
 
             i += 1
 
-        self.to_console("Final Result", step_result.content, "green")
-        return step_result.content
+        final_content = step_result.content
+        if (not final_content or not str(final_content).strip()) and last_valid_content:
+            self.to_console("Fallback", "Using last valid content as final result", "yellow")
+            final_content = last_valid_content
+
+        self.to_console("Final Result", final_content, "green")
+        return final_content
 
     def run_step(self, messages: List[dict], tools):
         # Converter mensagens para formato LangChain
@@ -149,14 +159,15 @@ class Agent:
         self.to_console("Tool Call", f"Name: {tool_name}\nArgs: {tool_kwargs}\nMessage: {response.content}", "magenta")
         tool_result = run_tool_from_response(response, tools=self.tools)
 
-        self.ai_log_thought_service.log_agent_thought(
-            agent_context=self.agent_context,
-            user_input="",
-            output=response.content,
-            history=self.step_history,
-            result_type=AIResultType.TOOL,
-            message=response
-        )
+        if self.ai_log_thought_service:
+            self.ai_log_thought_service.log_agent_thought(
+                agent_context=self.agent_context,
+                user_input="",
+                output=response.content,
+                history=self.step_history,
+                result_type=AIResultType.TOOL,
+                message=response
+            )
         
         # Extrair informações do response para criar a mensagem de tool
         first_tool_call = response.tool_calls[0]

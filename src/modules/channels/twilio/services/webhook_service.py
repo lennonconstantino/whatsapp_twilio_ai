@@ -295,6 +295,11 @@ class TwilioWebhookService:
             else:
                 response_text = "Desculpe, não encontrei seu cadastro. Por favor entre em contato com o suporte."
 
+            # Fallback for empty response to prevent Twilio Error 21619
+            if not response_text or not str(response_text).strip():
+                logger.warning("Agent returned empty response, using fallback", correlation_id=correlation_id)
+                response_text = "Desculpe, ocorreu um erro interno ao processar sua mensagem. Tente novamente mais tarde."
+
             # 4. Send Response via Twilio
             response = self.twilio_service.send_message(
                 owner_id=owner_id, 
