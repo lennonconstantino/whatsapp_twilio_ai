@@ -299,4 +299,4 @@ class Agent:
     
     def to_console(self, tag: str, message: str, color: str = "green"):
         color_prefix = Fore.__dict__.get(color.upper(), "")
-        print(color_prefix + f"{tag}: {message}{colorama.Style.RESET_ALL}")    
+        print(color_prefix + f"{tag}: {message}{colorama.Style.RESET_ALL}")

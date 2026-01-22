@@ -26,6 +26,7 @@ from src.modules.conversation.components.closure_detector import ClosureDetector
 from src.modules.ai.ai_result.services.ai_result_service import AIResultService
 from src.modules.ai.ai_result.services.ai_log_thought_service import AILogThoughtService
 from src.modules.ai.engines.lchain.feature.finance.finance_agent import create_finance_agent
+from src.modules.ai.engines.lchain.core.agents.agent_factory import create_master_agent
 
 class Container(containers.DeclarativeContainer):
     """
@@ -141,6 +142,11 @@ class Container(containers.DeclarativeContainer):
         ai_log_thought_service=ai_log_thought_service
     )
     
+    master_agent = providers.Factory(
+        create_master_agent,
+        finance_agent=finance_agent
+    )
+    
     twilio_webhook_service = providers.Factory(
         TwilioWebhookService,
         twilio_service=twilio_service,
@@ -148,5 +154,5 @@ class Container(containers.DeclarativeContainer):
         user_service=user_service,
         feature_service=feature_service,
         twilio_account_repo=twilio_account_repository,
-        agent_runner=finance_agent
+        agent_runner=master_agent
     )
