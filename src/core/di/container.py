@@ -12,6 +12,7 @@ from src.modules.identity.repositories.feature_repository import FeatureReposito
 from src.modules.channels.twilio.repositories.account_repository import TwilioAccountRepository
 from src.modules.conversation.repositories.conversation_repository import ConversationRepository
 from src.modules.conversation.repositories.message_repository import MessageRepository
+from src.modules.ai.ai_result.repositories.ai_result_repository import AIResultRepository
 
 # Services
 from src.modules.identity.services.owner_service import OwnerService
@@ -22,7 +23,9 @@ from src.modules.channels.twilio.services.twilio_service import TwilioService
 from src.modules.conversation.services.conversation_service import ConversationService
 from src.modules.channels.twilio.services.webhook_service import TwilioWebhookService
 from src.modules.conversation.components.closure_detector import ClosureDetector
-
+from src.modules.ai.ai_result.services.ai_result_service import AIResultService
+from src.modules.ai.ai_result.services.ai_log_thought_service import AILogThoughtService
+from src.modules.ai.engines.lchain.feature.finance.finance_agent import create_finance_agent
 
 class Container(containers.DeclarativeContainer):
     """
@@ -80,6 +83,11 @@ class Container(containers.DeclarativeContainer):
         client=db_client
     )
     
+    ai_result_repository = providers.Factory(
+        AIResultRepository,
+        client=db_client
+    )
+    
     # Services
     closure_detector = providers.Factory(
         ClosureDetector
@@ -118,11 +126,27 @@ class Container(containers.DeclarativeContainer):
         closure_detector=closure_detector
     )
     
+    ai_result_service = providers.Factory(
+        AIResultService,
+        ai_result_repo=ai_result_repository
+    )
+    
+    ai_log_thought_service = providers.Factory(
+        AILogThoughtService,
+        ai_result_service=ai_result_service
+    )
+    
+    finance_agent = providers.Factory(
+        create_finance_agent,
+        ai_log_thought_service=ai_log_thought_service
+    )
+    
     twilio_webhook_service = providers.Factory(
         TwilioWebhookService,
         twilio_service=twilio_service,
         conversation_service=conversation_service,
         user_service=user_service,
         feature_service=feature_service,
-        twilio_account_repo=twilio_account_repository
+        twilio_account_repo=twilio_account_repository,
+        agent_runner=finance_agent
     )

@@ -9,7 +9,7 @@ from twilio.base.exceptions import TwilioRestException
 from src.modules.conversation.enums.message_direction import MessageDirection
 from src.modules.channels.twilio.repositories.account_repository import TwilioAccountRepository
 from src.core.config import settings
-from src.core.utils import get_logger, get_db
+from src.core.utils import get_logger
 
 logger = get_logger(__name__)
 
@@ -22,7 +22,7 @@ class TwilioService:
     
     def __init__(
         self,
-        twilio_repo: Optional[TwilioAccountRepository] = None
+        twilio_repo: TwilioAccountRepository
     ):
         """
         Initialize Twilio service.
@@ -30,8 +30,7 @@ class TwilioService:
         Args:
             twilio_repo: Twilio account repository
         """
-        db_client = get_db()
-        self.twilio_repo = twilio_repo or TwilioAccountRepository(db_client)
+        self.twilio_repo = twilio_repo
         self._clients: Dict[str, TwilioClient] = {}
     
     def _get_client(self, owner_id: str) -> Optional[TwilioClient]:

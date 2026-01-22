@@ -22,14 +22,14 @@ class AILogThoughtService:
     Service for logging AI Agent execution results and history.
     """
 
-    def __init__(self, ai_result_service: Optional[AIResultService] = None):
+    def __init__(self, ai_result_service: AIResultService):
         """
         Initialize the log thought service.
         
         Args:
-            ai_result_service: Service to persist results. If None, a new instance is created.
+            ai_result_service: Service to persist results.
         """
-        self.ai_result_service = ai_result_service or AIResultService()
+        self.ai_result_service = ai_result_service
 
     def log_agent_thought(
         self, 

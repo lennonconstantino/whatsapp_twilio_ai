@@ -1,3 +1,4 @@
+from src.modules.ai.ai_result.services.ai_log_thought_service import AILogThoughtService
 from src.modules.ai.engines.lchain.core.agents.routing_agent import RoutingAgent
 from src.modules.ai.engines.lchain.feature.finance.models.models import Customer, Expense, Revenue
 from src.modules.ai.engines.lchain.core.utils.utils import generate_query_context
@@ -41,13 +42,15 @@ add_customer_agent = TaskAgent(
     system_message=TASK_SYSTEM_MESSAGE
 )
 
-finance_agent = RoutingAgent(
-    task_agents=[
-        query_task_agent,
-        add_expense_agent,
-        add_revenue_agent,
-        add_customer_agent
-    ],
-    system_message=ROUTING_SYSTEM_MESSAGE,
-    prompt_extra=PROMPT_EXTRA
-) 
+def create_finance_agent(ai_log_thought_service: AILogThoughtService) -> RoutingAgent:
+    return RoutingAgent(
+        task_agents=[
+            query_task_agent,
+            add_expense_agent,
+            add_revenue_agent,
+            add_customer_agent
+        ],
+        system_message=ROUTING_SYSTEM_MESSAGE,
+        prompt_extra=PROMPT_EXTRA,
+        ai_log_thought_service=ai_log_thought_service
+    ) 

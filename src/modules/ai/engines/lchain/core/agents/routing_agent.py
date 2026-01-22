@@ -29,6 +29,7 @@ class RoutingAgent:
             examples: List[dict] = None,
             context: str = None,
             agent_context: Dict[str, Any] = None,
+            ai_log_thought_service: AILogThoughtService = None,
     ):
         self.task_agents = task_agents or []
         self.llm = llm
@@ -41,7 +42,8 @@ class RoutingAgent:
         self.examples = self.load_examples(examples)
         self.context = context or ""
         self.agent_context = agent_context or {}
-        self.ai_log_thought_service = AILogThoughtService()
+        
+        self.ai_log_thought_service = ai_log_thought_service
 
     def run(self, user_input: str, **kwargs):
         # Coleta todos os contextos disponíveis

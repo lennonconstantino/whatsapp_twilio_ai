@@ -18,9 +18,7 @@ from src.modules.conversation.models.message import Message
 
 from src.modules.identity.services.user_service import UserService
 from src.modules.identity.services.feature_service import FeatureService
-
-# Importando o agente diretamente por enquanto (refatoração futura: injetar ou factory)
-from src.modules.ai.engines.lchain.feature.finance.finance_agent import finance_agent
+from src.modules.ai.engines.lchain.core.agents.routing_agent import RoutingAgent
 
 logger = get_logger(__name__)
 
@@ -37,13 +35,15 @@ class TwilioWebhookService:
         conversation_service: ConversationService,
         user_service: UserService,
         feature_service: FeatureService,
-        twilio_account_repo: TwilioAccountRepository
+        twilio_account_repo: TwilioAccountRepository,
+        agent_runner: RoutingAgent
     ):
         self.twilio_service = twilio_service
         self.conversation_service = conversation_service
         self.user_service = user_service
         self.feature_service = feature_service
         self.twilio_account_repo = twilio_account_repo
+        self.agent_runner = agent_runner
 
     def _determine_message_type(self, num_media: int, media_content_type: str) -> MessageType:
         """Determine internal message type based on Twilio payload."""
@@ -290,8 +290,8 @@ class TwilioWebhookService:
             # 3. Run Agent (Synchronous Blocking Call)
             # In a real async architecture, this should be run_in_executor
             if user:
-                # TODO: Ensure finance_agent is thread-safe or re-instantiated
-                response_text = finance_agent.run(user_input=payload.body, **agent_context)
+                # Agent is now injected via DI (agent_runner)
+                response_text = self.agent_runner.run(user_input=payload.body, **agent_context)
             else:
                 response_text = "Desculpe, não encontrei seu cadastro. Por favor entre em contato com o suporte."
 

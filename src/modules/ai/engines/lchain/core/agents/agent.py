@@ -26,6 +26,7 @@ class Agent:
             context: str = None,
             user_context: str = None,
             agent_context: Dict[str, Any] = None,
+            ai_log_thought_service: AILogThoughtService = None,
     ):
         self.tools = tools
         self.llm = llm
@@ -38,7 +39,8 @@ class Agent:
         self.context = context or ""
         self.user_context = user_context or ""
         self.agent_context = agent_context or {}
-        self.ai_log_thought_service = AILogThoughtService()
+        
+        self.ai_log_thought_service = ai_log_thought_service
 
     def run(self, body: str, context: str = None):
         # Converter tools para formato LangChain
