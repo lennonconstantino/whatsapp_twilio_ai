@@ -1,5 +1,4 @@
 
-from typing import Optional
 from pydantic import BaseModel, field_validator
 
 
@@ -9,8 +8,8 @@ class TwilioWebhookResponseDTO(BaseModel):
     """Response model for Twilio webhook."""
     success: bool
     message: str
-    conv_id: Optional[str] = None  # ULID
-    msg_id: Optional[str] = None  # ULID
+    conv_id: str | None = None  # ULID
+    msg_id: str | None = None  # ULID
 
     @field_validator('conv_id', 'msg_id')
     @classmethod

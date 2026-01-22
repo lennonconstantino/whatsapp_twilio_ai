@@ -2,7 +2,6 @@
 Configuration module for the Owner project.
 Handles environment variables and application settings.
 """
-from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
@@ -29,7 +28,7 @@ class ConversationSettings(BaseSettings):
         default=30,
         description="Minimum duration in seconds before allowing closure"
     )
-    closure_keywords: List[str] = Field(
+    closure_keywords: list[str] = Field(
         default=[
             "tchau", "obrigado", "valeu", "até logo", "até mais",
             "até breve", "bye", "thanks", "adeus", "flw"
@@ -56,7 +55,7 @@ class SupabaseSettings(BaseSettings):
     
     url: str = Field(..., description="Supabase project URL")
     key: str = Field(..., description="Supabase anon key")
-    service_key: Optional[str] = Field(
+    service_key: str | None = Field(
         default=None,
         description="Supabase service role key"
     )
@@ -67,19 +66,19 @@ class SupabaseSettings(BaseSettings):
 class TwilioSettings(BaseSettings):
     """Default Twilio settings (can be overridden per owner)."""
     
-    account_sid: Optional[str] = Field(
+    account_sid: str | None = Field(
         default=None,
         description="Twilio Account SID"
     )
-    auth_token: Optional[str] = Field(
+    auth_token: str | None = Field(
         default=None,
         description="Twilio Auth Token"
     )
-    phone_number: Optional[str] = Field(
+    phone_number: str | None = Field(
         default=None,
         description="Default Twilio phone number"
     )
-    internal_api_key: Optional[str] = Field(
+    internal_api_key: str | None = Field(
         default=None,
         description="Internal API key for sender.py and internal services"
     )        
