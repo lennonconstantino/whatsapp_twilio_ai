@@ -1,18 +1,18 @@
-
 """
 API routes for conversation management.
 """
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
+from dependency_injector.wiring import inject, Provide
 
 from src.modules.conversation.dtos.conversation_dto import ConversationCreateDTO
 from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.modules.conversation.enums.conversation_status import ConversationStatus
 from src.modules.conversation.services.conversation_service import ConversationService
 
-
 from src.core.utils import get_logger
+from src.core.di.container import Container
 
 logger = get_logger(__name__)
 
@@ -66,15 +66,11 @@ class EscalationRequest(BaseModel):
     reason: str
 
 
-def get_conversation_service() -> ConversationService:
-    """Dependency to get conversation service."""
-    return ConversationService()
-
-
 @router.post("/", response_model=ConversationResponse, status_code=201)
+@inject
 async def create_conversation(
     conversation_data: ConversationCreateDTO,
-    service: ConversationService = Depends(get_conversation_service)
+    service: ConversationService = Depends(Provide[Container.conversation_service])
 ):
     """
     Create or get an active conversation.
@@ -99,9 +95,10 @@ async def create_conversation(
 
 
 @router.get("/{conv_id}", response_model=ConversationResponse)
+@inject
 async def get_conversation(
     conv_id: str,
-    service: ConversationService = Depends(get_conversation_service)
+    service: ConversationService = Depends(Provide[Container.conversation_service])
 ):
     """Get a conversation by ID."""
     conversation = service.get_conversation_by_id(conv_id)
@@ -112,10 +109,11 @@ async def get_conversation(
 
 
 @router.get("/", response_model=ConversationListResponse)
+@inject
 async def list_conversations(
     owner_id: str = Query(..., description="Owner ID"),
     limit: int = Query(100, ge=1, le=1000),
-    service: ConversationService = Depends(get_conversation_service)
+    service: ConversationService = Depends(Provide[Container.conversation_service])
 ):
     """List active conversations for an owner."""
     conversations = service.get_active_conversations(owner_id, limit)
@@ -127,11 +125,12 @@ async def list_conversations(
 
 
 @router.get("/{conv_id}/messages", response_model=List[MessageResponse])
+@inject
 async def get_conversation_messages(
     conv_id: str,
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    service: ConversationService = Depends(get_conversation_service)
+    service: ConversationService = Depends(Provide[Container.conversation_service])
 ):
     """Get messages from a conversation."""
     # Verify conversation exists
@@ -145,10 +144,11 @@ async def get_conversation_messages(
 
 
 @router.post("/{conv_id}/messages", response_model=MessageResponse, status_code=201)
+@inject
 async def add_message(
     conv_id: str,
     message_data: MessageCreateDTO,
-    service: ConversationService = Depends(get_conversation_service)
+    service: ConversationService = Depends(Provide[Container.conversation_service])
 ):
     """Add a message to a conversation."""
     # Verify conversation exists
@@ -168,11 +168,12 @@ async def add_message(
 
 
 @router.post("/{conv_id}/close", response_model=ConversationResponse)
+@inject
 async def close_conversation(
     conv_id: str,
     status: ConversationStatus,
     reason: Optional[str] = None,
-    service: ConversationService = Depends(get_conversation_service)
+    service: ConversationService = Depends(Provide[Container.conversation_service])
 ):
     """Close a conversation."""
     conversation = service.get_conversation_by_id(conv_id)
@@ -194,10 +195,11 @@ async def close_conversation(
 
 
 @router.post("/{conv_id}/extend", response_model=ConversationResponse)
+@inject
 async def extend_conversation(
     conv_id: str,
     additional_minutes: Optional[int] = None,
-    service: ConversationService = Depends(get_conversation_service)
+    service: ConversationService = Depends(Provide[Container.conversation_service])
 ):
     """Extend conversation expiration time."""
     conversation = service.get_conversation_by_id(conv_id)
@@ -213,10 +215,11 @@ async def extend_conversation(
 
 
 @router.post("/{conv_id}/transfer", response_model=ConversationResponse)
+@inject
 async def transfer_conversation(
     conv_id: str,
     transfer_data: TransferRequest,
-    service: ConversationService = Depends(get_conversation_service)
+    service: ConversationService = Depends(Provide[Container.conversation_service])
 ):
     """
     Transfer conversation to another agent.
@@ -240,10 +243,11 @@ async def transfer_conversation(
 
 
 @router.post("/{conv_id}/escalate", response_model=ConversationResponse)
+@inject
 async def escalate_conversation(
     conv_id: str,
     escalation_data: EscalationRequest,
-    service: ConversationService = Depends(get_conversation_service)
+    service: ConversationService = Depends(Provide[Container.conversation_service])
 ):
     """
     Escalate conversation to supervisor.
@@ -264,4 +268,3 @@ async def escalate_conversation(
     except Exception as e:
         logger.error("Error escalating conversation", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
-

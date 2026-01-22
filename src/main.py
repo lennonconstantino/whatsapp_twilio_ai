@@ -9,9 +9,13 @@ from .modules.conversation.api import conversations
 from .modules.channels.twilio.api import webhooks
 from .core.utils import configure_logging, get_logger
 from .core.config import settings
+from .core.di.container import Container
 
 configure_logging()
 logger = get_logger(__name__)
+
+# Initialize DI Container
+container = Container()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -36,6 +40,9 @@ app = FastAPI(
     lifespan=lifespan,
     debug=settings.api.debug
 )
+
+# Attach container to app
+app.container = container
 
 # Configure CORS
 app.add_middleware(

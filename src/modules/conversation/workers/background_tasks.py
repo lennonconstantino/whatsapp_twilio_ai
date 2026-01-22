@@ -16,9 +16,12 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
 
+from dependency_injector.wiring import inject, Provide
+
 from src.modules.conversation.services.conversation_service import ConversationService
 from src.core.utils import get_logger
 from src.core.config import settings
+from src.core.di.container import Container
 
 logger = get_logger(__name__)
 
@@ -89,11 +92,13 @@ class BackgroundWorker:
     - Handle graceful shutdown
     """
     
+    @inject
     def __init__(
         self, 
         interval_seconds: int = 60,
         batch_size: int = 100,
-        enable_metrics: bool = True
+        enable_metrics: bool = True,
+        conversation_service: ConversationService = Provide[Container.conversation_service]
     ):
         """
         Initialize background worker.
@@ -102,6 +107,7 @@ class BackgroundWorker:
             interval_seconds: Seconds between task runs
             batch_size: Maximum items to process per task
             enable_metrics: Whether to track metrics
+            conversation_service: Injected conversation service
         """
         self.interval_seconds = interval_seconds
         self.batch_size = batch_size
@@ -109,7 +115,7 @@ class BackgroundWorker:
         self.running = False
         
         # Initialize services
-        self.conversation_service = ConversationService()
+        self.conversation_service = conversation_service
         
         # Metrics
         self.metrics: Dict[str, TaskMetrics] = {

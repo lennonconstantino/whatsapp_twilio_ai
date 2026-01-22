@@ -3,22 +3,17 @@ API routes for Twilio webhook integration.
 """
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Header, BackgroundTasks
-from supabase import Client
+from dependency_injector.wiring import inject, Provide
 
-from src.core.utils import get_logger, get_db
+from src.core.utils import get_logger
 from src.core.config import settings
+from src.core.di.container import Container
 
 from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
 from src.modules.channels.twilio.dtos import TwilioWebhookResponseDTO
 from src.modules.channels.twilio.services.webhook_service import TwilioWebhookService
 from src.modules.channels.twilio.services.twilio_service import TwilioService
-from src.modules.channels.twilio.repositories.account_repository import TwilioAccountRepository
 
-from src.modules.conversation.services.conversation_service import ConversationService
-from src.modules.identity.services.user_service import UserService
-from src.modules.identity.services.feature_service import FeatureService
-from src.modules.identity.repositories.user_repository import UserRepository
-from src.modules.identity.repositories.feature_repository import FeatureRepository
 
 logger = get_logger(__name__)
 
@@ -64,34 +59,12 @@ async def parse_twilio_payload(request: Request) -> TwilioWhatsAppPayload:
         local_sender=form_data.get('LocalSender')
     )
 
-async def get_webhook_service(
-    db: Client = Depends(get_db)
-) -> TwilioWebhookService:
-    """Dependency to get TwilioWebhookService instance."""
-    # Repositories
-    twilio_repo = TwilioAccountRepository(db)
-    user_repo = UserRepository(db)
-    feature_repo = FeatureRepository(db)
-    
-    # Services
-    twilio_service = TwilioService(twilio_repo)
-    # ConversationService handles its own DB connection internally currently
-    conversation_service = ConversationService() 
-    user_service = UserService(user_repo)
-    feature_service = FeatureService(feature_repo)
-    
-    return TwilioWebhookService(
-        twilio_service=twilio_service,
-        conversation_service=conversation_service,
-        user_service=user_service,
-        feature_service=feature_service,
-        twilio_account_repo=twilio_repo
-    )
-
+@inject
 async def validate_twilio_request(
     request: Request,
     X_Twilio_Signature: Optional[str] = Header(None, alias="X-Twilio-Signature"),
-    x_api_key: Optional[str] = Header(None, alias="X-API-Key")
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    twilio_service: TwilioService = Depends(Provide[Container.twilio_service])
 ):
     """
     Validate request authenticity (API Key or Twilio Signature).
@@ -108,8 +81,7 @@ async def validate_twilio_request(
                 raise HTTPException(403, "Invalid API key")
         
         elif X_Twilio_Signature:
-            # Use a lightweight instance or helper for validation
-            twilio_service = TwilioService() 
+            # Use injected service for validation
             is_valid = twilio_service.validate_webhook_signature(
                 str(request.url),
                 await request.form(),
@@ -119,10 +91,11 @@ async def validate_twilio_request(
                 raise HTTPException(status_code=403, detail="Invalid signature")
 
 @router.post("/inbound", response_model=TwilioWebhookResponseDTO)
+@inject
 async def handle_inbound_message(
     background_tasks: BackgroundTasks,
     payload: TwilioWhatsAppPayload = Depends(parse_twilio_payload),
-    service: TwilioWebhookService = Depends(get_webhook_service),
+    service: TwilioWebhookService = Depends(Provide[Container.twilio_webhook_service]),
     _: None = Depends(validate_twilio_request)
 ):
     """

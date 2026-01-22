@@ -1,12 +1,15 @@
 """
 Identity Service module.
 """
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, List
+
 from src.core.utils import get_logger
+from src.modules.identity.services.feature_service import FeatureService
 from src.modules.identity.services.owner_service import OwnerService
 from src.modules.identity.services.user_service import UserService
 from src.modules.identity.dtos.owner_dto import OwnerCreateDTO
 from src.modules.identity.dtos.user_dto import UserCreateDTO
+from src.modules.identity.dtos.feature_dto import FeatureCreateDTO
 from src.modules.identity.models.owner import Owner
 from src.modules.identity.models.user import User, UserRole
 
@@ -18,21 +21,24 @@ class IdentityService:
     Orchestrates operations involving both Owners and Users.
     """
 
-    def __init__(self, owner_service: OwnerService, user_service: UserService):
+    def __init__(self, owner_service: OwnerService, user_service: UserService, feature_service: FeatureService):
         """
         Initialize IdentityService.
         
         Args:
             owner_service: OwnerService instance
             user_service: UserService instance
+            feature_service: FeatureService instance
         """
         self.owner_service = owner_service
         self.user_service = user_service
+        self.feature_service = feature_service
 
     def register_organization(
         self, 
         owner_data: OwnerCreateDTO, 
-        admin_user_data: UserCreateDTO
+        admin_user_data: UserCreateDTO,
+        initial_features: Optional[List[str]] = None
     ) -> Tuple[Optional[Owner], Optional[User]]:
         """
         Register a new organization (Owner) and its initial Admin User.
@@ -40,6 +46,7 @@ class IdentityService:
         Args:
             owner_data: Data for creating the Owner
             admin_user_data: Data for creating the initial Admin User
+            initial_features: Optional list of feature names to enable for the organization
             
         Returns:
             Tuple containing (Owner, User)
@@ -74,25 +81,61 @@ class IdentityService:
             # Note: Transaction rollback would be handled here in a transactional system
             raise e
             
+        # 3. Create initial features if provided
+        if initial_features:
+            logger.info(f"Creating {len(initial_features)} initial features for owner {owner.owner_id}")
+            for feature_name in initial_features:
+                try:
+                    feature_dto = FeatureCreateDTO(
+                        owner_id=owner.owner_id,
+                        name=feature_name,
+                        enabled=True,
+                        description=f"Initial feature: {feature_name}"
+                    )
+                    self.feature_service.create_feature(feature_dto)
+                except Exception as e:
+                    logger.error(f"Failed to create feature {feature_name}: {e}")
+                    # Continue creating other features
+            
         return owner, user
 
     def get_user_context(self, user_id: str) -> Optional[Dict[str, Any]]:
         """
-        Get full context for a user (User + Owner info).
+        Get full context for a user (User + Owner info + Features).
         
         Args:
             user_id: User ID
             
         Returns:
-            Dictionary with user and owner details, or None
+            Dictionary with user, owner and features details, or None
         """
         user = self.user_service.get_user_by_id(user_id)
         if not user:
             return None
             
         owner = self.owner_service.get_owner_by_id(user.owner_id)
+        features = self.feature_service.get_enabled_features(owner.owner_id)
         
         return {
             "user": user,
-            "owner": owner
+            "owner": owner,
+            "features": features
         }
+
+    def check_feature_access(self, user_id: str, feature_name: str) -> bool:
+        """
+        Check if a user has access to a specific feature.
+        
+        Args:
+            user_id: User ID
+            feature_name: Name of the feature to check
+            
+        Returns:
+            True if the user exists and the feature is enabled for their organization, False otherwise
+        """
+        user = self.user_service.get_user_by_id(user_id)
+        if not user:
+            return False
+            
+        feature = self.feature_service.get_feature_by_name(user.owner_id, feature_name)
+        return feature is not None and feature.enabled
