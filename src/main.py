@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Owner API",
     description="Multi-tenant conversation management system with Twilio integration",
-    version="3.1.0",
+    version="4.0.0",
     lifespan=lifespan,
     debug=settings.api.debug
 )
@@ -68,7 +68,7 @@ async def root():
     """Root endpoint."""
     return {
         "name": "Owner API",
-        "version": "3.1.0",
+        "version": "4.0.0",
         "status": "running"
     }
 
