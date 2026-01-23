@@ -1,0 +1,33 @@
+graph TD
+    User((User)) -->|WhatsApp| Twilio[Twilio Platform]
+    Twilio -->|Webhook| API[API Gateway / FastAPI]
+    
+    subgraph Core
+        DI[Dependency Injector]
+        Queue[Queue Service Interface]
+        DB_Interface[Base Repository]
+    end
+    
+    subgraph Modules
+        TwilioMod[Twilio Module]
+        ConvMod[Conversation Module]
+        AIMod[AI Module]
+        IdMod[Identity Module]
+    end
+    
+    API --> TwilioMod
+    API --> ConvMod
+    
+    TwilioMod --> Queue
+    ConvMod --> Queue
+    
+    Queue -->|Job| AIMod
+    AIMod -->|Reply| TwilioMod
+    
+    TwilioMod --> DB_Interface
+    ConvMod --> DB_Interface
+    AIMod --> DB_Interface
+    IdMod --> DB_Interface
+    
+    DB_Interface --> Supabase[(Supabase PostgreSQL)]
+    AIMod --> OpenAI[OpenAI API]

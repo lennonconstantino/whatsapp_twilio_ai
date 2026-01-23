@@ -1,0 +1,26 @@
+sequenceDiagram
+    participant User
+    participant Twilio
+    participant WebhookAPI
+    participant Queue
+    participant AI_Worker
+    participant Database
+    
+    User->>Twilio: Send Message
+    Twilio->>WebhookAPI: POST /webhook
+    WebhookAPI->>Database: Check Idempotency (Insert)
+    alt Duplicate
+        Database-->>WebhookAPI: Error (Duplicate)
+        WebhookAPI-->>Twilio: 200 OK (Ignored)
+    else New Message
+        Database-->>WebhookAPI: Success
+        WebhookAPI->>Queue: Enqueue Job (process_message)
+        WebhookAPI-->>Twilio: 200 OK
+    end
+    
+    Queue->>AI_Worker: Pick up Job
+    AI_Worker->>Database: Fetch Context
+    AI_Worker->>AI_Worker: Generate Response (LLM)
+    AI_Worker->>Twilio: Send Reply API
+    Twilio->>User: Deliver Message
+    AI_Worker->>Database: Save Response & Update State
