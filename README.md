@@ -75,6 +75,18 @@ O projeto inclui um `Makefile` para facilitar operações comuns:
   make run
   ```
   O servidor estará disponível em `http://localhost:8000`.
+  > **Nota**: Este comando agora verifica se o worker está rodando. Se não estiver, ele falhará com instruções claras.
+
+- **Iniciar os Workers (Obrigatório)**:
+  Para processamento de mensagens e tarefas em background, execute em um terminal separado:
+  ```bash
+  make run-worker
+  ```
+
+- **Parar Aplicação e Workers**:
+  ```bash
+  make stop
+  ```
 
 - **Executar Migrations**:
   ```bash
@@ -93,10 +105,26 @@ O projeto inclui um `Makefile` para facilitar operações comuns:
 
 ### Exemplo de Uso Local (Webhook)
 
-1. Inicie o servidor: `make run`
-2. Exponha a porta 8000 via Ngrok: `ngrok http 8000`
-3. Configure a URL do webhook no Console do Twilio: `https://seu-ngrok.ngrok-free.app/api/v1/twilio/webhook`
-4. Envie uma mensagem para o número do WhatsApp configurado.
+1. **Exponha a porta local via Ngrok (Obrigatório)**:
+   Para que o Twilio se comunique com seu localhost, execute em um novo terminal:
+   ```bash
+   ngrok http 8000
+   ```
+   Copie a URL gerada (ex: `https://abcd-123.ngrok-free.app`).
+
+2. **Inicie o Servidor e Workers**:
+   ```bash
+   make run-worker
+   # Em outro terminal:
+   make run
+   ```
+
+3. **Configure o Twilio**:
+   No Console do Twilio, defina a URL do webhook para:
+   `[SUA_URL_NGROK]/api/v1/twilio/webhook`
+
+4. **Teste**:
+   Envie uma mensagem para o número do WhatsApp configurado.
 
 ## 📚 Documentação Adicional
 
