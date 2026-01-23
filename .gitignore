@@ -137,6 +137,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env.bkp
+.env.test
 .envrc
 .venv
 env/
@@ -206,3 +208,12 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# TRAE
+.trae/
+
+# others
+concat_files.sh
+output.txt
+queue.db
+
