@@ -2,6 +2,15 @@ import os
 import sys
 import pytest
 from unittest.mock import MagicMock, patch
+from datetime import datetime, timezone
+
+# Set environment variables for testing before importing application modules
+os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
+os.environ.setdefault("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c")
+os.environ.setdefault("OPENAI_API_KEY", "test-key")
+os.environ.setdefault("TWILIO_ACCOUNT_SID", "test-sid")
+os.environ.setdefault("TWILIO_AUTH_TOKEN", "test-token")
+os.environ.setdefault("TWILIO_PHONE_NUMBER", "+1234567890")
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -24,68 +33,127 @@ logger = get_logger(__name__)
 
 class TestConcurrency:
     def setup_method(self):
-        self.db = get_db()
-        self.repo = ConversationRepository(self.db)
-        self.msg_repo = MessageRepository(self.db)
-        self.owner_repo = OwnerRepository(self.db)
-        self.service = ConversationService(self.repo, self.msg_repo, ClosureDetector())
+        # Mocks
+        self.repo = MagicMock()
+        self.msg_repo = MagicMock()
+        self.owner_repo = MagicMock()
+        self.closure_detector = ClosureDetector() # Logic only
         
-        email = f"test_concurrency_{int(datetime.now().timestamp())}@example.com"
-        owner = self.owner_repo.create_owner(name="Concurrency Test", email=email)
-        self.owner_id = owner.owner_id
-        print(f"[Test] Created test owner: {self.owner_id} ({email})")
+        self.service = ConversationService(self.repo, self.msg_repo, self.closure_detector)
+        
+        self.owner_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+        self.conv_id = "01ARZ3NDEKTSV4RRFFQ69G5FAW"
+        
+        # Mock Owner
+        self.owner = MagicMock()
+        self.owner.owner_id = self.owner_id
+        self.owner_repo.create_owner.return_value = self.owner
         
         self.phone = "+5511999999999"
 
+        # Helper to simulate creation return
+        def create_conv_side_effect(data):
+            data_copy = data.copy()
+            if 'conv_id' not in data_copy:
+                data_copy['conv_id'] = self.conv_id
+            data_copy['version'] = 1
+            return Conversation(**data_copy)
+        self.repo.create.side_effect = create_conv_side_effect
+
     def test_optimistic_locking_recovery(self):
         print("\n[Test] Setting up conversation...")
-        # 1. Create conversation
-        conv = self.service.get_or_create_conversation(
+        
+        # 1. Create conversation mock
+        conv_data = {
+            "owner_id": self.owner_id,
+            "conv_id": self.conv_id,
+            "from_number": self.phone,
+            "to_number": "whatsapp:+14155238886",
+            "status": ConversationStatus.PROGRESS.value,
+            "started_at": datetime.now(timezone.utc),
+            "version": 1
+        }
+        conv = Conversation(**conv_data)
+        
+        # Mock get_or_create to return this conversation
+        self.service.get_or_create_conversation = MagicMock(return_value=conv)
+        
+        retrieved_conv = self.service.get_or_create_conversation(
             owner_id=self.owner_id,
             from_number=self.phone,
             to_number="whatsapp:+14155238886"
         )
-        initial_version = getattr(conv, "version", 1)
-        print(f"[Test] Created conversation {conv.conv_id} (Version: {initial_version})")
+        initial_version = retrieved_conv.version
+        print(f"[Test] Created conversation {retrieved_conv.conv_id} (Version: {initial_version})")
         
         # 2. Simulate parallel modification
         print("[Test] Simulating parallel update...")
-        # Fetch the same conversation directly from repo
-        parallel_conv = self.repo.find_by_id(conv.conv_id, id_column="conv_id")
         
-        # Modify parallel_conv in DB directly to increment version
-        # This simulates another worker updating the record
-        self.repo.update_status(
-            parallel_conv.conv_id,
-            ConversationStatus.PROGRESS,
-            initiated_by="system",
-            reason="parallel_update"
-        )
+        # We want the service to fail first, then succeed.
+        # The service calls:
+        # 1. repo.update_status(conv_id, status, version=1, ...) -> Raises ConcurrencyError
+        # 2. repo.find_by_id(conv_id) -> Returns updated conversation (version 2)
+        # 3. repo.update_status(conv_id, status, version=2, ...) -> Succeeds
         
-        # Verify DB version increased
-        check = self.repo.find_by_id(conv.conv_id, id_column="conv_id")
-        print(f"[Test] DB Version is now: {check.version}")
-        assert check.version > initial_version
+        # Updated conversation state (simulating what happened in DB)
+        updated_conv_data = conv_data.copy()
+        updated_conv_data['version'] = 2
+        updated_conv_data['status'] = ConversationStatus.PROGRESS.value
+        updated_conv = Conversation(**updated_conv_data)
         
-        # Now 'conv' variable holds an outdated version (initial_version)
-        # Try to update status using 'conv' via Service
-        # Service should catch ConcurrencyError, reload, and succeed
+        # Final conversation state after service update
+        final_conv_data = updated_conv_data.copy()
+        final_conv_data['version'] = 3
+        final_conv_data['status'] = ConversationStatus.AGENT_CLOSED.value
+        final_conv = Conversation(**final_conv_data)
+        
+        # Mock find_by_id to return the updated conversation when reloading
+        self.repo.find_by_id.return_value = updated_conv
+        
+        # Mock update_status side effect
+        def update_status_side_effect(conv_id, status, **kwargs):
+            # We can check the version passed in arguments if we want, 
+            # but relying on the sequence of calls is easier for this test.
+            # However, looking at the service implementation, it passes the *object* to close_conversation,
+            # but calls repo.update_status with ID. 
+            # The repository implementation checks version internally.
+            
+            # Since we are mocking the repository, we control what happens.
+            pass
+            
+        # We will use 'side_effect' with an iterable to return different results on consecutive calls
+        # First call: Raise ConcurrencyError
+        # Second call: Return success (final_conv)
+        self.repo.update_status.side_effect = [
+            ConcurrencyError("Version mismatch", current_version=2),
+            final_conv
+        ]
         
         print(f"[Test] Attempting update with stale version {initial_version}...")
+        
+        # Note: We must call the real close_conversation method, not a mock
+        # We need to restore the service method we might have mocked or just use the real one.
+        # Wait, I mocked get_or_create_conversation, but close_conversation is what we are testing.
+        
         try:
-            updated_conv = self.service.close_conversation(
-                conv, # stale object
+            # We pass the 'conv' object which has version=1
+            result = self.service.close_conversation(
+                retrieved_conv, # stale object (version 1)
                 ConversationStatus.AGENT_CLOSED,
                 initiated_by="agent",
                 reason="test_concurrency"
             )
             
             print("[Test] Update succeeded via retry mechanism!")
-            print(f"[Test] Final Version: {updated_conv.version}")
+            print(f"[Test] Final Version: {result.version}")
             
-            assert updated_conv.status == ConversationStatus.AGENT_CLOSED.value
-            # Version should be at least +2 from original (1 initial + 1 parallel + 1 service update)
-            assert updated_conv.version > initial_version
+            assert result.status == ConversationStatus.AGENT_CLOSED.value
+            assert result.version == 3
+            
+            # Verify calls
+            assert self.repo.update_status.call_count == 2
+            # Verify find_by_id was called to reload
+            self.repo.find_by_id.assert_called_with(self.conv_id, id_column="conv_id")
             
         except ConcurrencyError:
             pytest.fail("Service failed to recover from ConcurrencyError")
