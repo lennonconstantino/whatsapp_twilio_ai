@@ -81,8 +81,7 @@ class TwilioWebhookService:
 
     async def process_webhook(
         self, 
-        payload: TwilioWhatsAppPayload, 
-        background_tasks: BackgroundTasks
+        payload: TwilioWhatsAppPayload
     ) -> TwilioWebhookResponseDTO:
         """
         Main entry point for webhook processing.
@@ -90,25 +89,11 @@ class TwilioWebhookService:
         # 1. Resolve Owner (Run sync DB op in threadpool)
         owner_id = await run_in_threadpool(self.resolve_owner_id, payload)
 
-        # 2. Check Idempotency
-        existing_message = await run_in_threadpool(
-            self.conversation_service.message_repo.find_by_external_id, 
-            payload.message_sid
-        )
-        if existing_message:
-            logger.info("Duplicate webhook, already processed", message_sid=payload.message_sid)
-            return TwilioWebhookResponseDTO(
-                success=True,
-                message="Already processed",
-                conv_id=existing_message.conv_id,
-                msg_id=existing_message.msg_id
-            )
-
-        # 3. Route based on flow (Local Sender vs Normal Inbound)
+        # 2. Route based on flow (Local Sender vs Normal Inbound)
         if payload.local_sender:
             return await self._process_local_sender(owner_id, payload)
         else:
-            return await self._process_inbound_message(owner_id, payload, background_tasks)
+            return await self._process_inbound_message(owner_id, payload)
 
     async def _process_local_sender(self, owner_id: str, payload: TwilioWhatsAppPayload) -> TwilioWebhookResponseDTO:
         """
@@ -177,8 +162,7 @@ class TwilioWebhookService:
     async def _process_inbound_message(
         self, 
         owner_id: str, 
-        payload: TwilioWhatsAppPayload,
-        background_tasks: BackgroundTasks
+        payload: TwilioWhatsAppPayload
     ) -> TwilioWebhookResponseDTO:
         """
         Handle normal user inbound messages.

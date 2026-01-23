@@ -29,6 +29,14 @@ async def main():
     # Since queue_service is Singleton, the handler persists.
     webhook_service = container.twilio_webhook_service()
     
+    # Register Conversation tasks
+    conversation_service = container.conversation_service()
+    from src.modules.conversation.workers.tasks import ConversationTasks
+    conversation_tasks = ConversationTasks(conversation_service)
+    
+    queue_service.register_handler("process_idle_conversations", conversation_tasks.process_idle_conversations)
+    queue_service.register_handler("process_expired_conversations", conversation_tasks.process_expired_conversations)
+    
     logger.info("Services initialized. Starting worker...")
     
     try:

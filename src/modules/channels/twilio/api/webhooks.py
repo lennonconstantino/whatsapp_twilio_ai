@@ -9,7 +9,7 @@ from src.core.di.container import Container
 
 from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
 from src.modules.channels.twilio.dtos import TwilioWebhookResponseDTO
-from modules.channels.twilio.services.twilio_webhook_service import TwilioWebhookService
+from src.modules.channels.twilio.services.twilio_webhook_service import TwilioWebhookService
 from .dependencies import parse_twilio_payload, validate_twilio_request
 
 
@@ -20,7 +20,6 @@ router = APIRouter(prefix="/webhooks/twilio", tags=["webhooks"])
 @router.post("/inbound", response_model=TwilioWebhookResponseDTO)
 @inject
 async def handle_inbound_message(
-    background_tasks: BackgroundTasks,
     payload: TwilioWhatsAppPayload = Depends(parse_twilio_payload),
     service: TwilioWebhookService = Depends(Provide[Container.twilio_webhook_service]),
     _: None = Depends(validate_twilio_request)
@@ -39,7 +38,7 @@ async def handle_inbound_message(
     )
     
     try:
-        return await service.process_webhook(payload, background_tasks)
+        return await service.process_webhook(payload)
     except Exception as e:
         logger.error("Error processing inbound message", error=str(e))
         # Don't raise HTTPException to avoid Twilio retries

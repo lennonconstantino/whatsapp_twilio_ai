@@ -22,7 +22,7 @@ from src.modules.identity.services.identity_service import IdentityService
 from src.modules.channels.twilio.services.twilio_service import TwilioService
 from src.modules.channels.twilio.services.twilio_account_service import TwilioAccountService
 from src.modules.conversation.services.conversation_service import ConversationService
-from modules.channels.twilio.services.twilio_webhook_service import TwilioWebhookService
+from src.modules.channels.twilio.services.twilio_webhook_service import TwilioWebhookService
 from src.modules.conversation.components.closure_detector import ClosureDetector
 from src.modules.ai.ai_result.services.ai_result_service import AIResultService
 from src.modules.ai.ai_result.services.ai_log_thought_service import AILogThoughtService

@@ -109,6 +109,9 @@ async def test_owner_lookup_inbound_local_sender():
             "LocalSender": "True",
         }
     
+        # The API endpoint has been refactored to NOT accept background_tasks argument.
+        # It relies on QueueService which is injected.
+        # We test the API endpoint via AsyncClient which calls the endpoint normally.
         async with AsyncClient(app=app, base_url="http://test") as ac:
             resp = await ac.post("/webhooks/twilio/inbound", data=payload)
     
@@ -123,3 +126,4 @@ async def test_owner_lookup_inbound_local_sender():
         app.container.twilio_account_repository.reset_override()
         app.container.twilio_service.reset_override()
         app.container.conversation_service.reset_override()
+        app.container.queue_service.reset_override()

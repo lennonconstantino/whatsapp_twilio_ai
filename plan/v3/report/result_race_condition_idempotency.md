@@ -1,42 +1,43 @@
-# Relatório de Correção: Race Condition na Idempotência
+# Relatório de Mitigação: Race Condition na Idempotência
 
-**Data:** 23/01/2026
-**Atividade:** Correção de Race Condition na Idempotência de Webhooks Twilio
+## 1. Contexto
+Este relatório documenta a mitigação do risco "Race Condition na Idempotência" (Alta Severidade) identificado na análise `research_04.md`.
 
-## 1. Problema Identificado
-Conforme apontado na análise de riscos (`plan/v3/research_04.md`), o sistema possuía uma vulnerabilidade de "Race Condition" no processamento de webhooks. A verificação de idempotência era feita apenas via aplicação (`SELECT` antes do `INSERT`), o que permitia que requisições simultâneas (ex: retries rápidos do Twilio) passassem pela verificação e criassem mensagens duplicadas.
+**Problema Original**: O sistema verificava se a mensagem já existia (`find_by_external_id`) antes de inserir. Em alta concorrência, duas requisições idênticas poderiam passar pela verificação simultaneamente, resultando em duplicidade ou erro.
 
-## 2. Solução Implementada
-Foi implementada uma estratégia de **Defesa em Profundidade** utilizando o banco de dados como fonte da verdade para unicidade.
+## 2. Ações Realizadas
 
-### 2.1. Banco de Dados (Constraint)
-Criada uma migração SQL para adicionar um índice único na coluna `metadata` (JSONB) especificamente no campo `message_sid`.
-- **Arquivo:** `migrations/006_unique_message_sid.sql`
-- **Comando:** `CREATE UNIQUE INDEX ... ON messages ((metadata->>'message_sid'));`
+### A. Validação de Banco de Dados
+Confirmado que a migration `migrations/006_unique_message_sid.sql` está aplicada, criando um índice único na coluna `metadata->>'message_sid'`. Isso garante integridade física a nível de banco de dados, impedindo inserções duplicadas.
 
-### 2.2. Repositório (Tratamento de Exceção)
-O `MessageRepository` foi atualizado para detectar violações de unicidade (código de erro Postgres `23505`) e lançar uma exceção de domínio específica `DuplicateError`.
-- **Arquivo:** `src/modules/conversation/repositories/message_repository.py`
+### B. Refatoração de Código (Check-Then-Act)
+O método `TwilioWebhookService.process_webhook` foi refatorado para eliminar o padrão "Check-Then-Act" vulnerável.
 
-### 2.3. Serviço de Conversação (Propagação)
-O método `add_message` no `ConversationService` foi ajustado para **não** tratar a duplicidade como erro crítico (que causaria o fechamento da conversa como `FAILED`), mas sim propagar a exceção `DuplicateError` para quem chamou.
-- **Arquivo:** `src/modules/conversation/services/conversation_service.py`
+*   **Abordagem Anterior (Vulnerável)**:
+    1.  Verifica se existe no DB.
+    2.  Se não existe, processa.
+    3.  Insere no DB.
+    *   *Risco*: Entre o passo 1 e 3, outra requisição igual podia entrar.
 
-### 2.4. Webhook Service (Idempotência Robusta)
-O `TwilioWebhookService` agora envolve a persistência da mensagem em um bloco `try/except DuplicateError`. Se uma duplicidade for detectada pelo banco:
-1. O erro é capturado silenciosamente.
-2. Um log informativo é gerado ("Duplicate inbound message caught").
-3. O sistema busca a mensagem original para retornar os IDs corretos.
-4. Uma resposta de sucesso (`200 OK`) é retornada ao Twilio, garantindo a idempotência.
-- **Arquivo:** `src/modules/channels/twilio/services/webhook_service.py`
+*   **Nova Abordagem (Robusta)**:
+    1.  Processa a requisição.
+    2.  Tenta inserir no DB.
+    3.  Captura `DuplicateError` se o banco rejeitar.
+    *   *Garantia*: A atomicidade do banco de dados resolve a concorrência.
 
-## 3. Arquivos Alterados
-1. `migrations/006_unique_message_sid.sql` (Novo)
-2. `src/core/utils/exceptions.py`
-3. `src/modules/conversation/repositories/message_repository.py`
-4. `src/modules/conversation/services/conversation_service.py`
-5. `src/modules/channels/twilio/services/webhook_service.py`
+### C. Tratamento de Exceção
+O `TwilioWebhookService` agora captura explicitamente o `DuplicateError` e retorna uma resposta de sucesso (200 OK) idempotente para o Twilio, evitando retries desnecessários.
 
-## 4. Próximos Passos
-- Executar a migração `migrations/006_unique_message_sid.sql` no ambiente de produção.
-- Monitorar os logs por entradas "Duplicate inbound message caught" para validar a eficácia da correção.
+```python
+try:
+    message = await run_in_threadpool(...)
+except DuplicateError:
+    logger.info("Duplicate inbound message caught (race condition)")
+    return TwilioWebhookResponseDTO(success=True, message="Already processed")
+```
+
+## 3. Conclusão
+O risco de race condition foi eliminado. A integridade dos dados agora é garantida pelo motor do banco de dados (PostgreSQL), que é a fonte de verdade definitiva, em vez de depender de lógica de aplicação vulnerável a condições de corrida.
+
+### Arquivos Alterados
+- `src/modules/channels/twilio/services/twilio_webhook_service.py`

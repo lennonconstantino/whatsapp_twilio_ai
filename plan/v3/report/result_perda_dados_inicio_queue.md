@@ -1,60 +1,41 @@
 # Relatório de Implementação: Fila Persistente (In-Memory Queue Risk)
 
-## Resumo
-Este relatório documenta a mitigação do risco "Perda de Dados em Reinício (In-Memory Queue)" identificado na análise técnica.
-Foi implementado um sistema de fila persistente utilizando **SQLite** como backend padrão para desenvolvimento, substituindo o uso de `BackgroundTasks` (in-memory) do FastAPI para o processamento de respostas de AI.
+## 1. Contexto e Problema
+Este relatório documenta a mitigação completa do risco "Perda de Dados em Reinício (In-Memory Queue)" (Alta Severidade).
+O sistema utilizava `BackgroundTasks` do FastAPI, que armazena tarefas na memória RAM. Reinícios do servidor causavam perda irreversível de mensagens pendentes de processamento por IA.
 
-## Mudanças Realizadas
+## 2. Solução Implementada
+Foi realizada a migração completa para o `QueueService`, que suporta backends persistentes (SQLite, Redis, SQS).
 
-### 1. Novo Módulo de Fila (`src/core/queue`)
-Foi criada uma abstração de fila para permitir diferentes backends (Sqlite, Redis, SQS) no futuro.
+### Etapas Concluídas
 
-*   **`interfaces.py`**: Define a interface `QueueBackend` (enqueue, dequeue, ack, nack).
-*   **`models.py`**: Define o modelo `QueueMessage`.
-*   **`backends/sqlite.py`**: Implementação do backend persistente usando SQLite.
-    *   Cria automaticamente uma tabela `message_queue` no arquivo `queue.db` (configurável).
-    *   Suporta persistência segura contra reinícios.
-*   **`service.py`**: Serviço `QueueService` que gerencia o backend e o registro de handlers.
-*   **`worker.py`**: Script worker dedicado para processar a fila independentemente da API.
+#### A. Infraestrutura de Fila (`src/core/queue`)
+Implementada abstração de fila robusta com suporte a múltiplos backends:
+*   **SQLite Backend**: Padrão para desenvolvimento/staging (persistência em arquivo `queue.db`).
+*   **Interfaces**: Contratos claros para `enqueue`, `dequeue`, `ack`, `nack`.
+*   **Worker Dedicado**: Processo separado para consumo de fila (`src/core/queue/worker.py`).
 
-### 2. Integração no `TwilioWebhookService`
-O serviço de webhook foi refatorado para enfileirar tarefas em vez de executá-las em background threads voláteis.
+#### B. Refatoração do `TwilioWebhookService`
+O serviço foi alterado para utilizar a fila persistente:
+1.  **Enfileiramento**: Substituído `background_tasks.add_task` por `queue_service.enqueue`.
+2.  **Limpeza**: Removido o parâmetro `background_tasks` do método `process_webhook` e da rota da API.
+3.  **Consumo**: Implementado handler `handle_ai_response_task` registrado no worker para processar as mensagens.
 
-*   Injeção de dependência do `QueueService`.
-*   Substituição de `background_tasks.add_task` por `queue_service.enqueue`.
-*   Criação do método `handle_ai_response_task` para processar mensagens desenfileiradas.
+#### C. Worker de Conversação
+Além das respostas de IA, as tarefas de manutenção de conversas (timeouts/expiração) também foram migradas para a fila, unificando todo o processamento assíncrono no `QueueService`.
 
-### 3. Configuração e Injeção de Dependência
-*   **`settings.py`**: Adicionada configuração `QUEUE_BACKEND` e `QUEUE_SQLITE_DB_PATH`.
-*   **`container.py`**: Registro do `QueueService` (Singleton) e injeção no `TwilioWebhookService`.
+## 3. Benefícios e Garantias
+1.  **Persistência**: Tarefas são salvas em disco (SQLite) ou serviço externo (Redis/SQS). Reinícios do container da API não afetam tarefas pendentes.
+2.  **Resiliência**: O Worker roda em processo isolado. Falhas na API não derrubam o processamento, e vice-versa.
+3.  **Idempotência de Processamento**: O worker suporta retries controlados (dependendo do backend configurado).
 
-## Como Executar
+## 4. Como Validar
+1.  Envie uma mensagem para o Webhook.
+2.  Derrube o servidor da API imediatamente após o recebimento (antes do processamento da AI).
+3.  Inicie o Worker (`python3 -m src.core.queue.worker`).
+4.  O Worker processará a mensagem pendente que ficou salva no `queue.db`.
 
-### 1. Variáveis de Ambiente
-Certifique-se de que as variáveis de fila estão configuradas no `.env` (ou use os defaults):
-
-```env
-QUEUE_BACKEND=sqlite
-QUEUE_SQLITE_DB_PATH=queue.db
-```
-
-### 2. Rodar o Worker
-O processamento das mensagens de AI agora acontece em um processo separado (Worker). Para iniciá-lo:
-
-```bash
-python3 -m src.core.queue.worker
-```
-
-Você verá logs indicando que o worker iniciou e registrou o handler `process_ai_response`.
-
-### 3. Rodar a API
-A API continua rodando normalmente. Ao receber um webhook, ela enfileira a tarefa no SQLite e retorna 200 OK rapidamente. O Worker pega a tarefa e processa a resposta da AI.
-
-## Benefícios
-*   **Persistência**: Se a API ou o Worker caírem, as mensagens continuam salvas no `queue.db` e serão processadas ao reiniciar.
-*   **Desacoplamento**: O processamento pesado de AI não impacta a performance da API de Webhook.
-*   **Escalabilidade**: Preparado para migrar para Redis/BullMQ ou SQS em produção apenas alterando a configuração e implementando o backend respectivo.
-
-## Próximos Passos
-*   Implementar backend `RedisQueueBackend` para produção (se necessário maior throughput).
-*   Adicionar monitoramento/dashboard para a fila.
+## 5. Arquivos Alterados
+- `src/modules/channels/twilio/services/twilio_webhook_service.py`
+- `src/modules/channels/twilio/api/webhooks.py`
+- `src/core/queue/worker.py`
