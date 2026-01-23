@@ -104,3 +104,17 @@ class OwnerService:
         """
         logger.info(f"Activating owner {owner_id}")
         return self.repository.activate_owner(owner_id)
+
+    def delete_owner(self, owner_id: str) -> bool:
+        """
+        Delete an owner (Hard Delete).
+        Used primarily for rollback operations or cleanup.
+        
+        Args:
+            owner_id: Owner ID
+            
+        Returns:
+            True if deleted, False otherwise
+        """
+        logger.warning(f"Permanently deleting owner {owner_id}")
+        return self.repository.delete(owner_id, id_column="owner_id")

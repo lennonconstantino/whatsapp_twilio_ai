@@ -78,7 +78,14 @@ class IdentityService:
             user = self.user_service.create_user(final_user_dto)
         except Exception as e:
             logger.error(f"Failed to create admin user: {e}")
-            # Note: Transaction rollback would be handled here in a transactional system
+            # Rollback: Delete the orphan owner
+            if owner and owner.owner_id:
+                logger.warning(f"Rolling back owner creation for {owner.owner_id} due to user creation failure")
+                try:
+                    self.owner_service.delete_owner(owner.owner_id)
+                    logger.info(f"Successfully rolled back owner {owner.owner_id}")
+                except Exception as rollback_error:
+                    logger.critical(f"CRITICAL: Failed to rollback owner {owner.owner_id}: {rollback_error}")
             raise e
             
         # 3. Create initial features if provided
@@ -139,3 +146,40 @@ class IdentityService:
             
         feature = self.feature_service.get_feature_by_name(user.owner_id, feature_name)
         return feature is not None and feature.enabled
+
+    def get_user_by_phone(self, phone: str) -> Optional[User]:
+        """
+        Find user by phone number.
+        
+        Args:
+            phone: Phone number
+            
+        Returns:
+            User instance or None
+        """
+        return self.user_service.get_user_by_phone(phone)
+
+    def get_feature_by_name(self, owner_id: str, name: str) -> Optional[Any]:
+        """
+        Get a specific feature by name and owner.
+        
+        Args:
+            owner_id: Owner ID
+            name: Feature name
+            
+        Returns:
+            Feature instance or None
+        """
+        return self.feature_service.get_feature_by_name(owner_id, name)
+    
+    def validate_feature_path(self, path: str) -> Dict[str, Any]:
+        """
+        Validate a feature path.
+        
+        Args:
+            path: Feature path to validate
+            
+        Returns:
+            dict with validation results for feature path
+        """
+        return self.feature_service.validate_feature_path(path)

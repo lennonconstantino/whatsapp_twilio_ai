@@ -4,10 +4,10 @@ Unit tests for Conversation Service V2.
 import sys
 import os
 from unittest.mock import MagicMock
+from dotenv import load_dotenv
 
-# Set dummy environment variables for Supabase settings validation
-os.environ['SUPABASE_URL'] = 'https://example.supabase.co'
-os.environ['SUPABASE_KEY'] = 'dummy-key'
+# Load test environment variables
+load_dotenv(os.path.join(os.path.dirname(__file__), "../../.env.test"), override=True)
 
 # Mock database connection BEFORE importing modules that use it
 sys.modules['src.core.database.session'] = MagicMock()

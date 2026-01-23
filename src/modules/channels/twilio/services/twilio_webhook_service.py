@@ -1,24 +1,21 @@
 import uuid
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from fastapi import BackgroundTasks, HTTPException
 
 from src.core.utils import get_logger
-from src.core.config import settings
 from src.core.utils.exceptions import DuplicateError
 from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
 from src.modules.channels.twilio.dtos import TwilioWebhookResponseDTO
 from src.modules.channels.twilio.services.twilio_service import TwilioService
-from src.modules.channels.twilio.repositories.account_repository import TwilioAccountRepository
+from src.modules.channels.twilio.services.twilio_account_service import TwilioAccountService
 
 from src.modules.conversation.services.conversation_service import ConversationService
 from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.modules.conversation.enums.message_direction import MessageDirection
 from src.modules.conversation.enums.message_owner import MessageOwner
 from src.modules.conversation.enums.message_type import MessageType
-from src.modules.conversation.models.message import Message
 
-from src.modules.identity.services.user_service import UserService
-from src.modules.identity.services.feature_service import FeatureService
+from src.modules.identity.services.identity_service import IdentityService
 from src.modules.ai.engines.lchain.core.agents.routing_agent import RoutingAgent
 from src.core.queue.service import QueueService
 
@@ -35,17 +32,15 @@ class TwilioWebhookService:
         self,
         twilio_service: TwilioService,
         conversation_service: ConversationService,
-        user_service: UserService,
-        feature_service: FeatureService,
-        twilio_account_repo: TwilioAccountRepository,
+        identity_service: IdentityService,
+        twilio_account_service: TwilioAccountService,
         agent_runner: RoutingAgent,
         queue_service: QueueService
     ):
         self.twilio_service = twilio_service
         self.conversation_service = conversation_service
-        self.user_service = user_service
-        self.feature_service = feature_service
-        self.twilio_account_repo = twilio_account_repo
+        self.identity_service = identity_service
+        self.twilio_account_service = twilio_account_service
         self.agent_runner = agent_runner
         self.queue_service = queue_service
         
@@ -73,23 +68,10 @@ class TwilioWebhookService:
         """
         Resolve the Owner ID (Tenant) based on the To number or Account SID.
         """
-        to_number = payload.to_number or ""
-        if to_number.startswith("whatsapp:"):
-            to_number = to_number.split(":", 1)[1]
-        
-        account = None
-        
-        # 1. Try by Account SID
-        if payload.account_sid:
-            account = self.twilio_account_repo.find_by_account_sid(payload.account_sid)
-        
-        # 2. Try by Phone Number
-        if not account and to_number:
-            account = self.twilio_account_repo.find_by_phone_number(to_number)
-            
-        # 3. Fallback to default from settings (Development only ideally)
-        if not account and getattr(settings.twilio, "account_sid", None):
-             account = self.twilio_account_repo.find_by_account_sid(settings.twilio.account_sid)
+        account = self.twilio_account_service.resolve_account(
+            to_number=payload.to_number,
+            account_sid=payload.account_sid
+        )
 
         if not account:
             logger.error("Owner lookup failed", to_number=payload.to_number, account_sid=payload.account_sid)
@@ -312,11 +294,11 @@ class TwilioWebhookService:
         try:
             # 1. Get User Context
             search_phone = payload.from_number.replace("whatsapp:", "").strip() if payload.from_number else ""
-            user = self.user_service.get_user_by_phone(search_phone)
+            user = self.identity_service.get_user_by_phone(search_phone)
             
             # 2. Resolve Feature (TODO: Make dynamic based on user/owner config)
-            result = self.feature_service.validate_feature_path("src/modules/ai/engines/lchain/feature")
-            feature = self.feature_service.get_feature_by_name(owner_id, result["feature"]+"_agent")
+            result = self.identity_service.validate_feature_path("src/modules/ai/engines/lchain/feature")
+            feature = self.identity_service.get_feature_by_name(owner_id, result["feature"]+"_agent")
 
             agent_context = {
                 "owner_id": owner_id, 
@@ -376,6 +358,7 @@ class TwilioWebhookService:
                 }
             )
             
+            # TODO: using the src/modules/conversation/v2/services/conversation_service.py
             # Re-fetch conversation to ensure attached to session if needed, or pass ID
             # conversation_service.add_message expects conversation object mostly for ID. 
             # Ideally add_message should accept ID. Looking at code:

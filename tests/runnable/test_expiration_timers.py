@@ -3,14 +3,10 @@ from unittest.mock import MagicMock, ANY
 import sys
 import os
 from datetime import datetime, timedelta, timezone
+from dotenv import load_dotenv
 
 # Set environment variables for testing before importing application modules
-os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
-os.environ.setdefault("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c")
-os.environ.setdefault("OPENAI_API_KEY", "test-key")
-os.environ.setdefault("TWILIO_ACCOUNT_SID", "test-sid")
-os.environ.setdefault("TWILIO_AUTH_TOKEN", "test-token")
-os.environ.setdefault("TWILIO_PHONE_NUMBER", "+1234567890")
+load_dotenv(os.path.join(os.path.dirname(__file__), "../.env.test"), override=True)
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))

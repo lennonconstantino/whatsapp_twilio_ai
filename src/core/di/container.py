@@ -20,8 +20,9 @@ from src.modules.identity.services.user_service import UserService
 from src.modules.identity.services.feature_service import FeatureService
 from src.modules.identity.services.identity_service import IdentityService
 from src.modules.channels.twilio.services.twilio_service import TwilioService
+from src.modules.channels.twilio.services.twilio_account_service import TwilioAccountService
 from src.modules.conversation.services.conversation_service import ConversationService
-from src.modules.channels.twilio.services.webhook_service import TwilioWebhookService
+from modules.channels.twilio.services.twilio_webhook_service import TwilioWebhookService
 from src.modules.conversation.components.closure_detector import ClosureDetector
 from src.modules.ai.ai_result.services.ai_result_service import AIResultService
 from src.modules.ai.ai_result.services.ai_log_thought_service import AILogThoughtService
@@ -119,12 +120,18 @@ class Container(containers.DeclarativeContainer):
     identity_service = providers.Factory(
         IdentityService,
         owner_service=owner_service,
-        user_service=user_service
+        user_service=user_service,
+        feature_service=feature_service
     )
     
     twilio_service = providers.Factory(
         TwilioService,
         twilio_repo=twilio_account_repository
+    )
+    
+    twilio_account_service = providers.Factory(
+        TwilioAccountService,
+        twilio_account_repo=twilio_account_repository
     )
     
     conversation_service = providers.Factory(
@@ -158,9 +165,8 @@ class Container(containers.DeclarativeContainer):
         TwilioWebhookService,
         twilio_service=twilio_service,
         conversation_service=conversation_service,
-        user_service=user_service,
-        feature_service=feature_service,
-        twilio_account_repo=twilio_account_repository,
+        identity_service=identity_service,
+        twilio_account_service=twilio_account_service,
         agent_runner=master_agent,
         queue_service=queue_service
     )

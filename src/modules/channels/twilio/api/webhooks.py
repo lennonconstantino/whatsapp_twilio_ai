@@ -9,7 +9,7 @@ from src.core.di.container import Container
 
 from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
 from src.modules.channels.twilio.dtos import TwilioWebhookResponseDTO
-from src.modules.channels.twilio.services.webhook_service import TwilioWebhookService
+from modules.channels.twilio.services.twilio_webhook_service import TwilioWebhookService
 from .dependencies import parse_twilio_payload, validate_twilio_request
 
 
