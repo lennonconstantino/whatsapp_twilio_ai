@@ -37,9 +37,10 @@ class TwilioAccountService:
         if not account and normalized_to_number:
             account = self.repo.find_by_phone_number(normalized_to_number)
             
-        # 3. Fallback to default from settings (Development only ideally)
-        if not account and getattr(settings.twilio, "account_sid", None):
-             account = self.repo.find_by_account_sid(settings.twilio.account_sid)
+        # 3. Fallback to default from settings (Development only)
+        if getattr(settings.api, "environment", "production") == "development":
+            if not account and getattr(settings.twilio, "account_sid", None):
+                 account = self.repo.find_by_account_sid(settings.twilio.account_sid)
 
         if not account:
             logger.warning("Twilio Account lookup failed", to_number=to_number, account_sid=account_sid)

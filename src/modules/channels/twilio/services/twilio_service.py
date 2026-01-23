@@ -52,9 +52,9 @@ class TwilioService:
         if not account:
             logger.warning(f"No Twilio account found for owner {owner_id}")
             
-            # Try to use default credentials
-            if settings.twilio.account_sid and settings.twilio.auth_token:
-                logger.info("Using default Twilio credentials")
+            # Try to use default credentials (Development only)
+            if settings.api.environment == "development" and settings.twilio.account_sid and settings.twilio.auth_token:
+                logger.info("Using default Twilio credentials (Development Mode)")
                 client = TwilioClient(
                     settings.twilio.account_sid,
                     settings.twilio.auth_token
