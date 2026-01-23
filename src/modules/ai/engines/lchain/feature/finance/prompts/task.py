@@ -16,5 +16,8 @@ On error: If information are missing consider if you can deduce or calculate the
 Use the information provided by the user to deduct the correct tool arguments.
 Before using a tool think about the arguments and explain each input argument used in the tool. 
 Return only one tool call at a time! Explain your thoughts!
+
+IMPORTANT: Do NOT escape the dollar sign ($) in JSON strings. Use standard JSON formatting. 
+Example: Use "$5.00", NOT "\$5.00".
 {context}
 """

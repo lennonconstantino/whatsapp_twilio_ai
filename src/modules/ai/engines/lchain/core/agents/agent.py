@@ -86,6 +86,11 @@ class Agent:
                 break
             elif step_result.event == "error":
                 self.to_console(step_result.event, step_result.content, "red")
+                # Feedback loop: Add error to history so the model can correct itself
+                self.step_history.append({
+                    "role": "user", 
+                    "content": f"System Error: {step_result.content}. Please try again avoiding this error."
+                })
             else:
                 self.to_console(step_result.event, step_result.content, "yellow")
 

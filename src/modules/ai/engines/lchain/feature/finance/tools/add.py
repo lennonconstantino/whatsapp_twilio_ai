@@ -131,9 +131,9 @@ class AddExpenseTool(Tool):
         """
         try:
             result = add_expense_to_db(kwargs)
-            return ToolResult(success=True, message=result)
+            return ToolResult(success=True, content=result)
         except Exception as e:
-            return ToolResult(success=False, message=str(e))
+            return ToolResult(success=False, content=str(e))
 
 
 class AddRevenueTool(Tool):
@@ -172,9 +172,9 @@ class AddRevenueTool(Tool):
         """
         try:
             result = add_revenue_to_db(kwargs)
-            return ToolResult(success=True, message=result)
+            return ToolResult(success=True, content=result)
         except Exception as e:
-            return ToolResult(success=False, message=str(e))
+            return ToolResult(success=False, content=str(e))
 
 
 class AddCustomerTool(Tool):
@@ -260,9 +260,9 @@ def create_add_tool(
         def execute(self, **kwargs) -> ToolResult:
             try:
                 result = add_function(kwargs)
-                return ToolResult(success=True, message=result)
+                return ToolResult(success=True, content=result)
             except Exception as e:
-                return ToolResult(success=False, message=str(e))
+                return ToolResult(success=False, content=str(e))
         
         def _run(self, **kwargs) -> ToolResult:
             return self.execute(**kwargs)
