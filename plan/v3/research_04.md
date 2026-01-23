@@ -59,15 +59,14 @@ Classifiquei os riscos por severidade para priorização:
 
 ### 3. Oportunidades de Melhoria (Opportunities)
 1. Refatoração dos Scripts de Worker:
-   
    - Os arquivos workers/sender.py e workers/sender_user.py parecem scripts utilitários de CLI/Teste, não workers de produção reais.
    - Sugestão: Movê-los para scripts/tools/ ou tests/utils/ para não poluir o código fonte da aplicação.
+
 2. Resiliência a Falhas de AI:
-   
    - Atualmente, se o agente AI falhar, um log de erro é gerado, mas o usuário final não recebe feedback (exceto se cair no bloco except geral).
    - Sugestão: Implementar um mecanismo de Dead Letter Queue ou uma resposta de erro amigável automática ("Desculpe, estou indisponível no momento") garantida mesmo em falhas profundas do agente.
+
 3. Tipagem Estrita de Retorno:
-   
    - Métodos como send_message retornam Optional[Dict[str, Any]] .
    - Sugestão: Usar Pydantic Models ou Dataclasses para o retorno (ex: TwilioMessageResult ), evitando o uso de dicionários genéricos que escondem a estrutura dos dados.
 

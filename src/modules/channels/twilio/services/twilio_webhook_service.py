@@ -262,6 +262,69 @@ class TwilioWebhookService:
             correlation_id=task_payload["correlation_id"]
         )
 
+    def _send_and_persist_response(
+        self,
+        owner_id: str,
+        conversation_id: str,
+        sender_number: str,
+        recipient_number: str,
+        body: str,
+        correlation_id: str,
+        is_error: bool = False
+    ):
+        """
+        Helper to send message via Twilio and persist it.
+        """
+        try:
+            # Send via Twilio
+            response = self.twilio_service.send_message(
+                owner_id=owner_id, 
+                from_number=sender_number, 
+                to_number=recipient_number, 
+                body=body
+            )
+            
+            if not response:
+                logger.error("Failed to send response via Twilio", correlation_id=correlation_id)
+                return
+
+            # Persist Outbound Message
+            message_data = MessageCreateDTO(
+                conv_id=conversation_id,
+                owner_id=owner_id,
+                from_number=sender_number,
+                to_number=recipient_number,
+                body=response["body"],
+                direction=MessageDirection.OUTBOUND,
+                message_owner=MessageOwner.SYSTEM,
+                message_type=MessageType.TEXT,
+                content=response["body"],
+                correlation_id=correlation_id,
+                metadata={
+                    "message_sid": response["sid"],
+                    "status": response["status"],
+                    "num_media": getattr(response["message"], "num_media", 0),
+                    "media_url": None,
+                    "media_type": None,
+                    "auto_response": True,
+                    "is_error_fallback": is_error
+                }
+            )
+            
+            # Re-fetch conversation to ensure attached to session if needed
+            conversation = self.conversation_service.get_or_create_conversation(
+                owner_id=owner_id,
+                from_number=sender_number,
+                to_number=recipient_number,
+                channel="whatsapp"
+            )
+            
+            self.conversation_service.add_message(conversation, message_data)
+            
+        except Exception as e:
+            # If even sending the response fails, we just log it as critical
+            logger.error("Critical error sending response", error=str(e), correlation_id=correlation_id)
+
     def handle_ai_response(
         self,
         owner_id: str,
@@ -309,59 +372,29 @@ class TwilioWebhookService:
                 response_text = "Desculpe, ocorreu um erro interno ao processar sua mensagem. Tente novamente mais tarde."
 
             # 4. Send Response via Twilio
-            response = self.twilio_service.send_message(
-                owner_id=owner_id, 
-                from_number=payload.to_number, 
-                to_number=payload.from_number, 
-                body=response_text
-            )
-            
-            if not response:
-                logger.error("Failed to send AI response via Twilio", correlation_id=correlation_id)
-                return
-
-            # 5. Persist Outbound Message (System)
-            message_data = MessageCreateDTO(
-                conv_id=conversation_id,
+            self._send_and_persist_response(
                 owner_id=owner_id,
-                from_number=payload.to_number,
-                to_number=payload.from_number,
-                body=response["body"],
-                direction=MessageDirection.OUTBOUND,
-                message_owner=MessageOwner.SYSTEM,
-                message_type=MessageType.TEXT, # Assuming AI returns text for now
-                content=response["body"],
-                correlation_id=correlation_id,
-                metadata={
-                    "message_sid": response["sid"],
-                    "status": response["status"],
-                    "num_media": getattr(response["message"], "num_media", 0),
-                    "media_url": None,
-                    "media_type": None,
-                    "auto_response": True
-                }
+                conversation_id=conversation_id,
+                sender_number=payload.to_number,
+                recipient_number=payload.from_number,
+                body=response_text,
+                correlation_id=correlation_id
             )
-            
-            # TODO: using the src/modules/conversation/v2/services/conversation_service.py
-            # Re-fetch conversation to ensure attached to session if needed, or pass ID
-            # conversation_service.add_message expects conversation object mostly for ID. 
-            # Ideally add_message should accept ID. Looking at code:
-            # message = conversation_service.add_message(conversation, message_data)
-            # Let's get conversation object again to be safe or mock it if only ID is used.
-            # Assuming get_conversation_by_id exists or similar.
-            # For now, using get_or_create again is safe but slightly inefficient.
-            # Ideally conversation_service should have get_by_id.
-            # Let's check conversation_service in next step. For now, get_or_create.
-            conversation = self.conversation_service.get_or_create_conversation(
-                owner_id=owner_id,
-                from_number=payload.from_number,
-                to_number=payload.to_number,
-                channel="whatsapp"
-            )
-            
-            self.conversation_service.add_message(conversation, message_data)
             
             logger.info("AI response processed and sent", correlation_id=correlation_id)
 
         except Exception as e:
             logger.error("Error in AI background processing", error=str(e), correlation_id=correlation_id)
+            
+            # Send friendly error message
+            error_message = "Desculpe, estou enfrentando dificuldades técnicas no momento. Por favor, tente novamente em alguns instantes."
+            
+            self._send_and_persist_response(
+                owner_id=owner_id,
+                conversation_id=conversation_id,
+                sender_number=payload.to_number,
+                recipient_number=payload.from_number,
+                body=error_message,
+                correlation_id=correlation_id,
+                is_error=True
+            )
