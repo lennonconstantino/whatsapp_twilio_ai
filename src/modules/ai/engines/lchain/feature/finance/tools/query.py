@@ -86,7 +86,7 @@ class QueryConfig(BaseModel):
         default=["*"],
         description="Columns to select"
     )
-    where: Optional[Union[List[Union[WhereStatement, Dict[str, Any]]], Dict[str, Any], str]] = Field(
+    where: Optional[Union[List[Union[WhereStatement, Dict[str, Any], List[Any]]], Dict[str, Any], str]] = Field(
         default=[],
         description="Filter conditions"
     )
