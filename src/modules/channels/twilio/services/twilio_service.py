@@ -88,7 +88,7 @@ class TwilioService:
             sid=f'SM_{os.urandom(16).hex()}',
             status="sent",
             to=to_number,
-            from_=from_number,
+            from_number=from_number,
             body=body,
             direction=MessageDirection.OUTBOUND.value
         )
@@ -147,7 +147,7 @@ class TwilioService:
                 sid=message.sid,
                 status=message.status,
                 to=message.to,
-                from_=message.from_,
+                from_number=message.from_,
                 body=message.body,
                 direction=MessageDirection.OUTBOUND.value,
                 num_media=int(message.num_media) if message.num_media else 0,
