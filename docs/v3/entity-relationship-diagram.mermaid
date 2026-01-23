@@ -1,0 +1,46 @@
+erDiagram
+    OWNER ||--o{ USER : "has admins"
+    OWNER ||--o{ TWILIO_ACCOUNT : "configures"
+    OWNER ||--o{ CONVERSATION : "owns"
+    
+    TWILIO_ACCOUNT ||--o{ CONVERSATION : "channel for"
+    
+    CONVERSATION ||--o{ MESSAGE : "contains"
+    CONVERSATION ||--o{ CONVERSATION_STATE_HISTORY : "logs"
+    
+    OWNER {
+        uuid id PK
+        string name
+        string status
+    }
+    
+    USER {
+        uuid id PK
+        uuid owner_id FK
+        string email
+        string role
+    }
+    
+    TWILIO_ACCOUNT {
+        uuid id PK
+        uuid owner_id FK
+        string phone_number
+        string sid
+    }
+    
+    CONVERSATION {
+        uuid id PK
+        uuid owner_id FK
+        uuid account_id FK
+        string user_phone
+        enum status
+        timestamp expires_at
+    }
+    
+    MESSAGE {
+        uuid id PK
+        uuid conversation_id FK
+        string content
+        enum direction
+        string sid
+    }

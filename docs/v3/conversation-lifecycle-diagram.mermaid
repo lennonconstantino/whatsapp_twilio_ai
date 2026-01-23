@@ -1,0 +1,20 @@
+stateDiagram-v2
+    [*] --> PENDING: New Message
+    
+    PENDING --> PROGRESS: Agent/AI Reply
+    PENDING --> EXPIRED: TTL Reached
+    PENDING --> USER_CLOSED: User Stop Command
+    
+    PROGRESS --> IDLE_TIMEOUT: Inactivity
+    PROGRESS --> AGENT_CLOSED: Agent Finishes
+    PROGRESS --> USER_CLOSED: User Stop Command
+    PROGRESS --> EXPIRED: TTL Reached
+    
+    IDLE_TIMEOUT --> PROGRESS: New Message
+    IDLE_TIMEOUT --> EXPIRED: TTL Reached
+    IDLE_TIMEOUT --> AGENT_CLOSED: Manual Close
+    
+    AGENT_CLOSED --> [*]
+    USER_CLOSED --> [*]
+    EXPIRED --> [*]
+    FAILED --> [*]

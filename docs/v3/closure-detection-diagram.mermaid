@@ -1,0 +1,24 @@
+flowchart TD
+    Scheduler[Background Scheduler] -->|Every 60s| Enqueue[Enqueue Tasks]
+    Enqueue -->|Job: process_idle| Queue[(Queue Service)]
+    Enqueue -->|Job: process_expired| Queue
+    
+    Queue -->|Worker| WorkerIdle[Worker: Idle Check]
+    Queue -->|Worker| WorkerExp[Worker: Expiration Check]
+    
+    subgraph Idle Logic
+        WorkerIdle --> FetchActive[Fetch PROGRESS Conversations]
+        FetchActive --> CheckTime{Last Update > X min?}
+        CheckTime -->|Yes| MarkIdle[Transition to IDLE_TIMEOUT]
+        CheckTime -->|No| Skip[Skip]
+    end
+    
+    subgraph Expiration Logic
+        WorkerExp --> FetchAll[Fetch All Active/Paused]
+        FetchAll --> CheckTTL{Created/Update > TTL?}
+        CheckTTL -->|Yes| MarkExpired[Transition to EXPIRED]
+        CheckTTL -->|No| SkipExp[Skip]
+    end
+    
+    MarkIdle --> DB[(Database)]
+    MarkExpired --> DB

@@ -1,106 +1,148 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, ANY
 import sys
 import os
 from datetime import datetime, timedelta, timezone
+from dotenv import load_dotenv
+
+# Set environment variables for testing before importing application modules
+load_dotenv(os.path.join(os.path.dirname(__file__), "../.env.test"), override=True)
 
 # Add project root to path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
-from src.services.conversation_service import ConversationService
-from src.repositories.conversation_repository import ConversationRepository
-from src.repositories.message_repository import MessageRepository
-from src.repositories.user_repository import UserRepository
-from src.repositories.owner_repository import OwnerRepository
-from src.models.domain import ConversationStatus, MessageOwner, MessageCreateDTO
-from src.utils.database import get_db
-from src.config import settings
+from src.modules.conversation.services.conversation_service import ConversationService
+from src.modules.conversation.enums.conversation_status import ConversationStatus
+from src.modules.conversation.enums.message_owner import MessageOwner
+from src.modules.conversation.dtos.message_dto import MessageCreateDTO
+from src.modules.conversation.models.conversation import Conversation
+from src.core.config import settings
+from src.modules.conversation.components.closure_detector import ClosureDetector
 
 class TestExpirationTimers(unittest.TestCase):
     def setUp(self):
-        self.db = get_db()
-        self.repo = ConversationRepository(self.db)
-        self.msg_repo = MessageRepository(self.db)
-        self.user_repo = UserRepository(self.db)
-        self.owner_repo = OwnerRepository(self.db)
-        self.service = ConversationService(self.repo, self.msg_repo)
+        # Mock repositories
+        self.repo = MagicMock()
+        self.msg_repo = MagicMock()
+        self.closure_detector = ClosureDetector() # Logic only, no DB
         
-        # Create unique owner for isolation
-        import uuid
-        unique_id = str(uuid.uuid4())[:8]
-        self.owner = self.owner_repo.create({
-            "name": f"Test Timer {unique_id}",
-            "email": f"timer-{unique_id}@example.com"
-        })
-        self.owner_id = self.owner.owner_id
+        # Initialize service with mocks
+        self.service = ConversationService(self.repo, self.msg_repo, self.closure_detector)
+        
+        # Setup common mock objects
+        self.owner_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+        self.conv_id = "01ARZ3NDEKTSV4RRFFQ69G5FAW"
+        
+        # Helper to simulate creation return
+        def create_side_effect(data):
+            data_copy = data.copy()
+            # Convert ISO strings back to datetime objects for the model
+            if 'expires_at' in data_copy and isinstance(data_copy['expires_at'], str):
+                data_copy['expires_at'] = datetime.fromisoformat(data_copy['expires_at'])
+            if 'started_at' in data_copy and isinstance(data_copy['started_at'], str):
+                data_copy['started_at'] = datetime.fromisoformat(data_copy['started_at'])
+            
+            # Ensure ID
+            if 'conv_id' not in data_copy:
+                data_copy['conv_id'] = self.conv_id
+                
+            return Conversation(**data_copy)
+            
+        self.repo.create.side_effect = create_side_effect
 
     def test_pending_expiration_timer(self):
         """Test that new conversations (PENDING) get ~48h expiration."""
         # Config values
-        pending_minutes = settings.conversation.pending_expiration_minutes # Default 2880 (48h)
+        pending_minutes = settings.conversation.pending_expiration_minutes
         
+        # Setup mock: No active conversation found
+        self.repo.find_active_by_session_key.return_value = None
+        self.repo.find_all_by_session_key.return_value = [] # No history
+
         # Create conversation
         conv = self.service.get_or_create_conversation(
             owner_id=self.owner_id,
             from_number="+5511999999999",
             to_number="+5511888888888",
-            channel="whatsapp"
+            channel="whatsapp",
         )
-        
+
         # Assert status
         self.assertEqual(conv.status, ConversationStatus.PENDING.value)
-        
+
         # Assert expiration time
         now = datetime.now(timezone.utc)
         expected_expiry = now + timedelta(minutes=pending_minutes)
-        
+
         # Allow 1 minute tolerance
+        # Note: conv.expires_at comes from our side_effect which uses data passed by service
         diff = abs((conv.expires_at - expected_expiry).total_seconds())
         self.assertLess(diff, 60, f"Expiration should be close to {pending_minutes} minutes from now")
-        
+
         print(f"PENDING Expiration Validated: {conv.expires_at} (~48h)")
 
     def test_progress_expiration_update(self):
         """Test that transition to PROGRESS updates expiration to ~24h."""
-        progress_minutes = settings.conversation.expiration_minutes # Default 1440 (24h)
+        progress_minutes = settings.conversation.expiration_minutes
         
-        # Create PENDING conversation
-        conv = self.service.get_or_create_conversation(
+        # Setup existing PENDING conversation
+        pending_conv = Conversation(
+            conv_id=self.conv_id,
             owner_id=self.owner_id,
-            from_number="+5511999999999",
-            to_number="+5511888888888",
-            channel="whatsapp"
+            from_number="+5511888888888",
+            to_number="+5511999999999",
+            channel="whatsapp",
+            status=ConversationStatus.PENDING.value,
+            started_at=datetime.now(timezone.utc),
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=48),
+            session_key="test::key"
         )
-        
+
         # Simulate Agent response to transition to PROGRESS
         msg_dto = MessageCreateDTO(
-            conv_id=conv.conv_id,
+            conv_id=pending_conv.conv_id,
             owner_id=self.owner_id,
             body="Hello, I will help you.",
             message_owner=MessageOwner.AGENT,
-            message_type="text",
-            from_number=conv.to_number,  # Agent replies from the business number
-            to_number=conv.from_number   # Agent replies to the user
+            from_number=pending_conv.to_number,
+            to_number=pending_conv.from_number,
         )
-        
+
+        # Mock update_status to return updated conversation
+        def update_status_side_effect(conv_id, status, initiated_by, reason, expires_at=None, **kwargs):
+            pending_conv.status = status.value if hasattr(status, 'value') else status
+            if expires_at:
+                pending_conv.expires_at = expires_at
+            return pending_conv
+
+        self.repo.update_status.side_effect = update_status_side_effect
+        self.repo.update_context.return_value = pending_conv # Mock context update too
+
         # Add message (triggers transition logic)
-        self.service.add_message(conv, msg_dto)
+        self.service.add_message(pending_conv, msg_dto)
+
+        # Verify update_status was called with correct status and expiration
+        self.repo.update_status.assert_called()
         
-        # Reload conversation
-        updated_conv = self.repo.find_by_id(conv.conv_id, id_column="conv_id")
+        # Inspect call args to verify expiration logic
+        call_args = self.repo.update_status.call_args
+        args, kwargs = call_args
         
-        # Assert status
-        self.assertEqual(updated_conv.status, ConversationStatus.PROGRESS.value)
+        # Check status (passed as positional arg in service)
+        # call: update_status(conv_id, status, initiated_by=..., ...)
+        self.assertEqual(args[1], ConversationStatus.PROGRESS)
         
-        # Assert expiration time updated
+        # Check expiration (passed as kwarg in service)
+        updated_expiry = kwargs.get('expires_at')
+        self.assertIsNotNone(updated_expiry, "expires_at should be passed to update_status")
+        
         now = datetime.now(timezone.utc)
         expected_expiry = now + timedelta(minutes=progress_minutes)
         
-        # Allow 1 minute tolerance
-        diff = abs((updated_conv.expires_at - expected_expiry).total_seconds())
-        self.assertLess(diff, 60, f"Expiration should be updated to {progress_minutes} minutes from now")
-        
-        print(f"PROGRESS Expiration Validated: {updated_conv.expires_at} (~24h)")
+        diff = abs((updated_expiry - expected_expiry).total_seconds())
+        self.assertLess(diff, 60, f"Updated expiration should be close to {progress_minutes} minutes from now")
+
+        print(f"PROGRESS Expiration Validated: {updated_expiry} (~24h)")
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,4 @@
-.PHONY: help install dev test lint format clean run migrate seed
+.PHONY: help install dev test lint format clean run run-worker stop migrate seed
 
 help:
 	@echo "Available commands:"
@@ -8,7 +8,9 @@ help:
 	@echo "  make lint       - Run linters"
 	@echo "  make format     - Format code"
 	@echo "  make clean      - Clean temporary files"
-	@echo "  make run        - Run the application"
+	@echo "  make run        - Run the application (requires worker running)"
+	@echo "  make run-worker - Run the background worker"
+	@echo "  make stop       - Stop application and workers"
 	@echo "  make migrate    - Migrate Database"
 	@echo "  make seed       - Seed the database"
 
@@ -46,14 +48,34 @@ clean:
 	rm -rf build
 	rm -rf *.egg-info
 
-run:
+run-worker:
+	python -m src.core.queue.worker
+
+check-worker:
+	@if ! pgrep -f "src.core.queue.worker" > /dev/null; then \
+		echo "❌ Error: Worker is not running!"; \
+		echo "👉 Please run 'make run-worker' in a separate terminal first."; \
+		exit 1; \
+	else \
+		echo "✅ Worker is running."; \
+	fi
+
+run: check-worker
 	python -m src.main
+
+stop:
+	@echo "Stopping application and workers..."
+	@-pkill -f "src.main" || echo "Application was not running."
+	@-pkill -f "src.core.queue.worker" || echo "Worker was not running."
+	@echo "Stopped."
 
 migrate:
 	python -m scripts.migrate
 
 seed:
 	python -m scripts.seed
+	@echo "---"
+	python -m scripts.seed_feature_finance
 
 shell:
 	python -i -c "from src.utils import get_db; from src.repositories import *; from src.services import *; db = get_db()"

@@ -2,9 +2,7 @@
 Seed script to populate initial data.
 Creates sample owners, users, features, and configurations.
 """
-import sys
 import os
-from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,23 +11,20 @@ load_dotenv()
 # sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from datetime import datetime, timedelta
-from src.config import settings
-from src.utils import get_db, configure_logging, get_logger
-from src.repositories import (
-    OwnerRepository,
-    UserRepository,
-    FeatureRepository,
-    TwilioAccountRepository,
-    ConversationRepository,
-    MessageRepository
-)
-from src.models import (
-    UserRole,
-    ConversationStatus,
-    MessageOwner,
-    MessageType,
-    MessageDirection
-)
+from postgrest.exceptions import APIError
+from src.core.config import settings
+from src.core.utils import get_db, configure_logging, get_logger
+from src.modules.identity.repositories.owner_repository import OwnerRepository
+from src.modules.identity.repositories.user_repository import UserRepository
+from src.modules.identity.repositories.feature_repository import FeatureRepository
+from src.modules.channels.twilio.repositories.account_repository import TwilioAccountRepository
+from src.modules.conversation.repositories.conversation_repository import ConversationRepository
+from src.modules.conversation.repositories.message_repository import MessageRepository
+from src.modules.conversation.enums.message_direction import MessageDirection
+from src.modules.conversation.enums.message_owner import MessageOwner
+from src.modules.conversation.enums.conversation_status import ConversationStatus
+from src.modules.conversation.enums.message_type import MessageType
+from src.modules.identity.enums.user_role import UserRole
 
 configure_logging()
 logger = get_logger(__name__)
@@ -86,6 +81,22 @@ def seed_users(user_repo: UserRepository, owners):
             "role": UserRole.USER.value,
             "phone": MY_PHONE_NUMBER,
         },
+        {
+            "owner_id": owners[0].owner_id,
+            "profile_name": "Richard Mans",
+            "first_name": "Richard",
+            "last_name": "Mans",
+            "role": UserRole.USER.value,
+            "phone": "+5511920019497",
+        }, 
+        {
+            "owner_id": owners[0].owner_id,
+            "profile_name": "Wellington Silva",
+            "first_name": "Wellington",
+            "last_name": "Silva",
+            "role": UserRole.USER.value,
+            "phone": "+5511954233316",
+        },
         # TechStart users
         {
             "owner_id": owners[1].owner_id,
@@ -139,14 +150,35 @@ def seed_features(feature_repo: FeatureRepository, owners):
         },
         {
             "owner_id": owners[0].owner_id,
-            "name": "Sentiment Analysis",
-            "description": "Analyze customer sentiment in conversations",
+            "name": "AI Chat Assistant",
+            "description": "AI-powered chat assistant for customer support",
+            "enabled": True,
+            "config_json": {
+                "model": "gpt-4",
+                "temperature": 0.7,
+                "max_tokens": 500
+            }
+        },        
+        {
+            "owner_id": owners[0].owner_id,
+            "name": "finance_agent",
+            "description": "AI-powered assistant for financial queries",
             "enabled": True,
             "config_json": {
                 "threshold": 0.6,
                 "alerts": True
             }
         },
+        {
+            "owner_id": owners[0].owner_id,
+            "name": "generic_agent",
+            "description": "Generic AI assistant for customer support",
+            "enabled": True,
+            "config_json": {
+                "threshold": 0.6,
+                "alerts": True
+            }
+        },        
         {
             "owner_id": owners[0].owner_id,
             "name": "Auto Response",
@@ -237,11 +269,10 @@ def seed_sample_conversations(
     """Seed sample conversation data."""
     logger.info("Seeding sample conversations...")
     
-    # Create a sample conversation for Acme
     now = datetime.now()
     conv_data = {
         "owner_id": owners[0].owner_id,
-        "user_id": users[1].user_id,  # Paul User
+        "user_id": users[1].user_id,
         "from_number": TWILIO_PHONE_NUMBER,
         "to_number": MY_PHONE_NUMBER,
         "status": ConversationStatus.PROGRESS.value,
@@ -255,19 +286,25 @@ def seed_sample_conversations(
         },
         "metadata": {}
     }
-    
-    # Check if conversation exists
+
     existing = conversation_repo.find_active_conversation(
         conv_data["owner_id"],
         conv_data["from_number"],
         conv_data["to_number"]
     )
-    
+
     if existing:
         logger.info("Sample conversation already exists")
         return
-    
-    conversation = conversation_repo.create(conv_data)
+
+    try:
+        conversation = conversation_repo.create(conv_data)
+    except APIError as e:
+        payload = e.args[0] if e.args else {}
+        if isinstance(payload, dict) and payload.get("code") == "23505":
+            logger.info("Sample conversation already exists due to unique constraint")
+            return
+        raise
     logger.info(f"Created sample conversation: {conversation.conv_id}")
     
     # Add sample messages

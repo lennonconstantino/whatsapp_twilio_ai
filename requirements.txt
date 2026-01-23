@@ -3,11 +3,11 @@ fastapi==0.115.0
 uvicorn[standard]==0.32.0
 pydantic==2.9.0
 pydantic-settings==2.5.2
+dependency-injector==4.48.3
 
 # Database
 supabase==2.9.0
 psycopg2-binary==2.9.9
-sqlalchemy==2.0.35
 
 # Twilio
 twilio==9.3.7
@@ -31,5 +31,14 @@ black==24.10.0
 flake8==7.1.1
 mypy==1.13.0
 
-python-multipart
-python-ulid
+python-multipart==0.0.21
+python-ulid==3.1.0
+
+# llms
+colorama==0.4.6
+langchain==1.2.4
+langchain-core==1.2.7
+langchain-google-genai==3.2.0
+langchain-groq==1.1.1
+langchain-ollama==1.0.1
+langchain-openai==1.1.7
