@@ -7,6 +7,7 @@ from twilio.rest import Client as TwilioClient
 from twilio.base.exceptions import TwilioRestException
 
 from src.modules.conversation.enums.message_direction import MessageDirection
+from src.modules.channels.twilio.models.results import TwilioMessageResult
 from src.modules.channels.twilio.repositories.account_repository import TwilioAccountRepository
 from src.core.config import settings
 from src.core.utils import get_logger
@@ -81,17 +82,16 @@ class TwilioService:
                                      from_number: str,        
                                      to_number: str,
                                      body: str,
-                                     media_url: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                                     media_url: Optional[str] = None) -> Optional[TwilioMessageResult]:
         
-        return {
-            "sid": f'SM_{os.urandom(16).hex()}',
-            "status": "sent",
-            "to": to_number,
-            "from": from_number,
-            "body": body,
-            "message": "",
-            "direction": MessageDirection.OUTBOUND.value
-        }
+        return TwilioMessageResult(
+            sid=f'SM_{os.urandom(16).hex()}',
+            status="sent",
+            to=to_number,
+            from_=from_number,
+            body=body,
+            direction=MessageDirection.OUTBOUND.value
+        )
 
     def send_message(
         self,
@@ -100,7 +100,7 @@ class TwilioService:
         to_number: str,
         body: str,
         media_url: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[TwilioMessageResult]:
         """
         Send a message via Twilio.
         
@@ -112,7 +112,7 @@ class TwilioService:
             media_url: Optional media URL
             
         Returns:
-            Message data dict or None
+            TwilioMessageResult object or None
         """
         # Only send via fake sender in development environment
         if settings.api.environment == "development" and settings.api.use_fake_sender:
@@ -143,15 +143,17 @@ class TwilioService:
                 from_=from_number
             )
             
-            return {
-                "sid": message.sid,
-                "status": message.status,
-                "to": message.to,
-                "from": message.from_,
-                "body": message.body,
-                "message": message,
-                "direction": MessageDirection.OUTBOUND.value
-            }
+            return TwilioMessageResult(
+                sid=message.sid,
+                status=message.status,
+                to=message.to,
+                from_=message.from_,
+                body=message.body,
+                direction=MessageDirection.OUTBOUND.value,
+                num_media=int(message.num_media) if message.num_media else 0,
+                error_code=message.error_code,
+                error_message=message.error_message
+            )
         except TwilioRestException as e:
             logger.error(
                 "Error sending message via Twilio",
@@ -162,9 +164,9 @@ class TwilioService:
     
     def get_message_status(
         self,
-        owner_id: int,
+        owner_id: str,
         message_sid: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[TwilioMessageResult]:
         """
         Get message status from Twilio.
         
@@ -173,7 +175,7 @@ class TwilioService:
             message_sid: Twilio message SID
             
         Returns:
-            Message status dict or None
+            TwilioMessageResult object or None
         """
         client = self._get_client(owner_id)
         if not client:
@@ -182,12 +184,17 @@ class TwilioService:
         try:
             message = client.messages(message_sid).fetch()
             
-            return {
-                "sid": message.sid,
-                "status": message.status,
-                "error_code": message.error_code,
-                "error_message": message.error_message
-            }
+            return TwilioMessageResult(
+                sid=message.sid,
+                status=message.status,
+                to=message.to,
+                from_number=message.from_,
+                body=message.body,
+                direction=message.direction, # Twilio returns direction
+                num_media=int(message.num_media) if message.num_media else 0,
+                error_code=message.error_code,
+                error_message=message.error_message
+            )
         except TwilioRestException as e:
             logger.error(
                 "Error fetching message status",

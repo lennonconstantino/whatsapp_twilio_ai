@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from dependency_injector import providers
 from src.main import app
 from src.modules.channels.twilio.models.domain import TwilioAccount
+from src.modules.channels.twilio.models.results import TwilioMessageResult
 
 
 class FakeTwilioAccountRepository:
@@ -40,19 +41,15 @@ class FakeTwilioService:
         body: str,
         media_url=None,
     ):
-        message = SimpleNamespace(
-            num_media=0,
+        return TwilioMessageResult(
+            sid="SM123",
+            status="sent",
+            to=to_number,
+            from_number=from_number,
             body=body,
-            message_sid="SM123",
+            direction="outbound-api",
+            num_media=0
         )
-        return {
-            "sid": "SM123",
-            "status": "sent",
-            "to": to_number,
-            "from": from_number,
-            "body": body,
-            "message": message,
-        }
 
 
 class FakeConversationService:
