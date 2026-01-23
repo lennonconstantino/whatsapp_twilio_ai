@@ -14,7 +14,7 @@ from src.modules.conversation.repositories.message_repository import MessageRepo
 
 from src.core.config import settings
 from src.core.utils import get_logger
-from src.core.utils.exceptions import ConcurrencyError
+from src.core.utils.exceptions import ConcurrencyError, DuplicateError
 from src.modules.conversation.components.closure_detector import ClosureDetector
 
 logger = get_logger(__name__)
@@ -476,6 +476,11 @@ class ConversationService:
             
             return created_message
             
+        except DuplicateError:
+            # Re-raise duplicate error so caller can handle it (e.g. webhook idempotency)
+            # Do NOT mark conversation as FAILED
+            logger.warning("Duplicate message in add_message", conv_id=conversation.conv_id)
+            raise
         except Exception as e:
             self._handle_critical_error(
                 conversation, 

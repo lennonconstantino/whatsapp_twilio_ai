@@ -19,7 +19,7 @@ from src.modules.conversation.enums.message_owner import MessageOwner
 
 from src.core.config import settings
 from src.core.utils import get_logger
-from src.core.utils.exceptions import ConcurrencyError
+from src.core.utils.exceptions import DuplicateError
 
 logger = get_logger(__name__)
 
@@ -110,8 +110,13 @@ class ConversationServiceV2:
         # Persist message
         message_data = message_create.model_dump(mode='json')
         message_data["timestamp"] = datetime.now(timezone.utc).isoformat()
-        message = self.message_repo.create(message_data)
         
+        try:
+            message = self.message_repo.create(message_data)
+        except DuplicateError:
+            logger.warning("Duplicate message in add_message (V2)", conv_id=conversation.conv_id)
+            raise
+
         # 2. Check for Closure Intent (User Cancellation)
         closure_result = self.closer.detect_intent(message, conversation)
         

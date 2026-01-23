@@ -1,13 +1,14 @@
 """
 Message repository for database operations.
 """
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from supabase import Client
 
 from src.modules.conversation.enums.message_owner import MessageOwner
 from src.modules.conversation.models.message import Message
 from src.core.database.base_repository import BaseRepository
 from src.core.utils import get_logger
+from src.core.utils.exceptions import DuplicateError
 
 logger = get_logger(__name__)
 
@@ -19,6 +20,26 @@ class MessageRepository(BaseRepository[Message]):
         """Initialize message repository with ULID validation."""
         super().__init__(client, "messages", Message, validates_ulid=True)  # ✅ Enable ULID validation
     
+    def create(self, data: Dict[str, Any]) -> Optional[Message]:
+        """
+        Create a new message with unique constraint handling.
+        """
+        try:
+            return super().create(data)
+        except Exception as e:
+            # Check for unique violation (Postgres code 23505)
+            # APIError from postgrest usually has 'code' attribute
+            if hasattr(e, 'code') and e.code == '23505':
+                logger.warning("Duplicate message detected", error=str(e))
+                raise DuplicateError(f"Duplicate message: {str(e)}")
+            
+            # Check message string if code not available (fallback)
+            if "duplicate key value violates unique constraint" in str(e):
+                 logger.warning("Duplicate message detected (text check)", error=str(e))
+                 raise DuplicateError(f"Duplicate message: {str(e)}")
+                 
+            raise e
+
     def find_by_conversation(
         self,
         conv_id: str,

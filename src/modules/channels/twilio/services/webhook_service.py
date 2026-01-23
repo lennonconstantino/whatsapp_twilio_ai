@@ -4,6 +4,7 @@ from fastapi import BackgroundTasks, HTTPException
 
 from src.core.utils import get_logger
 from src.core.config import settings
+from src.core.utils.exceptions import DuplicateError
 from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
 from src.modules.channels.twilio.dtos import TwilioWebhookResponseDTO
 from src.modules.channels.twilio.services.twilio_service import TwilioService
@@ -226,7 +227,24 @@ class TwilioWebhookService:
                 "media_type": payload.media_content_type if payload.media_content_type else None
             }
         )
-        message = await run_in_threadpool(self.conversation_service.add_message, conversation, message_data)
+        
+        try:
+            message = await run_in_threadpool(self.conversation_service.add_message, conversation, message_data)
+        except DuplicateError:
+            logger.info("Duplicate inbound message caught (race condition)", message_sid=payload.message_sid)
+            
+            # Fetch existing message to return consistent response
+            existing_message = await run_in_threadpool(
+                self.conversation_service.message_repo.find_by_external_id, 
+                payload.message_sid
+            )
+            
+            return TwilioWebhookResponseDTO(
+                success=True,
+                message="Already processed",
+                conv_id=conversation.conv_id,
+                msg_id=existing_message.msg_id if existing_message else None
+            )
         
         logger.info(
             "Processed inbound message",
