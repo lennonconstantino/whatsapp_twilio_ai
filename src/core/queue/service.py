@@ -23,14 +23,20 @@ class QueueService:
         if hasattr(settings, "queue"):
             backend_type = settings.queue.backend
             db_path = settings.queue.sqlite_db_path
+            redis_url = getattr(settings.queue, "redis_url", "redis://localhost:6379")
         else:
             backend_type = "sqlite"
             db_path = "queue.db"
+            redis_url = "redis://localhost:6379"
         
         if backend_type == "sqlite":
             return SqliteQueueBackend(db_path=db_path)
         
-        # Future: Redis, SQS, etc.
+        if backend_type == "bullmq":
+            from .backends.bullmq import BullMQBackend
+            return BullMQBackend(redis_url=redis_url)
+        
+        # Future: SQS, etc.
         raise ValueError(f"Unsupported queue backend: {backend_type}")
 
     def register_handler(self, task_name: str, handler: Callable[[Dict[str, Any]], Awaitable[None]]):
@@ -48,47 +54,29 @@ class QueueService:
         )
         return await self.backend.enqueue(message)
 
-    async def process_one(self) -> bool:
+    async def _process_message(self, message: QueueMessage):
         """
-        Process a single message from the queue.
-        Returns True if a message was processed, False if queue was empty.
+        Internal handler used by the backend consumer.
         """
-        message = await self.backend.dequeue()
-        if not message:
-            return False
+        handler = self._handlers.get(message.task_name)
+        if not handler:
+            logger.error(f"No handler found for task: {message.task_name}")
+            raise ValueError(f"No handler found for task: {message.task_name}")
 
-        try:
-            handler = self._handlers.get(message.task_name)
-            if not handler:
-                logger.error(f"No handler found for task: {message.task_name}")
-                # Nack with long delay or dead letter? For now, nack with delay
-                await self.backend.nack(message.id, retry_after=60)
-                return True
-
-            logger.info(f"Processing task {message.task_name} (ID: {message.id})")
-            await handler(message.payload)
-            
-            await self.backend.ack(message.id)
-            return True
-
-        except Exception as e:
-            logger.error(f"Error processing task {message.task_name} (ID: {message.id}): {e}")
-            # Exponential backoff: 5s, 10s, 20s, etc.
-            retry_delay = 5 * (2 ** message.attempts)
-            await self.backend.nack(message.id, retry_after=retry_delay)
-            return True
+        logger.info(f"Processing task {message.task_name} (ID: {message.id})")
+        await handler(message.payload)
 
     async def start_worker(self, interval: float = 1.0):
-        """Start the worker loop (runs until cancelled)."""
-        logger.info("Starting queue worker...")
-        while True:
-            try:
-                processed = await self.process_one()
-                if not processed:
-                    await asyncio.sleep(interval)
-            except asyncio.CancelledError:
-                logger.info("Worker stopped.")
-                break
-            except Exception as e:
-                logger.error(f"Worker error: {e}")
-                await asyncio.sleep(5)
+        """
+        Start the worker loop (runs until cancelled).
+        Delegates to backend's start_consuming which handles the loop mechanism (pull vs push).
+        """
+        logger.info("Starting queue worker service...")
+        
+        # We pass self._process_message as the handler to the backend.
+        # The backend is responsible for:
+        # 1. Fetching/Receiving message
+        # 2. Calling this handler
+        # 3. Ack/Nack based on success/failure
+        
+        await self.backend.start_consuming(self._process_message)

@@ -141,6 +141,10 @@ class QueueSettings(BaseSettings):
         default="queue.db",
         description="Path to Sqlite database file for queue"
     )
+    redis_url: str = Field(
+        default="redis://localhost:6379",
+        description="Redis connection URL for BullMQ"
+    )
     
     model_config = SettingsConfigDict(env_prefix="QUEUE_")
 
