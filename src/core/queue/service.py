@@ -35,8 +35,19 @@ class QueueService:
         if backend_type == "bullmq":
             from .backends.bullmq import BullMQBackend
             return BullMQBackend(redis_url=redis_url)
+            
+        if backend_type == "sqs":
+            from .backends.sqs import SQSBackend
+            if not settings.queue.sqs_queue_url:
+                raise ValueError("QUEUE_SQS_QUEUE_URL is required for sqs backend")
+            
+            return SQSBackend(
+                queue_url=settings.queue.sqs_queue_url,
+                region_name=settings.queue.aws_region,
+                aws_access_key_id=settings.queue.aws_access_key_id,
+                aws_secret_access_key=settings.queue.aws_secret_access_key
+            )
         
-        # Future: SQS, etc.
         raise ValueError(f"Unsupported queue backend: {backend_type}")
 
     def register_handler(self, task_name: str, handler: Callable[[Dict[str, Any]], Awaitable[None]]):

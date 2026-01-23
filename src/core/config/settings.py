@@ -145,6 +145,23 @@ class QueueSettings(BaseSettings):
         default="redis://localhost:6379",
         description="Redis connection URL for BullMQ"
     )
+    # AWS SQS Settings
+    sqs_queue_url: str | None = Field(
+        default=None,
+        description="AWS SQS Queue URL"
+    )
+    aws_region: str = Field(
+        default="us-east-1",
+        description="AWS Region"
+    )
+    aws_access_key_id: str | None = Field(
+        default=None,
+        description="AWS Access Key ID"
+    )
+    aws_secret_access_key: str | None = Field(
+        default=None,
+        description="AWS Secret Access Key"
+    )
     
     model_config = SettingsConfigDict(env_prefix="QUEUE_")
 
