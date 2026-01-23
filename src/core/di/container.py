@@ -27,6 +27,7 @@ from src.modules.ai.ai_result.services.ai_result_service import AIResultService
 from src.modules.ai.ai_result.services.ai_log_thought_service import AILogThoughtService
 from src.modules.ai.engines.lchain.feature.finance.finance_agent import create_finance_agent
 from src.modules.ai.engines.lchain.core.agents.agent_factory import create_master_agent
+from src.core.queue.service import QueueService
 
 class Container(containers.DeclarativeContainer):
     """
@@ -42,6 +43,7 @@ class Container(containers.DeclarativeContainer):
             "src.modules.channels.twilio.api.webhooks",
             "src.modules.conversation.api.conversations",
             "src.modules.conversation.workers.background_tasks",
+            "src.core.queue.worker",
         ]
     )
     
@@ -51,6 +53,11 @@ class Container(containers.DeclarativeContainer):
     db_client = providers.Singleton(
         lambda db: db.client,
         db_connection
+    )
+    
+    # Core Services
+    queue_service = providers.Singleton(
+        QueueService
     )
     
     # Repositories
@@ -154,5 +161,6 @@ class Container(containers.DeclarativeContainer):
         user_service=user_service,
         feature_service=feature_service,
         twilio_account_repo=twilio_account_repository,
-        agent_runner=master_agent
+        agent_runner=master_agent,
+        queue_service=queue_service
     )

@@ -20,6 +20,7 @@ from src.modules.conversation.models.message import Message
 from src.modules.identity.services.user_service import UserService
 from src.modules.identity.services.feature_service import FeatureService
 from src.modules.ai.engines.lchain.core.agents.routing_agent import RoutingAgent
+from src.core.queue.service import QueueService
 
 logger = get_logger(__name__)
 
@@ -37,7 +38,8 @@ class TwilioWebhookService:
         user_service: UserService,
         feature_service: FeatureService,
         twilio_account_repo: TwilioAccountRepository,
-        agent_runner: RoutingAgent
+        agent_runner: RoutingAgent,
+        queue_service: QueueService
     ):
         self.twilio_service = twilio_service
         self.conversation_service = conversation_service
@@ -45,6 +47,10 @@ class TwilioWebhookService:
         self.feature_service = feature_service
         self.twilio_account_repo = twilio_account_repo
         self.agent_runner = agent_runner
+        self.queue_service = queue_service
+        
+        # Register queue handler
+        self.queue_service.register_handler("process_ai_response", self.handle_ai_response_task)
 
     def _determine_message_type(self, num_media: int, media_content_type: str) -> MessageType:
         """Determine internal message type based on Twilio payload."""
@@ -253,16 +259,19 @@ class TwilioWebhookService:
             correlation_id=correlation_id
         )
 
-        # 3. Schedule AI Processing in Background
-        # Pass minimal data needed for reconstruction to avoid pickling large objects if using process pool
-        # For BackgroundTasks (thread pool), objects are fine.
-        background_tasks.add_task(
-            self.handle_ai_response,
-            owner_id=owner_id,
-            conversation_id=conversation.conv_id,
-            user_message=message,
-            payload=payload,
-            correlation_id=correlation_id
+        # 3. Schedule AI Processing in Queue
+        # We replace BackgroundTasks with QueueService
+        await self.queue_service.enqueue(
+            task_name="process_ai_response",
+            payload={
+                "owner_id": owner_id,
+                "conversation_id": conversation.conv_id,
+                "msg_id": message.msg_id,
+                "payload": payload.model_dump(),
+                "correlation_id": correlation_id
+            },
+            correlation_id=correlation_id,
+            owner_id=owner_id
         )
 
         return TwilioWebhookResponseDTO(
@@ -272,11 +281,26 @@ class TwilioWebhookService:
             msg_id=message.msg_id
         )
 
+    async def handle_ai_response_task(self, task_payload: Dict[str, Any]):
+        """
+        Async wrapper for queue task.
+        """
+        payload = TwilioWhatsAppPayload(**task_payload["payload"])
+        
+        await run_in_threadpool(
+            self.handle_ai_response,
+            owner_id=task_payload["owner_id"],
+            conversation_id=task_payload["conversation_id"],
+            msg_id=task_payload["msg_id"],
+            payload=payload,
+            correlation_id=task_payload["correlation_id"]
+        )
+
     def handle_ai_response(
         self,
         owner_id: str,
         conversation_id: str,
-        user_message: Message,
+        msg_id: str,
         payload: TwilioWhatsAppPayload,
         correlation_id: str
     ):
@@ -297,7 +321,7 @@ class TwilioWebhookService:
             agent_context = {
                 "owner_id": owner_id, 
                 "correlation_id": correlation_id,
-                "msg_id": user_message.msg_id,
+                "msg_id": msg_id,
                 "user": user.model_dump() if user else None,
                 "channel": "whatsapp",
                 "feature_id": feature.feature_id if feature else None,

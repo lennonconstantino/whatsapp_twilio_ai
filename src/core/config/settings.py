@@ -131,6 +131,19 @@ class ToggleSettings(BaseSettings):
         description="Enable background tasks worker"
     )
 
+class QueueSettings(BaseSettings):
+    """Queue configuration."""
+    backend: str = Field(
+        default="sqlite",
+        description="Queue backend type (sqlite, redis, sqs)"
+    )
+    sqlite_db_path: str = Field(
+        default="queue.db",
+        description="Path to Sqlite database file for queue"
+    )
+    
+    model_config = SettingsConfigDict(env_prefix="QUEUE_")
+
 class Settings(BaseSettings):
     """Main application settings."""
     
@@ -139,6 +152,7 @@ class Settings(BaseSettings):
         default_factory=ConversationSettings
     )
     toggle: ToggleSettings = Field(default_factory=ToggleSettings)
+    queue: QueueSettings = Field(default_factory=QueueSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     supabase: SupabaseSettings = Field(default_factory=SupabaseSettings)
     twilio: TwilioSettings = Field(default_factory=TwilioSettings)

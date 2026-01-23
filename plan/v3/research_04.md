@@ -11,7 +11,7 @@ O módulo demonstra maturidade e segue boas práticas de engenharia de software 
 - ✅ Segurança: A validação de assinatura ( validate_webhook_signature ) e API Key interna está implementada, protegendo contra requisições forjadas.
 ### 2. Riscos Identificados (Risks)
 Classifiquei os riscos por severidade para priorização:
- 🔴 Alta Severidade (Crítico)
+🔴 Alta Severidade (Crítico)
 1. Race Condition na Idempotência:
    
    - Local: webhook_service.py (linhas 105-116).
@@ -21,10 +21,26 @@ Classifiquei os riscos por severidade para priorização:
    
    - Local: Uso de BackgroundTasks do FastAPI.
    - Problema: BackgroundTasks armazena tarefas na memória RAM. Se o container/servidor reiniciar durante um deploy ou falha, todas as mensagens pendentes de processamento AI serão perdidas irrevogavelmente.
-   - Solução: Migrar para um sistema de filas persistente (Redis/Celery, BullMQ ou AWS SQS). 🟡 Média Severidade (Atenção)
+   - Solução: Migrar para um sistema de filas persistente (Redis/Celery, Sqlite, BullMQ ou AWS SQS). 
+   - Trade-off: 
+     - Redis/Celery: Alta performance, mas complexidade de configuração e manutenção.
+     - Sqlite: Simples, mas não tão escalável quanto Redis/Celery.
+     - BullMQ: Balanceamento entre performance e escalabilidade.
+     - AWS SQS: Alta disponibilidade e escalabilidade, mas custo associado.
+   - Proposta:
+      - Criar um toggle para habilitar a tecnologia de filas persistente (Sqlite, BullMQ ou AWS SQS).
+         - Sqlite: Default para desenvolvimento.
+            - Table message_queue: Armazena mensagens pendentes de processamento AI.
+            - Columns: id (UUID), message_sid (Str), payload (JSON), status (Str), attempts (Int), created_at (DateTime).
+         - BullMQ: Default para produção SaaS.
+         - AWS SQS: Opção avançada para grandes volumes de mensagens.
+      - Padrão: Default para Sqlite em desenvolvimento e produção SaaS.
+      - Configuração: Adicionar variáveis de ambiente para habilitar a fila desejada e configurar as credenciais necessárias.
+   
+🟡 Média Severidade (Atenção)
 3. Fallback de Multi-Tenant Perigoso:
    
-   - Local: webhook_service.py (linhas 83-85).
+   - Local: webhook_service.py (linhas 83-85) ou resolve_owner_id.
    - Problema: Se o to_number não for encontrado, o sistema faz fallback para a conta default definida no .env . Em produção SaaS, isso pode misturar dados de clientes ou cobrar a conta errada.
    - Solução: Remover o fallback em produção ou logar como "Orphaned Message" sem processar.
 4. Acoplamento com Sistema de Arquivos:

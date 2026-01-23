@@ -137,6 +137,7 @@ celerybeat.pid
 
 # Environments
 .env
+.env.bkp
 .envrc
 .venv
 env/
@@ -213,3 +214,5 @@ __marimo__/
 # others
 concat_files.sh
 output.txt
+queue.db
+
