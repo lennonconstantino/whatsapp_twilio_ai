@@ -5,10 +5,6 @@ Handles environment variables and application settings.
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
-from dotenv import load_dotenv
-# Carrega o .env explicitamente
-load_dotenv()
-
 class ConversationSettings(BaseSettings):
     """Conversation-specific settings."""
     
