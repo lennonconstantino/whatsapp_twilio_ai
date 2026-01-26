@@ -44,11 +44,9 @@ class SubscriptionService:
         active_sub = self.subscription_repository.find_active_by_owner(subscription_data.owner_id)
         if active_sub:
             # Logic to handle existing subscription (e.g., cancel old one, or upgrade)
-            # For now, we just log and allow creating a new one (which might fail DB constraint if not handled)
-            # The DB has a unique index for active subscriptions, so this might fail.
-            # Ideally we should cancel the old one first.
-            logger.warning(f"Owner {subscription_data.owner_id} already has an active subscription: {active_sub.subscription_id}")
-            # Optional: self.cancel_subscription(active_sub.subscription_id)
+            # We cancel the old one first to enforce "one active subscription" rule.
+            logger.info(f"Owner {subscription_data.owner_id} already has an active subscription: {active_sub.subscription_id}. Cancelling it.")
+            self.cancel_subscription(active_sub.subscription_id)
         
         data = subscription_data.model_dump()
         # Default status is TRIAL from model, or we can set based on plan logic

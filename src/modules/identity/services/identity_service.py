@@ -14,6 +14,8 @@ from src.modules.identity.dtos.user_dto import UserCreateDTO
 from src.modules.identity.dtos.feature_dto import FeatureCreateDTO
 from src.modules.identity.models.owner import Owner
 from src.modules.identity.models.user import User, UserRole
+from src.modules.identity.models.subscription import SubscriptionCreate
+from src.modules.identity.enums.subscription_status import SubscriptionStatus
 
 logger = get_logger(__name__)
 
@@ -117,6 +119,25 @@ class IdentityService:
                     logger.error(f"Failed to create feature {feature_name}: {e}")
                     # Continue creating other features
             
+        # 4. Create default subscription (Free Tier)
+        try:
+            free_plan = self.plan_service.plan_repository.find_by_name("free")
+            if free_plan:
+                logger.info(f"Subscribing owner {owner.owner_id} to Free plan")
+                
+                sub_create = SubscriptionCreate(
+                    owner_id=owner.owner_id,
+                    plan_id=free_plan.plan_id,
+                    status=SubscriptionStatus.ACTIVE
+                )
+                self.subscription_service.create_subscription(sub_create)
+            else:
+                logger.warning("Free plan not found. Skipping default subscription.")
+        except Exception as e:
+            logger.error(f"Failed to create default subscription: {e}")
+            # We don't rollback here as the user and owner are already created.
+            # The user can subscribe later.
+
         return owner, user
 
     def get_consolidated_features(self, owner_id: str) -> Dict[str, Any]:
