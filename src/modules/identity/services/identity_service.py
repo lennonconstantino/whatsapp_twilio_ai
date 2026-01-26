@@ -7,6 +7,8 @@ from src.core.utils import get_logger
 from src.modules.identity.services.feature_service import FeatureService
 from src.modules.identity.services.owner_service import OwnerService
 from src.modules.identity.services.user_service import UserService
+from src.modules.identity.services.subscription_service import SubscriptionService
+from src.modules.identity.services.plan_service import PlanService
 from src.modules.identity.dtos.owner_dto import OwnerCreateDTO
 from src.modules.identity.dtos.user_dto import UserCreateDTO
 from src.modules.identity.dtos.feature_dto import FeatureCreateDTO
@@ -21,7 +23,14 @@ class IdentityService:
     Orchestrates operations involving both Owners and Users.
     """
 
-    def __init__(self, owner_service: OwnerService, user_service: UserService, feature_service: FeatureService):
+    def __init__(
+        self, 
+        owner_service: OwnerService, 
+        user_service: UserService, 
+        feature_service: FeatureService,
+        subscription_service: SubscriptionService,
+        plan_service: PlanService
+    ):
         """
         Initialize IdentityService.
         
@@ -29,10 +38,14 @@ class IdentityService:
             owner_service: OwnerService instance
             user_service: UserService instance
             feature_service: FeatureService instance
+            subscription_service: SubscriptionService instance
+            plan_service: PlanService instance
         """
         self.owner_service = owner_service
         self.user_service = user_service
         self.feature_service = feature_service
+        self.subscription_service = subscription_service
+        self.plan_service = plan_service
 
     def register_organization(
         self, 
@@ -106,6 +119,39 @@ class IdentityService:
             
         return owner, user
 
+    def get_consolidated_features(self, owner_id: str) -> Dict[str, Any]:
+        """
+        Get consolidated features (Plan Features + Owner Overrides).
+        
+        Args:
+            owner_id: Owner ID
+            
+        Returns:
+            Dictionary: {feature_name: config_value}
+        """
+        features = {}
+        
+        # 1. Get Plan Features via Subscription
+        try:
+            subscription = self.subscription_service.get_active_subscription(owner_id)
+            if subscription and subscription.plan_id:
+                plan_features = self.plan_service.get_plan_features(subscription.plan_id)
+                for pf in plan_features:
+                    features[pf.feature_name] = pf.feature_value
+        except Exception as e:
+            logger.error(f"Error fetching plan features for owner {owner_id}: {e}")
+
+        # 2. Get Owner Overrides
+        try:
+            overrides = self.feature_service.get_enabled_features(owner_id)
+            for feature in overrides:
+                # Overwrite or merge? Usually overwrite for specific owner config.
+                features[feature.name] = feature.config_json
+        except Exception as e:
+            logger.error(f"Error fetching feature overrides for owner {owner_id}: {e}")
+             
+        return features
+
     def get_user_context(self, user_id: str) -> Optional[Dict[str, Any]]:
         """
         Get full context for a user (User + Owner info + Features).
@@ -121,7 +167,9 @@ class IdentityService:
             return None
             
         owner = self.owner_service.get_owner_by_id(user.owner_id)
-        features = self.feature_service.get_enabled_features(owner.owner_id)
+        
+        # Use consolidated features
+        features = self.get_consolidated_features(owner.owner_id)
         
         return {
             "user": user,

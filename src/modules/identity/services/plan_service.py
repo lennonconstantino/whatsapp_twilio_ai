@@ -5,6 +5,7 @@ from typing import List, Optional
 
 from src.core.utils import get_logger
 from src.modules.identity.models.plan import Plan, PlanCreate, PlanUpdate
+from src.modules.identity.models.plan_feature import PlanFeature
 from src.modules.identity.repositories.plan_repository import PlanRepository
 
 logger = get_logger(__name__)
@@ -68,3 +69,15 @@ class PlanService:
             List of Plan instances
         """
         return self.plan_repository.find_public_plans()
+
+    def get_plan_features(self, plan_id: str) -> List[PlanFeature]:
+        """
+        Get features for a plan.
+        
+        Args:
+            plan_id: Plan ID
+            
+        Returns:
+            List of PlanFeature instances
+        """
+        return self.plan_repository.get_features(plan_id)

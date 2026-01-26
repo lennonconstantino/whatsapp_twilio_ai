@@ -4,8 +4,13 @@ from dependency_injector.wiring import inject, Provide
 
 from src.core.di.container import Container
 from src.modules.identity.services.owner_service import OwnerService
+from src.modules.identity.services.identity_service import IdentityService
 from src.modules.identity.models.owner import Owner
+from src.modules.identity.models.user import UserRole
 from src.modules.identity.dtos.owner_dto import OwnerCreateDTO, OwnerUpdateDTO
+from src.modules.identity.dtos.user_dto import UserCreateDTO
+from src.modules.identity.dtos.register_dto import RegisterOrganizationDTO
+from src.core.utils.custom_ulid import generate_ulid
 
 router = APIRouter(prefix="/owners", tags=["Owners"])
 
@@ -28,13 +33,61 @@ def get_owner(
 
 @router.post("/", response_model=Owner, status_code=status.HTTP_201_CREATED)
 @inject
-def create_owner(
-    owner_data: OwnerCreateDTO,
+def register_organization(
+    data: RegisterOrganizationDTO,
+    identity_service: IdentityService = Depends(Provide[Container.identity_service]),
+):
+    """
+    Register a new organization (Owner) and its Admin User.
+    Uses IdentityService for orchestrated creation.
+    """
+    # 1. Prepare Owner Data
+    owner_data = OwnerCreateDTO(
+        name=data.name,
+        email=data.email
+    )
+    
+    # 2. Prepare Admin User Data
+    # Note: owner_id will be set by identity_service logic (overwritten)
+    # We use a placeholder here to satisfy DTO validation before service call
+    admin_data = UserCreateDTO(
+        owner_id=generate_ulid(), # Placeholder
+        profile_name=f"{data.first_name or ''} {data.last_name or ''}".strip() or data.name,
+        first_name=data.first_name,
+        last_name=data.last_name,
+        phone=data.phone,
+        role=UserRole.ADMIN,
+        auth_id=data.auth_id
+    )
+    
+    try:
+        # 3. Call Service
+        owner, _ = identity_service.register_organization(
+            owner_data=owner_data,
+            admin_user_data=admin_data,
+            initial_features=[] # Can be configured later
+        )
+        return owner
+    except Exception as e:
+        # Log error in production
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.patch("/{owner_id}", response_model=Owner)
+@inject
+def update_owner(
+    owner_id: str,
+    owner_data: OwnerUpdateDTO,
     owner_service: OwnerService = Depends(Provide[Container.owner_service]),
 ):
-    """Create a new owner."""
-    # Note: OwnerCreateDTO has different fields than service expects directly?
-    # Checking service signature... usually expects DTO or fields.
-    # Assuming service accepts DTO or we adapt.
-    # Checking owner_service.py might be needed. For now assuming adapter.
-    return owner_service.create_owner(owner_data)
+    """Update owner details."""
+    updated_owner = owner_service.update_owner(owner_id, owner_data)
+    if not updated_owner:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Owner not found"
+        )
+    return updated_owner

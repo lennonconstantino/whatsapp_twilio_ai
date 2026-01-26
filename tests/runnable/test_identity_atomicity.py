@@ -21,11 +21,15 @@ class TestIdentityAtomicity(unittest.TestCase):
         self.mock_owner_service = MagicMock()
         self.mock_user_service = MagicMock()
         self.mock_feature_service = MagicMock()
+        self.mock_subscription_service = MagicMock()
+        self.mock_plan_service = MagicMock()
         
         self.identity_service = IdentityService(
             owner_service=self.mock_owner_service,
             user_service=self.mock_user_service,
-            feature_service=self.mock_feature_service
+            feature_service=self.mock_feature_service,
+            subscription_service=self.mock_subscription_service,
+            plan_service=self.mock_plan_service
         )
         
         # Test Data

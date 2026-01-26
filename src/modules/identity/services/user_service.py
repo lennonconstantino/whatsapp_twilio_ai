@@ -83,6 +83,43 @@ class UserService:
         """
         return self.repository.find_by_phone(phone)
         
+    def get_user_by_email(self, email: str) -> Optional[User]:
+        """
+        Find user by email.
+        
+        Args:
+            email: Email address
+            
+        Returns:
+            User instance or None
+        """
+        return self.repository.find_by_email(email)
+
+    def get_user_by_auth_id(self, auth_id: str) -> Optional[User]:
+        """
+        Find user by auth_id.
+        
+        Args:
+            auth_id: External Auth ID
+            
+        Returns:
+            User instance or None
+        """
+        return self.repository.find_by_auth_id(auth_id)
+
+    def update_user(self, user_id: str, data: dict) -> Optional[User]:
+        """
+        Update user data.
+        
+        Args:
+            user_id: User ID
+            data: Dictionary of fields to update
+            
+        Returns:
+            Updated User or None
+        """
+        return self.repository.update(user_id, data, id_column="user_id")
+
     def get_user_by_id(self, user_id: str) -> Optional[User]:
         """
         Get user by ID.

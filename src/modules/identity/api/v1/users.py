@@ -1,6 +1,7 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Header
 from dependency_injector.wiring import inject, Provide
+from pydantic import BaseModel, EmailStr
 
 from src.core.di.container import Container
 from src.modules.identity.services.user_service import UserService
@@ -8,6 +9,68 @@ from src.modules.identity.models.user import User, UserCreate, UserUpdate
 from src.modules.identity.dtos.user_dto import UserCreateDTO
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+
+class UserSyncRequest(BaseModel):
+    auth_id: str
+    email: EmailStr
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+
+
+@router.get("/me", response_model=User)
+@inject
+def get_current_user_profile(
+    x_auth_id: str = Header(..., alias="X-Auth-ID"),
+    user_service: UserService = Depends(Provide[Container.user_service]),
+):
+    """Get profile of the currently logged-in user."""
+    user = user_service.get_user_by_auth_id(x_auth_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    return user
+
+
+@router.post("/sync", response_model=User)
+@inject
+def sync_user(
+    request: UserSyncRequest,
+    user_service: UserService = Depends(Provide[Container.user_service]),
+):
+    """
+    Sync user from external auth provider.
+    1. Check if user exists by auth_id.
+    2. If not, check by email.
+    3. If found by email, link auth_id.
+    4. If not found, return 404 (User must be invited or registered via register_organization).
+    """
+    # 1. Check by auth_id
+    user = user_service.get_user_by_auth_id(request.auth_id)
+    if user:
+        return user
+        
+    # 2. Check by email
+    user = user_service.get_user_by_email(request.email)
+    if user:
+        # Link auth_id
+        # Also update names if provided and missing
+        update_data = {"auth_id": request.auth_id}
+        if request.first_name and not user.first_name:
+            update_data["first_name"] = request.first_name
+        if request.last_name and not user.last_name:
+            update_data["last_name"] = request.last_name
+            
+        updated_user = user_service.update_user(user.user_id, update_data)
+        return updated_user
+        
+    # 3. Not found
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="User not found. Please contact your administrator or register a new organization."
+    )
 
 
 @router.get("/{user_id}", response_model=User)

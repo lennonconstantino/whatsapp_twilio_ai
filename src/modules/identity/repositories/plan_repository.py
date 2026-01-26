@@ -6,6 +6,7 @@ from supabase import Client
 
 from src.core.database.supabase_repository import SupabaseRepository
 from src.modules.identity.models.plan import Plan
+from src.modules.identity.models.plan_feature import PlanFeature
 from src.core.utils import get_logger
 
 logger = get_logger(__name__)
@@ -42,3 +43,20 @@ class PlanRepository(SupabaseRepository[Plan]):
         """
         plans = self.find_by({"name": name}, limit=1)
         return plans[0] if plans else None
+
+    def get_features(self, plan_id: str) -> List[PlanFeature]:
+        """
+        Get features for a plan.
+        
+        Args:
+            plan_id: Plan ID
+            
+        Returns:
+            List of PlanFeature instances
+        """
+        try:
+            response = self.client.table("plan_features").select("*").eq("plan_id", plan_id).execute()
+            return [PlanFeature(**item) for item in response.data]
+        except Exception as e:
+            logger.error(f"Failed to get features for plan {plan_id}: {e}")
+            return []

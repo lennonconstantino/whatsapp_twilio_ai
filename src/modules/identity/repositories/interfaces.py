@@ -37,6 +37,14 @@ class IUserRepository(IRepository[User], Protocol):
     def find_by_phone(self, phone: str) -> Optional[User]:
         """Find user by phone number."""
         ...
+
+    def find_by_email(self, email: str) -> Optional[User]:
+        """Find user by email."""
+        ...
+
+    def find_by_auth_id(self, auth_id: str) -> Optional[User]:
+        """Find user by auth ID."""
+        ...
         
     def find_active_by_owner(self, owner_id: str, limit: int = 100) -> List[User]:
         """Find active users by owner ID."""

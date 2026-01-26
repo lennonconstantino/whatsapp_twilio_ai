@@ -52,6 +52,7 @@ class Container(containers.DeclarativeContainer):
             "src.modules.identity.api.v1.users",
             "src.modules.identity.api.v1.plans",
             "src.modules.identity.api.v1.subscriptions",
+            "src.modules.identity.api.v1.features",
             "src.modules.conversation.workers.scheduler",
             "src.core.queue.worker",
         ]
@@ -151,7 +152,9 @@ class Container(containers.DeclarativeContainer):
         IdentityService,
         owner_service=owner_service,
         user_service=user_service,
-        feature_service=feature_service
+        feature_service=feature_service,
+        subscription_service=subscription_service,
+        plan_service=plan_service
     )
     
     twilio_service = providers.Factory(
