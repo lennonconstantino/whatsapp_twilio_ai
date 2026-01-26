@@ -2,6 +2,15 @@ from typing import TypeVar, Generic, Optional, List, Dict, Any, Union, Protocol
 
 T = TypeVar('T')
 
+class IDatabaseSession(Protocol):
+    """
+    Interface para sessão de banco de dados.
+    Abstrai o cliente específico (Supabase, SQL, etc).
+    """
+    def table(self, name: str) -> Any:
+        """Retorna um construtor de queries para a tabela especificada."""
+        ...
+
 class IRepository(Generic[T], Protocol):
     """
     Interface genérica para repositórios.

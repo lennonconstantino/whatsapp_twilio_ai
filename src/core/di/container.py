@@ -61,8 +61,8 @@ class Container(containers.DeclarativeContainer):
     # Database
     db_connection = providers.Singleton(DatabaseConnection)
     
-    db_client = providers.Singleton(
-        lambda db: db.client,
+    db_session = providers.Singleton(
+        lambda db: db.session,
         db_connection
     )
     
@@ -74,47 +74,47 @@ class Container(containers.DeclarativeContainer):
     # Repositories
     owner_repository = providers.Factory(
         OwnerRepository,
-        client=db_client
+        client=db_session
     )
     
     user_repository = providers.Factory(
         UserRepository,
-        client=db_client
+        client=db_session
     )
     
     feature_repository = providers.Factory(
         FeatureRepository,
-        client=db_client
+        client=db_session
     )
     
     plan_repository = providers.Factory(
         PlanRepository,
-        client=db_client
+        client=db_session
     )
     
     subscription_repository = providers.Factory(
         SubscriptionRepository,
-        client=db_client
+        client=db_session
     )
     
     twilio_account_repository = providers.Factory(
         TwilioAccountRepository,
-        client=db_client
+        client=db_session
     )
     
     conversation_repository = providers.Factory(
         ConversationRepository,
-        client=db_client
+        client=db_session
     )
     
     message_repository = providers.Factory(
         MessageRepository,
-        client=db_client
+        client=db_session
     )
     
     ai_result_repository = providers.Factory(
         AIResultRepository,
-        client=db_client
+        client=db_session
     )
     
     # Services

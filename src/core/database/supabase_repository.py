@@ -6,7 +6,7 @@ from typing import TypeVar, Generic, Optional, List, Dict, Any, Union
 from supabase import Client
 
 from src.core.utils.custom_ulid import is_valid_ulid
-from src.core.database.interface import IRepository
+from src.core.database.interface import IRepository, IDatabaseSession
 from src.core.utils import get_logger
 
 logger = get_logger(__name__)
@@ -27,12 +27,12 @@ class SupabaseRepository(Generic[T]):
         validates_ulid: Whether to validate ULID format (auto-detected)
     """
     
-    def __init__(self, client: Client, table_name: str, model_class: type, validates_ulid: bool = True):
+    def __init__(self, client: IDatabaseSession, table_name: str, model_class: type, validates_ulid: bool = True):
         """
         Initialize Supabase repository.
         
         Args:
-            client: Supabase client instance
+            client: Database session (implementing IDatabaseSession)
             table_name: Name of the database table
             model_class: Pydantic model class
             validates_ulid: Whether to validate ULID format (default: True)
