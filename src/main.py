@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 
 from .modules.conversation.api import conversations
 from .modules.channels.twilio.api import webhooks
+from .modules.identity.api import router as identity_router
 from .core.utils import configure_logging, get_logger
 from .core.config import settings
 from .core.di.container import Container
@@ -61,6 +62,7 @@ app.add_middleware(
 # Include routers
 app.include_router(conversations.router)
 app.include_router(webhooks.router)
+app.include_router(identity_router.router)
 
 
 @app.get("/")

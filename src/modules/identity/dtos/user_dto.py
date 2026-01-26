@@ -13,6 +13,7 @@ class UserCreateDTO(BaseModel):
     last_name: Optional[str] = None
     role: UserRole = UserRole.USER
     phone: Optional[str] = None
+    auth_id: Optional[str] = None
     
     model_config = ConfigDict(use_enum_values=True)
 

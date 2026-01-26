@@ -3,12 +3,15 @@ Dependency Injection Container.
 """
 from dependency_injector import containers, providers
 
+
 from src.core.database.session import DatabaseConnection
 
 # Repositories
 from src.modules.identity.repositories.owner_repository import OwnerRepository
 from src.modules.identity.repositories.user_repository import UserRepository
 from src.modules.identity.repositories.feature_repository import FeatureRepository
+from src.modules.identity.repositories.plan_repository import PlanRepository
+from src.modules.identity.repositories.subscription_repository import SubscriptionRepository
 from src.modules.channels.twilio.repositories.account_repository import TwilioAccountRepository
 from src.modules.conversation.repositories.conversation_repository import ConversationRepository
 from src.modules.conversation.repositories.message_repository import MessageRepository
@@ -26,6 +29,8 @@ from src.modules.channels.twilio.services.twilio_webhook_service import TwilioWe
 from src.modules.conversation.components.closure_detector import ClosureDetector
 from src.modules.ai.ai_result.services.ai_result_service import AIResultService
 from src.modules.ai.ai_result.services.ai_log_thought_service import AILogThoughtService
+from src.modules.identity.services.plan_service import PlanService
+from src.modules.identity.services.subscription_service import SubscriptionService
 from src.modules.ai.engines.lchain.feature.finance.finance_agent import create_finance_agent
 from src.modules.ai.engines.lchain.core.agents.agent_factory import create_master_agent
 from src.core.queue.service import QueueService
@@ -43,6 +48,10 @@ class Container(containers.DeclarativeContainer):
         modules=[
             "src.modules.channels.twilio.api.webhooks",
             "src.modules.conversation.api.conversations",
+            "src.modules.identity.api.v1.owners",
+            "src.modules.identity.api.v1.users",
+            "src.modules.identity.api.v1.plans",
+            "src.modules.identity.api.v1.subscriptions",
             "src.modules.conversation.workers.scheduler",
             "src.core.queue.worker",
         ]
@@ -74,6 +83,16 @@ class Container(containers.DeclarativeContainer):
     
     feature_repository = providers.Factory(
         FeatureRepository,
+        client=db_client
+    )
+    
+    plan_repository = providers.Factory(
+        PlanRepository,
+        client=db_client
+    )
+    
+    subscription_repository = providers.Factory(
+        SubscriptionRepository,
         client=db_client
     )
     
@@ -115,6 +134,17 @@ class Container(containers.DeclarativeContainer):
     feature_service = providers.Factory(
         FeatureService,
         repository=feature_repository
+    )
+    
+    plan_service = providers.Factory(
+        PlanService,
+        plan_repository=plan_repository
+    )
+    
+    subscription_service = providers.Factory(
+        SubscriptionService,
+        subscription_repository=subscription_repository,
+        plan_repository=plan_repository
     )
     
     identity_service = providers.Factory(

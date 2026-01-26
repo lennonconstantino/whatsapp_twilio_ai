@@ -192,7 +192,69 @@ COMMENT ON INDEX idx_features_config_gin IS 'GIN index for efficient JSONB queri
 COMMENT ON INDEX idx_features_config_enabled IS 'Partial index for enabled flag in config_json';
 
 -- ============================================================================
--- 4. TWILIO ACCOUNTS TABLE
+-- 4. PLANS TABLE
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS plans (
+    plan_id     TEXT PRIMARY KEY DEFAULT generate_ulid(),
+    name        TEXT UNIQUE NOT NULL,
+    display_name TEXT NOT NULL,
+    description TEXT,
+    price_cents INTEGER NOT NULL DEFAULT 0,
+    billing_period TEXT CHECK (billing_period IN ('monthly', 'yearly', 'lifetime')) DEFAULT 'monthly',
+    is_public   BOOLEAN DEFAULT TRUE,
+    max_users   INTEGER,
+    max_projects INTEGER,
+    config_json JSONB DEFAULT '{}'::jsonb,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at  TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    active      BOOLEAN DEFAULT TRUE
+);
+
+CREATE INDEX idx_plans_active ON plans(active);
+CREATE INDEX idx_plans_public ON plans(is_public, active);
+
+-- ============================================================================
+-- 5. PLAN_FEATURES TABLE (Many-to-Many)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS plan_features (
+    plan_feature_id BIGSERIAL PRIMARY KEY,
+    plan_id         TEXT NOT NULL REFERENCES plans(plan_id) ON DELETE CASCADE,
+    feature_name    TEXT NOT NULL,
+    feature_value   JSONB DEFAULT '{}'::jsonb,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_plan_features_plan_name ON plan_features(plan_id, feature_name);
+CREATE INDEX idx_plan_features_plan_id ON plan_features(plan_id);
+
+-- ============================================================================
+-- 6. SUBSCRIPTIONS TABLE
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS subscriptions (
+    subscription_id TEXT PRIMARY KEY DEFAULT generate_ulid(),
+    owner_id        TEXT NOT NULL REFERENCES owners(owner_id) ON DELETE CASCADE,
+    plan_id         TEXT NOT NULL REFERENCES plans(plan_id),
+    status          TEXT CHECK (status IN ('active', 'canceled', 'expired', 'trial')) DEFAULT 'trial',
+    started_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    expires_at      TIMESTAMP WITH TIME ZONE,
+    canceled_at     TIMESTAMP WITH TIME ZONE,
+    trial_ends_at   TIMESTAMP WITH TIME ZONE,
+    config_json     JSONB DEFAULT '{}'::jsonb,
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_subscriptions_owner_id ON subscriptions(owner_id);
+CREATE INDEX idx_subscriptions_status ON subscriptions(owner_id, status);
+CREATE INDEX idx_subscriptions_expires_at ON subscriptions(expires_at) WHERE expires_at IS NOT NULL;
+
+-- Constraint: apenas uma subscription ativa por owner
+CREATE UNIQUE INDEX idx_subscriptions_owner_active 
+ON subscriptions(owner_id) 
+WHERE status = 'active';
+
+-- ============================================================================
+-- 7. TWILIO ACCOUNTS TABLE
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS twilio_accounts (
@@ -216,7 +278,7 @@ COMMENT ON COLUMN twilio_accounts.phone_numbers IS 'Array of Twilio phone number
 COMMENT ON INDEX idx_twilio_phone_numbers_gin IS 'GIN index for searching phone numbers in JSONB array';
 
 -- ============================================================================
--- 5. CONVERSATIONS TABLE
+-- 8. CONVERSATIONS TABLE
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS conversations (
@@ -290,7 +352,7 @@ COMMENT ON INDEX idx_conversations_context_gin IS 'GIN index for efficient conte
 COMMENT ON INDEX idx_conversations_metadata_gin IS 'GIN index for efficient metadata JSONB queries';
 
 -- ============================================================================
--- 6. MESSAGES TABLE
+-- 9. MESSAGES TABLE
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -330,7 +392,7 @@ COMMENT ON COLUMN messages.message_type IS 'Type of message content';
 COMMENT ON INDEX idx_messages_metadata_gin IS 'GIN index for efficient metadata JSONB queries';
 
 -- ============================================================================
--- 7. AI RESULTS TABLE
+-- 10. AI RESULTS TABLE
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS ai_results (
@@ -385,6 +447,12 @@ CREATE TRIGGER update_features_updated_at
     BEFORE UPDATE ON features
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_plans_updated_at BEFORE UPDATE ON plans
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_subscriptions_updated_at BEFORE UPDATE ON subscriptions
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();    
 
 -- ============================================================================
 -- ULID AUTO-GENERATION TRIGGERS
