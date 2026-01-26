@@ -7,13 +7,13 @@ from supabase import Client
 
 from src.modules.conversation.enums.conversation_status import ConversationStatus
 from src.modules.conversation.models.conversation import Conversation
-from src.core.database.base_repository import BaseRepository
+from src.core.database.supabase_repository import SupabaseRepository
 from src.core.utils import get_logger
 
 logger = get_logger(__name__)
 
 
-class ConversationRepositoryV2(BaseRepository[Conversation]):
+class ConversationRepositoryV2(SupabaseRepository[Conversation]):
     """
     Repository for Conversation entity operations (V2).
     Focused purely on data access, without business logic leakage.

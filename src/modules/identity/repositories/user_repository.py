@@ -4,14 +4,14 @@ User repository for database operations.
 from typing import Optional, List
 from supabase import Client
 
-from src.core.database.base_repository import BaseRepository
+from src.core.database.supabase_repository import SupabaseRepository
 from src.modules.identity.models.user import User, UserRole
 from src.core.utils import get_logger
 
 logger = get_logger(__name__)
 
 
-class UserRepository(BaseRepository[User]):
+class UserRepository(SupabaseRepository[User]):
     """Repository for User entity operations."""
     
     def __init__(self, client: Client):

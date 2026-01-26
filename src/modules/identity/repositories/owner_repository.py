@@ -4,14 +4,14 @@ Owner repository for database operations.
 from typing import Optional, List
 from supabase import Client
 
-from src.core.database.base_repository import BaseRepository
+from src.core.database.supabase_repository import SupabaseRepository
 from src.modules.identity.models.owner import Owner
 from src.core.utils import get_logger
 
 logger = get_logger(__name__)
 
 
-class OwnerRepository(BaseRepository[Owner]):
+class OwnerRepository(SupabaseRepository[Owner]):
     """Repository for Owner entity operations."""
     
     def __init__(self, client: Client):

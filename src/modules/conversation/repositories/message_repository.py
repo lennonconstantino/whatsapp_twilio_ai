@@ -6,14 +6,14 @@ from supabase import Client
 
 from src.modules.conversation.enums.message_owner import MessageOwner
 from src.modules.conversation.models.message import Message
-from src.core.database.base_repository import BaseRepository
+from src.core.database.supabase_repository import SupabaseRepository
 from src.core.utils import get_logger
 from src.core.utils.exceptions import DuplicateError
 
 logger = get_logger(__name__)
 
 
-class MessageRepository(BaseRepository[Message]):
+class MessageRepository(SupabaseRepository[Message]):
     """Repository for Message entity operations."""
     
     def __init__(self, client: Client):

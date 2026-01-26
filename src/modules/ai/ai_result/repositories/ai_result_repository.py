@@ -4,7 +4,7 @@ AI Result repository for database operations.
 from typing import List, Optional
 from supabase import Client
 
-from src.core.database.base_repository import BaseRepository
+from src.core.database.supabase_repository import SupabaseRepository
 from src.modules.ai.ai_result.models.ai_result import AIResult
 from src.modules.ai.ai_result.enums.ai_result_type import AIResultType
 from src.core.utils import get_logger
@@ -12,7 +12,7 @@ from src.core.utils import get_logger
 logger = get_logger(__name__)
 
 
-class AIResultRepository(BaseRepository[AIResult]):
+class AIResultRepository(SupabaseRepository[AIResult]):
     """Repository for AIResult entity operations."""
     
     def __init__(self, client: Client):

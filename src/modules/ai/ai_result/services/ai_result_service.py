@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Any
 
 from src.modules.ai.ai_result.models.ai_result import AIResult
 from src.modules.ai.ai_result.enums.ai_result_type import AIResultType
-from src.modules.ai.ai_result.repositories.ai_result_repository import AIResultRepository
+from src.modules.ai.ai_result.repositories.interfaces import IAIResultRepository
 from src.core.utils import get_logger
 
 logger = get_logger(__name__)
@@ -23,7 +23,7 @@ class AIResultService:
     
     def __init__(
         self,
-        ai_result_repo: AIResultRepository
+        ai_result_repo: IAIResultRepository
     ):
         """
         Initialize the service.

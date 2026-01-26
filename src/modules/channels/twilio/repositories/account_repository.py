@@ -5,13 +5,13 @@ from typing import Optional, List
 from supabase import Client
 
 from src.modules.channels.twilio.models.domain import TwilioAccount
-from src.core.database.base_repository import BaseRepository
+from src.core.database.supabase_repository import SupabaseRepository
 from src.core.utils import get_logger
 
 logger = get_logger(__name__)
 
 
-class TwilioAccountRepository(BaseRepository[TwilioAccount]):
+class TwilioAccountRepository(SupabaseRepository[TwilioAccount]):
     """Repository for TwilioAccount entity operations."""
     
     def __init__(self, client: Client):

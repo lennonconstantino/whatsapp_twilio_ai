@@ -4,14 +4,14 @@ Feature repository for database operations.
 from typing import Optional, List
 from supabase import Client
 
-from src.core.database.base_repository import BaseRepository
+from src.core.database.supabase_repository import SupabaseRepository
 from src.modules.identity.models.feature import Feature
 from src.core.utils import get_logger
 
 logger = get_logger(__name__)
 
 
-class FeatureRepository(BaseRepository[Feature]):
+class FeatureRepository(SupabaseRepository[Feature]):
     """Repository for Feature entity operations."""
     
     def __init__(self, client: Client):

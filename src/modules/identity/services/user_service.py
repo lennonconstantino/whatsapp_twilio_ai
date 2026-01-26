@@ -3,7 +3,7 @@ User Service module.
 """
 from typing import List, Optional
 from src.core.utils import get_logger
-from src.modules.identity.repositories.user_repository import UserRepository
+from src.modules.identity.repositories.interfaces import IUserRepository
 from src.modules.identity.models.user import User, UserRole
 from src.modules.identity.dtos.user_dto import UserCreateDTO
 
@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 class UserService:
     """Service for managing users."""
 
-    def __init__(self, repository: UserRepository):
+    def __init__(self, repository: IUserRepository):
         """
         Initialize UserService.
         

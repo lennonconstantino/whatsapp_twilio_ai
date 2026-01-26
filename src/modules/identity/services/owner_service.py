@@ -3,7 +3,7 @@ Owner Service module.
 """
 from typing import List, Optional
 from src.core.utils import get_logger
-from src.modules.identity.repositories.owner_repository import OwnerRepository
+from src.modules.identity.repositories.interfaces import IOwnerRepository
 from src.modules.identity.models.owner import Owner
 from src.modules.identity.dtos.owner_dto import OwnerCreateDTO
 
@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 class OwnerService:
     """Service for managing owners (tenants)."""
 
-    def __init__(self, repository: OwnerRepository):
+    def __init__(self, repository: IOwnerRepository):
         """
         Initialize OwnerService.
         

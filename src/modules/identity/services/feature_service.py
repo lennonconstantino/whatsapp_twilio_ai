@@ -5,7 +5,7 @@ from typing import List, Optional, Dict, Any
 from src.core.utils import get_logger
 
 from src.modules.identity.helpers.validates import PathValidator
-from src.modules.identity.repositories.feature_repository import FeatureRepository
+from src.modules.identity.repositories.interfaces import IFeatureRepository
 from src.modules.identity.models.feature import Feature
 from src.modules.identity.dtos.feature_dto import FeatureCreateDTO
 
@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 class FeatureService:
     """Service for managing features."""
 
-    def __init__(self, repository: FeatureRepository):
+    def __init__(self, repository: IFeatureRepository):
         """
         Initialize FeatureService.
         

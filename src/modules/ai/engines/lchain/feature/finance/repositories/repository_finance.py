@@ -1,7 +1,7 @@
 from typing import List, Optional
 from datetime import datetime
 
-from src.core.database.base_repository import BaseRepository
+from src.core.database.supabase_repository import SupabaseRepository
 from src.core.database.session import get_db
 from src.core.utils.logging import get_logger
 from src.modules.ai.engines.lchain.feature.finance.models.models import Customer, CustomerCreate, CustomerUpdate, Expense, ExpenseCreate, ExpenseUpdate, Invoice, InvoiceCreate, InvoiceUpdate, Revenue, RevenueCreate, RevenueUpdate
@@ -24,7 +24,7 @@ def prepare_data_for_db(data: dict) -> dict:
     return result
 
 
-class RevenueRepository(BaseRepository[Revenue]):
+class RevenueRepository(SupabaseRepository[Revenue]):
     """Repository para operações de Revenue"""
     
     def __init__(self):
@@ -91,7 +91,7 @@ class RevenueRepository(BaseRepository[Revenue]):
         return sum(r.gross_amount for r in revenues)
 
 
-class ExpenseRepository(BaseRepository[Expense]):
+class ExpenseRepository(SupabaseRepository[Expense]):
     """Repository para operações de Expense"""
     
     def __init__(self):
@@ -152,7 +152,7 @@ class ExpenseRepository(BaseRepository[Expense]):
         return sum(e.gross_amount for e in expenses)
 
 
-class CustomerRepository(BaseRepository[Customer]):
+class CustomerRepository(SupabaseRepository[Customer]):
     """Repository para operações de Customer"""
     
     def __init__(self):
@@ -214,7 +214,7 @@ class CustomerRepository(BaseRepository[Customer]):
         return self.find_by({"company_name": company_name})
 
 
-class InvoiceRepository(BaseRepository[Invoice]):
+class InvoiceRepository(SupabaseRepository[Invoice]):
     """Repository para operações de Invoice"""
     
     def __init__(self):
