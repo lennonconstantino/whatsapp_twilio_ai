@@ -43,7 +43,7 @@ class Container(containers.DeclarativeContainer):
         modules=[
             "src.modules.channels.twilio.api.webhooks",
             "src.modules.conversation.api.conversations",
-            "src.modules.conversation.workers.background_tasks",
+            "src.modules.conversation.workers.scheduler",
             "src.core.queue.worker",
         ]
     )

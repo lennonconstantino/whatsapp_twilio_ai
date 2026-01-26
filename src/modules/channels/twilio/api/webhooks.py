@@ -1,7 +1,7 @@
 """
 API routes for Twilio webhook integration.
 """
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends
 from dependency_injector.wiring import inject, Provide
 
 from src.core.utils import get_logger
