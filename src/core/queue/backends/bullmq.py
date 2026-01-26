@@ -1,5 +1,6 @@
 import json
 import logging
+import asyncio
 from typing import Optional, Callable, Awaitable
 from bullmq import Queue, Worker
 from redis import asyncio as aioredis
