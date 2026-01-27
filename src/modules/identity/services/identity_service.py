@@ -248,6 +248,18 @@ class IdentityService:
         """
         return self.feature_service.get_feature_by_name(owner_id, name)
 
+    def get_active_feature(self, owner_id: str) -> Optional[Any]:
+        """
+        Get the active feature for an owner based on configuration.
+
+        Args:
+            owner_id: Owner ID
+
+        Returns:
+            Active Feature instance or None
+        """
+        return self.feature_service.get_active_feature(owner_id)
+
     def validate_feature_path(self, path: str) -> Dict[str, Any]:
         """
         Validate a feature path.

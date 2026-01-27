@@ -110,6 +110,14 @@ def seed_users(user_repo: UserRepository, owners):
             "role": UserRole.USER.value,
             "phone": "+5511954233316",
         },
+        {
+            "owner_id": owners[0].owner_id,
+            "profile_name": "Renato Bahia",
+            "first_name": "Renato",
+            "last_name": "Ribeiro",
+            "role": UserRole.USER.value,
+            "phone": "+5511942533083",
+        },
         # TechStart users
         {
             "owner_id": owners[1].owner_id,
@@ -169,7 +177,7 @@ def seed_features(feature_repo: FeatureRepository, owners):
             "name": "finance_agent",
             "description": "AI-powered assistant for financial queries",
             "enabled": True,
-            "config_json": {"threshold": 0.6, "alerts": True},
+            "config_json": {"active": True, "threshold": 0.6, "alerts": True},
         },
         {
             "owner_id": owners[0].owner_id,

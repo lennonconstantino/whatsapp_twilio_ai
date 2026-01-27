@@ -65,7 +65,7 @@ class RoutingAgent:
         self.agent_context = AgentContext(
             owner_id=ctx_data.get("owner_id"),
             correlation_id=ctx_data.get("correlation_id"),
-            feature_id=ctx_data.get("feature_id"),
+            feature=ctx_data.get("feature"),
             msg_id=ctx_data.get("msg_id"),
             user_input=user_input,
             user=ctx_data.get("user"),
@@ -105,6 +105,7 @@ class RoutingAgent:
 
         self.to_console("START", f"===== Starting Routing Agent ======")
         self.to_console("START", f"Correlation ID: {self.agent_context.correlation_id}")
+        self.to_console("START", f"Feature: {self.agent_context.feature}")
         self.to_console("START", f"Owner ID: {self.agent_context.owner_id}")
         self.to_console("START", f"Channel: {self.agent_context.channel}")
         self.to_console(

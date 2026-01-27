@@ -377,13 +377,8 @@ class TwilioWebhookService:
             )
             user = self.identity_service.get_user_by_phone(search_phone)
 
-            # 2. Resolve Feature (TODO: Make dynamic based on user/owner config)
-            result = self.identity_service.validate_feature_path(
-                "src/modules/ai/engines/lchain/feature"
-            )
-            feature = self.identity_service.get_feature_by_name(
-                owner_id, result["feature"] + "_agent"
-            )
+            # 2. Resolve Feature (Dynamic based on user/owner config)
+            feature = self.identity_service.get_active_feature(owner_id)
 
             agent_context = {
                 "owner_id": owner_id,
@@ -391,7 +386,7 @@ class TwilioWebhookService:
                 "msg_id": msg_id,
                 "user": user.model_dump() if user else None,
                 "channel": "whatsapp",
-                "feature_id": feature.feature_id if feature else None,
+                "feature": feature.name if feature else None,
                 "memory": None,
                 "additional_context": "",
             }

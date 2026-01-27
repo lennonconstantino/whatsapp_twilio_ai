@@ -2,6 +2,7 @@
 Twilio Account repository for database operations.
 """
 
+import json
 from typing import List, Optional
 
 from supabase import Client
@@ -61,10 +62,13 @@ class TwilioAccountRepository(SupabaseRepository[TwilioAccount]):
             TwilioAccount instance or None
         """
         try:
+            # Note: For JSONB columns, we must pass a valid JSON string for 'contains' filter.
+            # Passing a Python list directly results in Postgres Array syntax (curly braces)
+            # which causes "invalid input syntax for type json".
             result = (
                 self.client.table(self.table_name)
                 .select("*")
-                .contains("phone_numbers", [phone_number])
+                .contains("phone_numbers", json.dumps([phone_number]))
                 .limit(1)
                 .execute()
             )

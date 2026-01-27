@@ -48,12 +48,14 @@ clean:
 	rm -rf dist
 	rm -rf build
 	rm -rf *.egg-info
+	rm -f worker.log scheduler.log
 
 run-worker:
 	python -m src.core.queue.worker >> worker.log 2>&1 &
 
 run-scheduler:
 	python -m src.modules.conversation.workers.scheduler >> scheduler.log 2>&1 &
+	@echo "✅ Scheduler is running."
 
 check-worker:
 	@if ! pgrep -f "src.core.queue.worker" > /dev/null; then \
@@ -65,7 +67,9 @@ check-worker:
 	fi
 
 run: check-worker
-	python -m src.main
+	python -m src.main >> app.log 2>&1 &
+	@echo "✅ Application is running."
+	@echo "-> see app.log for more details."
 
 stop:
 	@echo "Stopping application and workers..."

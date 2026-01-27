@@ -88,6 +88,39 @@ class FeatureService:
         """
         return self.repository.find_by_name(owner_id, name)
 
+    def get_active_feature(self, owner_id: str) -> Optional[Feature]:
+        """
+        Get the active feature for an owner based on configuration.
+        Priority:
+        1. Feature with "active": true in config_json
+        2. Feature with "default": true in config_json
+        3. First enabled feature (fallback)
+
+        Args:
+            owner_id: Owner ID
+
+        Returns:
+            Active Feature or None
+        """
+        features = self.get_enabled_features(owner_id)
+        if not features:
+            return None
+
+        # 1. Check for explicitly active feature
+        for feature in features:
+            config = feature.config_json or {}
+            if config.get("active") is True:
+                return feature
+
+        # 2. Check for default feature
+        for feature in features:
+            config = feature.config_json or {}
+            if config.get("default") is True:
+                return feature
+
+        # 3. Fallback to first enabled feature
+        return features[0]
+
     def toggle_feature(self, feature_id: int, enabled: bool) -> Optional[Feature]:
         """
         Enable or disable a feature.
