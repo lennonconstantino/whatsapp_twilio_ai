@@ -46,8 +46,9 @@ class Container(containers.DeclarativeContainer):
     # Wiring configuration
     wiring_config = containers.WiringConfiguration(
         modules=[
-            "src.modules.channels.twilio.api.webhooks",
-            "src.modules.conversation.api.conversations",
+            "src.modules.channels.twilio.api.v1.webhooks",
+            "src.modules.channels.twilio.api.dependencies",
+            "src.modules.conversation.api.v1.conversations",
             "src.modules.identity.api.v1.owners",
             "src.modules.identity.api.v1.users",
             "src.modules.identity.api.v1.plans",

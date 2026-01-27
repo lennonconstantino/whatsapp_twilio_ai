@@ -5,8 +5,7 @@ O sistema segue uma **Arquitetura Modular em Camadas**, fortemente inspirada em 
 
 ### Estrutura de Diretórios
 - `src/core`: Componentes transversais e de infraestrutura (Config, Database, DI, Queue, Logging). Código agnóstico ao negócio.
-- `src/modules`: Domínios de negócio isolados (`AI`, `Channels`, `Conversation`, `Identity`).
-- `src/api`: Pontos de entrada da aplicação (Controllers/Routes).
+- `src/modules`: Domínios de negócio isolados (`AI`, `Channels`, `Conversation`, `Identity`). Cada módulo contém sua própria camada de API (`api/`).
 
 ## Padrões Adotados
 

@@ -10,12 +10,12 @@ from src.core.di.container import Container
 from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
 from src.modules.channels.twilio.dtos import TwilioWebhookResponseDTO
 from src.modules.channels.twilio.services.twilio_webhook_service import TwilioWebhookService
-from .dependencies import parse_twilio_payload, validate_twilio_request
+from src.modules.channels.twilio.api.dependencies import parse_twilio_payload, validate_twilio_request
 
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/webhooks/twilio", tags=["webhooks"])
+router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 @router.post("/inbound", response_model=TwilioWebhookResponseDTO)
 @inject

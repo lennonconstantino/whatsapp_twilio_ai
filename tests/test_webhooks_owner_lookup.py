@@ -110,7 +110,7 @@ async def test_owner_lookup_inbound_local_sender():
         # It relies on QueueService which is injected.
         # We test the API endpoint via AsyncClient which calls the endpoint normally.
         async with AsyncClient(app=app, base_url="http://test") as ac:
-            resp = await ac.post("/webhooks/twilio/inbound", data=payload)
+            resp = await ac.post("/channels/twilio/v1/webhooks/inbound", data=payload)
     
         assert resp.status_code == 200
         data = resp.json()

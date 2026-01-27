@@ -89,7 +89,7 @@ def build_webhook_payload(message: str, media_url: str = None, to_number: str = 
 
 def send_to_local_webhook(message: str, media_url: str = None, to_number: str = None, port: int = 8080):
     """Envia para webhook local (simula Twilio)"""
-    url = f'http://localhost:{port}/webhooks/twilio/inbound'
+    url = f'http://localhost:{port}/channels/twilio/v1/webhooks/inbound'
     payload = build_webhook_payload(message, media_url, to_number)
     headers = {
         "X-API-Key": os.getenv("INTERNAL_API_KEY")  # ← Sua própria chave

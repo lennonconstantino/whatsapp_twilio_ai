@@ -10,8 +10,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from .modules.conversation.api import conversations
-from .modules.channels.twilio.api import webhooks
+from .modules.conversation.api import router as conversation_router
+from .modules.channels.twilio.api import router as twilio_router
 from .modules.identity.api import router as identity_router
 from .core.utils import configure_logging, get_logger
 from .core.config import settings
@@ -60,8 +60,8 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(conversations.router)
-app.include_router(webhooks.router)
+app.include_router(conversation_router.router)
+app.include_router(twilio_router.router)
 app.include_router(identity_router.router)
 
 

@@ -20,7 +20,7 @@ class ConversationTester:
     
     def __init__(self, base_url: str = "http://localhost:8000"):
         self.base_url = base_url
-        self.webhook_url = f"{base_url}/webhooks/twilio/inbound"
+        self.webhook_url = f"{base_url}/channels/twilio/v1/webhooks/inbound"
         self.api_key = "your-api-key-here"  # Configure conforme necessário
         
     def build_payload(self, message: str, from_number: str, to_number: str):

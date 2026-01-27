@@ -151,13 +151,12 @@ A documentação técnica detalhada encontra-se na pasta `docs/v3/`:
 
 ```
 src/
-├── api/          # Rotas e Controllers (FastAPI)
 ├── core/         # Infraestrutura base (Config, DB, Queue, DI)
 ├── modules/      # Domínios de Negócio
 │   ├── ai/             # Motores de Inteligência e Agentes
-│   ├── channels/       # Integração Twilio/WhatsApp
-│   ├── conversation/   # Gestão de Estado e Mensagens
-│   └── identity/       # Gestão de Tenants, Usuários e Permissões
+│   ├── channels/       # Integração Twilio/WhatsApp (API, Services)
+│   ├── conversation/   # Gestão de Estado e Mensagens (API, Services)
+│   └── identity/       # Gestão de Tenants, Usuários e Permissões (API, Services)
 └── main.py       # Ponto de entrada da aplicação
 ```
 
