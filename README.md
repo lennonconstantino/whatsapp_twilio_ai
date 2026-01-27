@@ -21,7 +21,7 @@
 - **Arquitetura**: Dependency Injection, Clean Architecture, Repository Pattern.
 - **Banco de Dados**: PostgreSQL (via Supabase).
 - **Integrações**: Twilio API, OpenAI API, LangChain.
-- **Mensageria/Filas**: Abstração `QueueService` (Suporte a Redis/BullMQ e AWS SQS).
+- **Mensageria/Filas**: Abstração `QueueService` (Suporte a Redis/BullMQ, AWS SQS e SQLite).
 - **DevOps**: Docker, Makefile.
 
 ## 📋 Pré-requisitos
@@ -77,10 +77,13 @@ O projeto inclui um `Makefile` para facilitar operações comuns:
   O servidor estará disponível em `http://localhost:8000`.
   > **Nota**: Este comando agora verifica se o worker está rodando. Se não estiver, ele falhará com instruções claras.
 
-- **Iniciar os Workers (Obrigatório)**:
-  Para processamento de mensagens e tarefas em background, execute em um terminal separado:
+- **Iniciar os Workers e Scheduler (Obrigatório)**:
+  Para processamento de mensagens e tarefas em background (timeouts, expiração), execute em terminais separados:
   ```bash
   make run-worker
+  ```
+  ```bash
+  make run-scheduler
   ```
 
 - **Parar Aplicação e Workers**:
@@ -112,9 +115,11 @@ O projeto inclui um `Makefile` para facilitar operações comuns:
    ```
    Copie a URL gerada (ex: `https://abcd-123.ngrok-free.app`).
 
-2. **Inicie o Servidor e Workers**:
+2. **Inicie o Servidor, Workers e Scheduler**:
    ```bash
    make run-worker
+   # Em outro terminal:
+   make run-scheduler
    # Em outro terminal:
    make run
    ```

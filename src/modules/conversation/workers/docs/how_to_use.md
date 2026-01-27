@@ -1,23 +1,42 @@
-### Como Utilizar
-O script foi projetado para ser flexível e pode ser executado de duas formas, dependendo da sua infraestrutura:
+# Scheduler e Workers
 
-1. Modo Daemon (Recomendado para Docker/Systemd) :
-   Roda continuamente em loop, verificando a cada 60 segundos (padrão).
-   
-   ```
-   python3 src/workers/background_tasks.py
-   # Ou com intervalo personalizado (segundos)
-   python3 src/workers/background_tasks.py 300
-   ```
-2. Modo Cron/Scheduler (Recomendado para AWS Lambda/Cronjob) :
-   Roda uma única vez e encerra. Ideal para agendadores externos.
-   
-   ```
-   python3 src/workers/background_tasks.py --once
-   ```
-### Validação
-Executei um teste com a flag --once e o sistema processou corretamente:
+Este diretório contém os componentes responsáveis pelo processamento em background de conversas, incluindo timeouts (idle) e expiração.
 
-- Identificou e expirou 1 conversa antiga que estava pendente no banco.
-- Logou as operações com sucesso.
-Isso remove a responsabilidade de manutenção de estado do Webhook, garantindo respostas rápidas para o Twilio e evitando timeouts na API.
+## Estrutura
+
+- `scheduler.py`: Processo produtor que roda continuamente e agenda tarefas periodicamente.
+- `tasks.py`: Definição das tarefas que são executadas pelos workers.
+
+## Como Utilizar
+
+O sistema utiliza uma arquitetura Produtor-Consumidor. Você precisa rodar tanto o Scheduler quanto o Worker.
+
+### Via Makefile (Local Development)
+
+1. **Iniciar o Worker** (em um terminal):
+   ```bash
+   make run-worker
+   ```
+
+2. **Iniciar o Scheduler** (em outro terminal):
+   ```bash
+   make run-scheduler
+   ```
+
+### Via Docker Compose
+
+O arquivo `docker-compose.yml` já está configurado com os serviços `worker` e `scheduler`.
+
+```bash
+docker-compose up -d
+```
+
+## Funcionamento
+
+1. O **Scheduler** acorda a cada 60 segundos (configurável).
+2. Ele enfileira tarefas `process_idle_conversations` e `process_expired_conversations` no sistema de filas (QueueService).
+3. O **Worker** consome essas tarefas e executa a lógica de negócio (finalizar conversas expiradas/ociosas).
+
+## Configuração
+
+As configurações de tempo (idle timeout, expiration) estão no `src/core/config/settings.py` e podem ser ajustadas via variáveis de ambiente.

@@ -51,6 +51,9 @@ clean:
 run-worker:
 	python -m src.core.queue.worker
 
+run-scheduler:
+	python -m src.modules.conversation.workers.scheduler
+
 check-worker:
 	@if ! pgrep -f "src.core.queue.worker" > /dev/null; then \
 		echo "❌ Error: Worker is not running!"; \
