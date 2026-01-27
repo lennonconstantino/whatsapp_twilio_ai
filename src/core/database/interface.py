@@ -1,15 +1,18 @@
-from typing import TypeVar, Generic, Optional, List, Dict, Any, Union, Protocol
+from typing import Any, Dict, Generic, List, Optional, Protocol, TypeVar, Union
 
-T = TypeVar('T')
+T = TypeVar("T")
+
 
 class IDatabaseSession(Protocol):
     """
     Interface para sessão de banco de dados.
     Abstrai o cliente específico (Supabase, SQL, etc).
     """
+
     def table(self, name: str) -> Any:
         """Retorna um construtor de queries para a tabela especificada."""
         ...
+
 
 class IRepository(Generic[T], Protocol):
     """
@@ -25,7 +28,9 @@ class IRepository(Generic[T], Protocol):
         """Busca um registro pelo ID."""
         ...
 
-    def update(self, id_value: Union[int, str], data: Dict[str, Any], id_column: str = "id") -> Optional[T]:
+    def update(
+        self, id_value: Union[int, str], data: Dict[str, Any], id_column: str = "id"
+    ) -> Optional[T]:
         """Atualiza um registro existente."""
         ...
 
@@ -41,6 +46,8 @@ class IRepository(Generic[T], Protocol):
         """Conta registros baseados em filtros."""
         ...
 
-    def query_dynamic(self, select_columns: List[str] = None, filters: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def query_dynamic(
+        self, select_columns: List[str] = None, filters: List[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
         """Executa uma query dinâmica com filtros complexos."""
         ...

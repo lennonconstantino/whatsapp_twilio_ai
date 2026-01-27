@@ -2,9 +2,11 @@
 Modelos Pydantic para integração com Supabase
 Substitui SQLModel mantendo validações e lógica de negócio
 """
+
+from datetime import datetime, time
 from typing import Optional
-from pydantic import BaseModel, BeforeValidator, model_validator, Field
-from datetime import time, datetime
+
+from pydantic import BaseModel, BeforeValidator, Field, model_validator
 from typing_extensions import Annotated
 
 
@@ -39,7 +41,7 @@ def validate_time(v):
             return time.fromisoformat(v)
         except ValueError:
             raise ValueError("Invalid time format")
-    
+
     raise ValueError("Value must be a time object or ISO format string")
 
 
@@ -60,8 +62,10 @@ Numeric = Annotated[float, BeforeValidator(numeric_validator)]
 
 # ==== Base Models ====
 
+
 class RevenueBase(BaseModel):
     """Modelo base para Revenue (sem ID)"""
+
     description: str
     net_amount: Numeric
     gross_amount: Numeric
@@ -74,22 +78,30 @@ class RevenueBase(BaseModel):
         """Calcula automaticamente valores faltantes entre net, gross e tax_rate"""
         if isinstance(data, dict):
             if "net_amount" in data and "tax_rate" in data:
-                data["gross_amount"] = round(data["net_amount"] * (1 + data["tax_rate"]), 2)
+                data["gross_amount"] = round(
+                    data["net_amount"] * (1 + data["tax_rate"]), 2
+                )
             elif "gross_amount" in data and "tax_rate" in data:
-                data["net_amount"] = round(data["gross_amount"] / (1 + data["tax_rate"]), 2)
+                data["net_amount"] = round(
+                    data["gross_amount"] / (1 + data["tax_rate"]), 2
+                )
             elif "net_amount" in data and "gross_amount" in data:
-                data["tax_rate"] = round((data["gross_amount"] - data["net_amount"]) / data["net_amount"], 2)
+                data["tax_rate"] = round(
+                    (data["gross_amount"] - data["net_amount"]) / data["net_amount"], 2
+                )
 
         return data
 
 
 class RevenueCreate(RevenueBase):
     """Schema para criação de Revenue (INSERT)"""
+
     pass
 
 
 class RevenueUpdate(BaseModel):
     """Schema para atualização de Revenue (UPDATE)"""
+
     description: Optional[str] = None
     net_amount: Optional[Numeric] = None
     gross_amount: Optional[Numeric] = None
@@ -99,18 +111,23 @@ class RevenueUpdate(BaseModel):
 
 class Revenue(RevenueBase):
     """Schema completo de Revenue (SELECT) - inclui ID"""
+
     id: int
-    
+
     class Config:
         from_attributes = True
 
 
 # ==== Expense Models ====
 
+
 class ExpenseBase(BaseModel):
     """Modelo base para Expense (sem ID)"""
+
     description: str
-    net_amount: Numeric = Field(description="The net amount of the expense (before tax)")
+    net_amount: Numeric = Field(
+        description="The net amount of the expense (before tax)"
+    )
     gross_amount: Numeric
     tax_rate: Numeric
     date: DateFormat
@@ -121,22 +138,30 @@ class ExpenseBase(BaseModel):
         """Calcula automaticamente valores faltantes entre net, gross e tax_rate"""
         if isinstance(data, dict):
             if "net_amount" in data and "tax_rate" in data:
-                data["gross_amount"] = round(data["net_amount"] * (1 + data["tax_rate"]), 2)
+                data["gross_amount"] = round(
+                    data["net_amount"] * (1 + data["tax_rate"]), 2
+                )
             elif "gross_amount" in data and "tax_rate" in data:
-                data["net_amount"] = round(data["gross_amount"] / (1 + data["tax_rate"]), 2)
+                data["net_amount"] = round(
+                    data["gross_amount"] / (1 + data["tax_rate"]), 2
+                )
             elif "net_amount" in data and "gross_amount" in data:
-                data["tax_rate"] = round((data["gross_amount"] - data["net_amount"]) / data["net_amount"], 2)
+                data["tax_rate"] = round(
+                    (data["gross_amount"] - data["net_amount"]) / data["net_amount"], 2
+                )
 
         return data
 
 
 class ExpenseCreate(ExpenseBase):
     """Schema para criação de Expense (INSERT)"""
+
     pass
 
 
 class ExpenseUpdate(BaseModel):
     """Schema para atualização de Expense (UPDATE)"""
+
     description: Optional[str] = None
     net_amount: Optional[Numeric] = None
     gross_amount: Optional[Numeric] = None
@@ -146,16 +171,19 @@ class ExpenseUpdate(BaseModel):
 
 class Expense(ExpenseBase):
     """Schema completo de Expense (SELECT) - inclui ID"""
+
     id: int
-    
+
     class Config:
         from_attributes = True
 
 
 # ==== Customer Models ====
 
+
 class CustomerBase(BaseModel):
     """Modelo base para Customer (sem ID)"""
+
     company_name: Optional[str] = None
     first_name: str
     last_name: str
@@ -168,11 +196,13 @@ class CustomerBase(BaseModel):
 
 class CustomerCreate(CustomerBase):
     """Schema para criação de Customer (INSERT)"""
+
     pass
 
 
 class CustomerUpdate(BaseModel):
     """Schema para atualização de Customer (UPDATE)"""
+
     company_name: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
@@ -185,16 +215,19 @@ class CustomerUpdate(BaseModel):
 
 class Customer(CustomerBase):
     """Schema completo de Customer (SELECT) - inclui ID"""
+
     id: int
-    
+
     class Config:
         from_attributes = True
 
 
 # ==== Invoice Models ====
 
+
 class InvoiceBase(BaseModel):
     """Modelo base para Invoice (sem ID)"""
+
     customer_id: Optional[int] = None
     invoice_number: str
     description: str
@@ -205,11 +238,13 @@ class InvoiceBase(BaseModel):
 
 class InvoiceCreate(InvoiceBase):
     """Schema para criação de Invoice (INSERT)"""
+
     pass
 
 
 class InvoiceUpdate(BaseModel):
     """Schema para atualização de Invoice (UPDATE)"""
+
     customer_id: Optional[int] = None
     invoice_number: Optional[str] = None
     description: Optional[str] = None
@@ -220,7 +255,8 @@ class InvoiceUpdate(BaseModel):
 
 class Invoice(InvoiceBase):
     """Schema completo de Invoice (SELECT) - inclui ID"""
+
     id: int
-    
+
     class Config:
         from_attributes = True

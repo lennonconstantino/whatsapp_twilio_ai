@@ -2,9 +2,11 @@
 Logging utilities.
 Configures structured logging for the application.
 """
+
 import logging
 import sys
 from typing import Any
+
 import structlog
 
 from src.core.config import settings
@@ -25,28 +27,28 @@ def configure_logging():
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
             structlog.processors.UnicodeDecoder(),
-            structlog.processors.JSONRenderer()
+            structlog.processors.JSONRenderer(),
         ],
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
-    
+
     # Configure standard logging
     logging.basicConfig(
         format="%(message)s",
         stream=sys.stdout,
-        level=getattr(logging, settings.log.level.upper())
+        level=getattr(logging, settings.log.level.upper()),
     )
 
 
 def get_logger(name: str) -> Any:
     """
     Get a structured logger instance.
-    
+
     Args:
         name: Logger name (typically __name__)
-        
+
     Returns:
         Structured logger instance
     """

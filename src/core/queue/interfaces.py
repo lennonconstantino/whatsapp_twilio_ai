@@ -1,13 +1,15 @@
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, List, Callable, Awaitable
 import asyncio
+from abc import ABC, abstractmethod
+from typing import Any, Awaitable, Callable, Dict, List, Optional
+
 from .models import QueueMessage
+
 
 class QueueBackend(ABC):
     """
     Abstract base class for queue backends.
     """
-    
+
     @abstractmethod
     async def enqueue(self, message: QueueMessage) -> str:
         """
@@ -40,8 +42,10 @@ class QueueBackend(ABC):
         Return message to queue, potentially with a delay.
         """
         pass
-    
-    async def start_consuming(self, handler: Callable[[QueueMessage], Awaitable[None]]) -> None:
+
+    async def start_consuming(
+        self, handler: Callable[[QueueMessage], Awaitable[None]]
+    ) -> None:
         """
         Start consuming messages and pass them to handler.
         This method might block or run forever.
@@ -57,7 +61,7 @@ class QueueBackend(ABC):
                     except Exception as e:
                         # Logic for retry should be handled by backend specific nack
                         # But here we can calculate retry
-                        await self.nack(msg.id, retry_after=10) # Default retry
+                        await self.nack(msg.id, retry_after=10)  # Default retry
                 else:
                     await asyncio.sleep(1)
             except asyncio.CancelledError:

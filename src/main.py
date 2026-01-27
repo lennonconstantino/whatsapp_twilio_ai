@@ -1,27 +1,30 @@
 """
 Main FastAPI application.
 """
+
 from dotenv import load_dotenv
 
 # Carrega variáveis de ambiente ANTES de qualquer outro import que use settings
 load_dotenv()
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from .modules.conversation.api import router as conversation_router
-from .modules.channels.twilio.api import router as twilio_router
-from .modules.identity.api import router as identity_router
-from .core.utils import configure_logging, get_logger
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from .core.config import settings
 from .core.di.container import Container
+from .core.utils import configure_logging, get_logger
+from .modules.channels.twilio.api import router as twilio_router
+from .modules.conversation.api import router as conversation_router
+from .modules.identity.api import router as identity_router
 
 configure_logging()
 logger = get_logger(__name__)
 
 # Initialize DI Container
 container = Container()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,9 +34,9 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting Owner API application")
     logger.info(f"API running on {settings.api.host}:{settings.api.port}")
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down Owner API application")
 
@@ -44,7 +47,7 @@ app = FastAPI(
     description="Multi-tenant conversation management system with Twilio integration",
     version="4.0.0",
     lifespan=lifespan,
-    debug=settings.api.debug
+    debug=settings.api.debug,
 )
 
 # Attach container to app
@@ -68,28 +71,21 @@ app.include_router(identity_router.router)
 @app.get("/")
 async def root():
     """Root endpoint."""
-    return {
-        "name": "Owner API",
-        "version": "4.0.0",
-        "status": "running"
-    }
+    return {"name": "Owner API", "version": "4.0.0", "status": "running"}
 
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "service": "owner-api"
-    }
+    return {"status": "healthy", "service": "owner-api"}
 
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     uvicorn.run(
         "src.main:app",
         host=settings.api.host,
         port=settings.api.port,
-        reload=settings.api.debug
+        reload=settings.api.debug,
     )

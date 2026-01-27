@@ -1,17 +1,17 @@
-
 from pydantic import BaseModel, field_validator
-
 
 from src.core.utils.custom_ulid import validate_ulid_field
 
+
 class TwilioWebhookResponseDTO(BaseModel):
     """Response model for Twilio webhook."""
+
     success: bool
     message: str
     conv_id: str | None = None  # ULID
     msg_id: str | None = None  # ULID
 
-    @field_validator('conv_id', 'msg_id')
+    @field_validator("conv_id", "msg_id")
     @classmethod
     def validate_ids(cls, v):
         """Validate ULID format for IDs."""

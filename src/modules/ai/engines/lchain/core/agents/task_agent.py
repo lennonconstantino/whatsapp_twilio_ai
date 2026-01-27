@@ -1,16 +1,19 @@
-
-from typing import Any, Dict, Type, Callable, Optional, List
-from pydantic import BaseModel, ConfigDict, Field
-
-from src.modules.ai.ai_result.services.ai_log_thought_service import AILogThoughtService
-from src.modules.ai.engines.lchain.core.utils.utils import convert_to_openai_tool, convert_to_langchain_tool
-from src.modules.ai.engines.lchain.core.agents.agent import Agent
-from src.modules.ai.engines.lchain.core.tools.report_tool import report_tool
+from typing import Any, Callable, Dict, List, Optional, Type
 
 from langchain_core.tools import BaseTool
+from pydantic import BaseModel, ConfigDict, Field
+
+from src.modules.ai.ai_result.services.ai_log_thought_service import \
+    AILogThoughtService
+from src.modules.ai.engines.lchain.core.agents.agent import Agent
+from src.modules.ai.engines.lchain.core.tools.report_tool import report_tool
+from src.modules.ai.engines.lchain.core.utils.utils import (
+    convert_to_langchain_tool, convert_to_openai_tool)
+
 
 class EmptyArgModel(BaseModel):
     pass
+
 
 class TaskAgent(BaseModel):
     name: str
@@ -18,7 +21,7 @@ class TaskAgent(BaseModel):
     arg_model: Type[BaseModel] = EmptyArgModel
     access_roles: List[str] = Field(default_factory=lambda: ["all"])
     routing_example: List[dict] = Field(default_factory=list)
-    model_config = ConfigDict(arbitrary_types_allowed=True)    
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     create_context: Optional[Callable] = None
     create_user_context: Optional[Callable] = None
     tool_loader: Optional[Callable] = None
@@ -27,12 +30,16 @@ class TaskAgent(BaseModel):
     examples: Optional[List[dict]] = None
     agent_context: Optional[Dict[str, Any]] = None
 
-    def load_agent(self, ai_log_thought_service: AILogThoughtService = None, **kwargs) -> Agent:
+    def load_agent(
+        self, ai_log_thought_service: AILogThoughtService = None, **kwargs
+    ) -> Agent:
         input_kwargs = self.arg_model(**kwargs)
         kwargs = input_kwargs.model_dump()
 
         context = self.create_context(**kwargs) if self.create_context else None
-        user_context = self.create_user_context(**kwargs) if self.create_user_context else None
+        user_context = (
+            self.create_user_context(**kwargs) if self.create_user_context else None
+        )
 
         if self.tool_loader:
             self.tools.extend(self.tool_loader(**kwargs))
@@ -53,10 +60,14 @@ class TaskAgent(BaseModel):
     @property
     def langchain_tool_schema(self):
         """Retorna o schema da tool no formato LangChain."""
-        return convert_to_langchain_tool(self.arg_model, name=self.name, description=self.description)
+        return convert_to_langchain_tool(
+            self.arg_model, name=self.name, description=self.description
+        )
 
     @property
     def openai_tool_schema(self):
         """Mantido para compatibilidade - retorna o schema da tool no formato OpenAI."""
         # Import local para evitar dependência circular
-        return convert_to_openai_tool(self.arg_model, name=self.name, description=self.description)
+        return convert_to_openai_tool(
+            self.arg_model, name=self.name, description=self.description
+        )

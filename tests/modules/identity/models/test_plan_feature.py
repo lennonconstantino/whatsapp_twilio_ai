@@ -1,8 +1,13 @@
 """Tests for PlanFeature model."""
-import pytest
+
 from datetime import datetime, timezone
-from src.modules.identity.models.plan_feature import PlanFeature, PlanWithFeatures
+
+import pytest
+
 from src.modules.identity.models.plan import Plan
+from src.modules.identity.models.plan_feature import (PlanFeature,
+                                                      PlanWithFeatures)
+
 
 class TestPlanFeature:
     """Test suite for PlanFeature model."""
@@ -15,7 +20,7 @@ class TestPlanFeature:
             plan_id="plan_123",
             feature_name="whatsapp_integration",
             feature_value={"limit": 100},
-            created_at=datetime.now(timezone.utc)
+            created_at=datetime.now(timezone.utc),
         )
 
     def test_repr(self, plan_feature):
@@ -30,7 +35,7 @@ class TestPlanFeature:
             plan_id="plan_123",
             feature_name="whatsapp_integration",
             feature_value={"limit": 100},
-            created_at=datetime.now(timezone.utc)
+            created_at=datetime.now(timezone.utc),
         )
         assert plan_feature == other
         assert plan_feature != "string"
@@ -38,6 +43,7 @@ class TestPlanFeature:
     def test_hash(self, plan_feature):
         """Test hash."""
         assert hash(plan_feature) == hash(1)
+
 
 class TestPlanWithFeatures:
     """Test suite for PlanWithFeatures model."""
@@ -50,7 +56,7 @@ class TestPlanWithFeatures:
             plan_id="plan_123",
             feature_name="whatsapp_integration",
             feature_value={"limit": 100},
-            created_at=datetime.now(timezone.utc)
+            created_at=datetime.now(timezone.utc),
         )
 
     @pytest.fixture
@@ -64,7 +70,7 @@ class TestPlanWithFeatures:
             price=10.0,
             features=[plan_feature],
             created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc)
+            updated_at=datetime.now(timezone.utc),
         )
 
     def test_repr(self, plan_with_features):
@@ -82,7 +88,7 @@ class TestPlanWithFeatures:
             price=10.0,
             features=[],
             created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc)
+            updated_at=datetime.now(timezone.utc),
         )
         assert plan_with_features == other
         assert plan_with_features != "string"

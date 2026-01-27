@@ -1,8 +1,9 @@
-import pytest
-from httpx import AsyncClient
 from types import SimpleNamespace
 
+import pytest
 from dependency_injector import providers
+from httpx import AsyncClient
+
 from src.main import app
 from src.modules.channels.twilio.models.domain import TwilioAccount
 from src.modules.channels.twilio.models.results import TwilioMessageResult
@@ -17,7 +18,7 @@ class FakeTwilioAccountRepository:
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             account_sid=account_sid,
             auth_token="x",
-            phone_numbers=["+14155238886"]
+            phone_numbers=["+14155238886"],
         )
 
     def find_by_phone_number(self, phone_number: str):
@@ -25,7 +26,7 @@ class FakeTwilioAccountRepository:
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             account_sid="AC_test",
             auth_token="x",
-            phone_numbers=[phone_number]
+            phone_numbers=[phone_number],
         )
 
 
@@ -48,12 +49,14 @@ class FakeTwilioService:
             from_number=from_number,
             body=body,
             direction="outbound-api",
-            num_media=0
+            num_media=0,
         )
 
 
 class FakeConversationService:
-    def __init__(self, conversation_repo=None, message_repo=None, closure_detector=None):
+    def __init__(
+        self, conversation_repo=None, message_repo=None, closure_detector=None
+    ):
         self.message_repo = SimpleNamespace(
             find_by_external_id=lambda external_id: None,
         )
@@ -83,13 +86,11 @@ async def test_owner_lookup_inbound_local_sender():
     app.container.twilio_account_repository.override(
         providers.Factory(FakeTwilioAccountRepository)
     )
-    app.container.twilio_service.override(
-        providers.Factory(FakeTwilioService)
-    )
+    app.container.twilio_service.override(providers.Factory(FakeTwilioService))
     app.container.conversation_service.override(
         providers.Factory(FakeConversationService)
     )
-    
+
     try:
         payload = {
             "MessageSid": "SM_local_123",
@@ -105,19 +106,20 @@ async def test_owner_lookup_inbound_local_sender():
             "ApiVersion": "2010-04-01",
             "LocalSender": "True",
         }
-    
-        # The API endpoint has been refactored to NOT accept background_tasks argument.
-        # It relies on QueueService which is injected.
-        # We test the API endpoint via AsyncClient which calls the endpoint normally.
+
+        # The API endpoint has been refactored to NOT accept background_tasks
+        # argument. It relies on QueueService which is injected.
+        # We test the API endpoint via AsyncClient which calls the endpoint
+        # normally.
         async with AsyncClient(app=app, base_url="http://test") as ac:
             resp = await ac.post("/channels/twilio/v1/webhooks/inbound", data=payload)
-    
+
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
         assert data["conv_id"] == "01ARZ3NDEKTSV4RRFFQ69G5FAV"
         assert data["msg_id"] == "01ARZ3NDEKTSV4RRFFQ69G5FA1"
-        
+
     finally:
         # Reset overrides
         app.container.twilio_account_repository.reset_override()

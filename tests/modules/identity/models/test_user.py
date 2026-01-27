@@ -1,8 +1,11 @@
-import pytest
 from datetime import datetime, timezone
+
+import pytest
 from pydantic import ValidationError
-from src.modules.identity.models.user import User, UserWithOwner, UserRole
+
 from src.modules.identity.models.owner import Owner
+from src.modules.identity.models.user import User, UserRole, UserWithOwner
+
 
 class TestUserModel:
     def test_user_creation_valid(self):
@@ -10,7 +13,7 @@ class TestUserModel:
             user_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             email="test@example.com",
-            role=UserRole.ADMIN
+            role=UserRole.ADMIN,
         )
         assert user.user_id == "01ARZ3NDEKTSV4RRFFQ69G5FAV"
         assert user.owner_id == "01ARZ3NDEKTSV4RRFFQ69G5FAV"
@@ -36,7 +39,7 @@ class TestUserModel:
         user = User(
             user_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            email="test@example.com"
+            email="test@example.com",
         )
         repr_str = repr(user)
         assert "User(id=01ARZ3NDEKTSV4RRFFQ69G5FAV" in repr_str
@@ -46,19 +49,19 @@ class TestUserModel:
         user1 = User(
             user_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            email="test@example.com"
+            email="test@example.com",
         )
         user2 = User(
             user_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            email="test@example.com"
+            email="test@example.com",
         )
         user3 = User(
             user_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            email="other@example.com"
+            email="other@example.com",
         )
-        
+
         assert user1 == user2
         assert user1 != user3
         assert user1 != "some string"
@@ -67,15 +70,16 @@ class TestUserModel:
         user1 = User(
             user_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            email="test@example.com"
+            email="test@example.com",
         )
         user2 = User(
             user_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            email="test@example.com"
+            email="test@example.com",
         )
-        
+
         assert hash(user1) == hash(user2)
+
 
 class TestUserWithOwnerModel:
     def test_user_with_owner_creation(self):
@@ -83,13 +87,13 @@ class TestUserWithOwnerModel:
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             name="Test Org",
             document="123",
-            email="org@test.com"
+            email="org@test.com",
         )
         user = UserWithOwner(
             user_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             email="test@example.com",
-            owner=owner
+            owner=owner,
         )
         assert user.owner == owner
 
@@ -98,13 +102,13 @@ class TestUserWithOwnerModel:
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             name="Test Org",
             document="123",
-            email="org@test.com"
+            email="org@test.com",
         )
         user = UserWithOwner(
             user_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             email="test@example.com",
-            owner=owner
+            owner=owner,
         )
         repr_str = repr(user)
         assert "UserWithOwner" in repr_str
@@ -115,20 +119,20 @@ class TestUserWithOwnerModel:
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             name="Test Org",
             document="123",
-            email="org@test.com"
+            email="org@test.com",
         )
         user1 = UserWithOwner(
             user_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             email="test@example.com",
-            owner=owner
+            owner=owner,
         )
         user2 = UserWithOwner(
             user_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             email="test@example.com",
-            owner=owner
+            owner=owner,
         )
-        
+
         assert user1 == user2
         assert user1 != "some string"

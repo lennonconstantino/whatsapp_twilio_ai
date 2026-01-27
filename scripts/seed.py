@@ -2,7 +2,9 @@
 Seed script to populate initial data.
 Creates sample owners, users, features, and configurations.
 """
+
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,40 +13,50 @@ load_dotenv()
 # sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from datetime import datetime, timedelta
+
 from postgrest.exceptions import APIError
+
 from src.core.config import settings
-from src.core.utils import get_db, configure_logging, get_logger
-from src.modules.identity.repositories.owner_repository import OwnerRepository
-from src.modules.identity.repositories.user_repository import UserRepository
-from src.modules.identity.repositories.feature_repository import FeatureRepository
-from src.modules.channels.twilio.repositories.account_repository import TwilioAccountRepository
-from src.modules.conversation.repositories.conversation_repository import ConversationRepository
-from src.modules.conversation.repositories.message_repository import MessageRepository
+from src.core.utils import configure_logging, get_db, get_logger
+from src.modules.channels.twilio.repositories.account_repository import \
+    TwilioAccountRepository
+from src.modules.conversation.enums.conversation_status import \
+    ConversationStatus
 from src.modules.conversation.enums.message_direction import MessageDirection
 from src.modules.conversation.enums.message_owner import MessageOwner
-from src.modules.conversation.enums.conversation_status import ConversationStatus
 from src.modules.conversation.enums.message_type import MessageType
+from src.modules.conversation.repositories.conversation_repository import \
+    ConversationRepository
+from src.modules.conversation.repositories.message_repository import \
+    MessageRepository
 from src.modules.identity.enums.user_role import UserRole
+from src.modules.identity.repositories.feature_repository import \
+    FeatureRepository
+from src.modules.identity.repositories.owner_repository import OwnerRepository
+from src.modules.identity.repositories.user_repository import UserRepository
 
 configure_logging()
 logger = get_logger(__name__)
 
 # .env environments variables
-TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID' , 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
-TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', 'd0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
-TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER', '+14155238886')
-MY_PHONE_NUMBER = os.getenv('MY_PHONE_NUMBER', '+5511999999999')
+TWILIO_ACCOUNT_SID = os.getenv(
+    "TWILIO_ACCOUNT_SID", "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+)
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "d0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "+14155238886")
+MY_PHONE_NUMBER = os.getenv("MY_PHONE_NUMBER", "+5511999999999")
+
 
 def seed_owners(owner_repo: OwnerRepository):
     """Seed owner data."""
     logger.info("Seeding owners...")
-    
+
     owners_data = [
         {"name": "Acme Corporation", "email": "admin@acme.com"},
         {"name": "TechStart Ltda", "email": "contact@techstart.com"},
         {"name": "Global Services", "email": "info@globalservices.com"},
     ]
-    
+
     owners = []
     for data in owners_data:
         # Check if owner already exists
@@ -56,13 +68,14 @@ def seed_owners(owner_repo: OwnerRepository):
             owner = owner_repo.create_owner(data["name"], data["email"])
             logger.info(f"Created owner: {data['name']}")
             owners.append(owner)
-    
+
     return owners
+
 
 def seed_users(user_repo: UserRepository, owners):
     """Seed user data."""
     logger.info("Seeding users...")
-    
+
     users_data = [
         # Acme users
         {
@@ -88,7 +101,7 @@ def seed_users(user_repo: UserRepository, owners):
             "last_name": "Mans",
             "role": UserRole.USER.value,
             "phone": "+5511920019497",
-        }, 
+        },
         {
             "owner_id": owners[0].owner_id,
             "profile_name": "Wellington Silva",
@@ -115,7 +128,7 @@ def seed_users(user_repo: UserRepository, owners):
             "phone": "+5511999990004",
         },
     ]
-    
+
     users = []
     for data in users_data:
         # Check if user exists
@@ -127,14 +140,14 @@ def seed_users(user_repo: UserRepository, owners):
             user = user_repo.create(data)
             logger.info(f"Created user: {data['profile_name']}")
             users.append(user)
-    
+
     return users
 
 
 def seed_features(feature_repo: FeatureRepository, owners):
     """Seed feature data."""
     logger.info("Seeding features...")
-    
+
     features_data = [
         # Acme features
         {
@@ -142,43 +155,29 @@ def seed_features(feature_repo: FeatureRepository, owners):
             "name": "AI Chat Assistant",
             "description": "AI-powered chat assistant for customer support",
             "enabled": True,
-            "config_json": {
-                "model": "gpt-4",
-                "temperature": 0.7,
-                "max_tokens": 500
-            }
+            "config_json": {"model": "gpt-4", "temperature": 0.7, "max_tokens": 500},
         },
         {
             "owner_id": owners[0].owner_id,
             "name": "AI Chat Assistant",
             "description": "AI-powered chat assistant for customer support",
             "enabled": True,
-            "config_json": {
-                "model": "gpt-4",
-                "temperature": 0.7,
-                "max_tokens": 500
-            }
-        },        
+            "config_json": {"model": "gpt-4", "temperature": 0.7, "max_tokens": 500},
+        },
         {
             "owner_id": owners[0].owner_id,
             "name": "finance_agent",
             "description": "AI-powered assistant for financial queries",
             "enabled": True,
-            "config_json": {
-                "threshold": 0.6,
-                "alerts": True
-            }
+            "config_json": {"threshold": 0.6, "alerts": True},
         },
         {
             "owner_id": owners[0].owner_id,
             "name": "generic_agent",
             "description": "Generic AI assistant for customer support",
             "enabled": True,
-            "config_json": {
-                "threshold": 0.6,
-                "alerts": True
-            }
-        },        
+            "config_json": {"threshold": 0.6, "alerts": True},
+        },
         {
             "owner_id": owners[0].owner_id,
             "name": "Auto Response",
@@ -186,8 +185,8 @@ def seed_features(feature_repo: FeatureRepository, owners):
             "enabled": False,
             "config_json": {
                 "response_delay": 2,
-                "triggers": ["horário", "preço", "endereço"]
-            }
+                "triggers": ["horário", "preço", "endereço"],
+            },
         },
         # TechStart features
         {
@@ -195,11 +194,7 @@ def seed_features(feature_repo: FeatureRepository, owners):
             "name": "AI Chat Assistant",
             "description": "AI assistant for technical support",
             "enabled": True,
-            "config_json": {
-                "model": "gpt-4",
-                "temperature": 0.5,
-                "max_tokens": 1000
-            }
+            "config_json": {"model": "gpt-4", "temperature": 0.5, "max_tokens": 1000},
         },
         {
             "owner_id": owners[1].owner_id,
@@ -208,44 +203,46 @@ def seed_features(feature_repo: FeatureRepository, owners):
             "enabled": True,
             "config_json": {
                 "auto_create": True,
-                "priority_keywords": ["urgente", "critical", "bug"]
-            }
+                "priority_keywords": ["urgente", "critical", "bug"],
+            },
         },
     ]
-    
+
     features = []
     for data in features_data:
         existing = feature_repo.find_by_name(data["owner_id"], data["name"])
         if existing:
-            logger.info(f"Feature {data['name']} already exists for owner {data['owner_id']}")
+            logger.info(
+                f"Feature {data['name']} already exists for owner {data['owner_id']}"
+            )
             features.append(existing)
         else:
             feature = feature_repo.create(data)
             logger.info(f"Created feature: {data['name']}")
             features.append(feature)
-    
+
     return features
 
 
 def seed_twilio_accounts(twilio_repo: TwilioAccountRepository, owners):
     """Seed Twilio account data."""
     logger.info("Seeding Twilio accounts...")
-    
+
     twilio_data = [
         {
             "owner_id": owners[0].owner_id,
             "account_sid": TWILIO_ACCOUNT_SID,
             "auth_token": TWILIO_AUTH_TOKEN,
-            "phone_numbers": [TWILIO_PHONE_NUMBER, "+5511999997777"]
+            "phone_numbers": [TWILIO_PHONE_NUMBER, "+5511999997777"],
         },
         {
             "owner_id": owners[1].owner_id,
             "account_sid": "ACyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
             "auth_token": "another_auth_token_here",
-            "phone_numbers": ["+5511999996666"]
+            "phone_numbers": ["+5511999996666"],
         },
     ]
-    
+
     accounts = []
     for data in twilio_data:
         existing = twilio_repo.find_by_owner(data["owner_id"])
@@ -256,7 +253,7 @@ def seed_twilio_accounts(twilio_repo: TwilioAccountRepository, owners):
             account = twilio_repo.create(data)
             logger.info(f"Created Twilio account for owner {data['owner_id']}")
             accounts.append(account)
-    
+
     return accounts
 
 
@@ -264,11 +261,11 @@ def seed_sample_conversations(
     conversation_repo: ConversationRepository,
     message_repo: MessageRepository,
     owners,
-    users
+    users,
 ):
     """Seed sample conversation data."""
     logger.info("Seeding sample conversations...")
-    
+
     now = datetime.now()
     conv_data = {
         "owner_id": owners[0].owner_id,
@@ -280,17 +277,12 @@ def seed_sample_conversations(
         "updated_at": now.isoformat(),
         "expires_at": (now + timedelta(hours=23)).isoformat(),
         "channel": "whatsapp",
-        "context": {
-            "customer_name": "Carlos Silva",
-            "topic": "Product inquiry"
-        },
-        "metadata": {}
+        "context": {"customer_name": "Carlos Silva", "topic": "Product inquiry"},
+        "metadata": {},
     }
 
     existing = conversation_repo.find_active_conversation(
-        conv_data["owner_id"],
-        conv_data["from_number"],
-        conv_data["to_number"]
+        conv_data["owner_id"], conv_data["from_number"], conv_data["to_number"]
     )
 
     if existing:
@@ -306,7 +298,7 @@ def seed_sample_conversations(
             return
         raise
     logger.info(f"Created sample conversation: {conversation.conv_id}")
-    
+
     # Add sample messages
     messages_data = [
         {
@@ -318,7 +310,7 @@ def seed_sample_conversations(
             "direction": MessageDirection.INBOUND.value,
             "message_owner": MessageOwner.USER.value,
             "message_type": MessageType.TEXT.value,
-            "timestamp": (now - timedelta(minutes=55)).isoformat()
+            "timestamp": (now - timedelta(minutes=55)).isoformat(),
         },
         {
             "conv_id": conversation.conv_id,
@@ -330,7 +322,7 @@ def seed_sample_conversations(
             "sent_by_ia": True,
             "message_owner": MessageOwner.AGENT.value,
             "message_type": MessageType.TEXT.value,
-            "timestamp": (now - timedelta(minutes=54)).isoformat()
+            "timestamp": (now - timedelta(minutes=54)).isoformat(),
         },
         {
             "conv_id": conversation.conv_id,
@@ -341,10 +333,10 @@ def seed_sample_conversations(
             "direction": MessageDirection.INBOUND.value,
             "message_owner": MessageOwner.USER.value,
             "message_type": MessageType.TEXT.value,
-            "timestamp": (now - timedelta(minutes=53)).isoformat()
+            "timestamp": (now - timedelta(minutes=53)).isoformat(),
         },
     ]
-    
+
     for msg_data in messages_data:
         message = message_repo.create(msg_data)
         logger.info(f"Created sample message: {message.msg_id}")
@@ -353,10 +345,10 @@ def seed_sample_conversations(
 def main():
     """Main seed function."""
     logger.info("Starting seed process...")
-    
+
     try:
         db_client = get_db()
-        
+
         # Initialize repositories
         owner_repo = OwnerRepository(db_client)
         user_repo = UserRepository(db_client)
@@ -364,16 +356,16 @@ def main():
         twilio_repo = TwilioAccountRepository(db_client)
         conversation_repo = ConversationRepository(db_client)
         message_repo = MessageRepository(db_client)
-        
+
         # Seed data
         owners = seed_owners(owner_repo)
         users = seed_users(user_repo, owners)
         features = seed_features(feature_repo, owners)
         accounts = seed_twilio_accounts(twilio_repo, owners)
         seed_sample_conversations(conversation_repo, message_repo, owners, users)
-        
+
         logger.info("Seed process completed successfully!")
-        
+
     except Exception as e:
         logger.error(f"Error during seed process: {e}")
         raise

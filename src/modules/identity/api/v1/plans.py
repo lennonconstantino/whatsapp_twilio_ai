@@ -1,10 +1,11 @@
 from typing import List
+
+from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, status
-from dependency_injector.wiring import inject, Provide
 
 from src.core.di.container import Container
-from src.modules.identity.services.plan_service import PlanService
 from src.modules.identity.models.plan import Plan, PlanCreate, PlanUpdate
+from src.modules.identity.services.plan_service import PlanService
 
 router = APIRouter(prefix="/plans", tags=["Plans"])
 
@@ -28,8 +29,7 @@ def get_plan(
     plan = plan_service.get_plan(plan_id)
     if not plan:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Plan not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found"
         )
     return plan
 
@@ -55,7 +55,6 @@ def update_plan(
     updated_plan = plan_service.update_plan(plan_id, plan_data)
     if not updated_plan:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Plan not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found"
         )
     return updated_plan

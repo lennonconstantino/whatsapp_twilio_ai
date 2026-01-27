@@ -1,6 +1,7 @@
 """
 Plan service for managing subscription plans.
 """
+
 from typing import List, Optional
 
 from src.core.utils import get_logger
@@ -20,10 +21,10 @@ class PlanService:
     def create_plan(self, plan_data: PlanCreate) -> Optional[Plan]:
         """
         Create a new plan.
-        
+
         Args:
             plan_data: Plan creation data
-            
+
         Returns:
             Created Plan instance or None
         """
@@ -35,11 +36,11 @@ class PlanService:
     def update_plan(self, plan_id: str, plan_data: PlanUpdate) -> Optional[Plan]:
         """
         Update an existing plan.
-        
+
         Args:
             plan_id: ID of the plan
             plan_data: Plan update data
-            
+
         Returns:
             Updated Plan instance or None
         """
@@ -52,10 +53,10 @@ class PlanService:
     def get_plan(self, plan_id: str) -> Optional[Plan]:
         """
         Get plan by ID.
-        
+
         Args:
             plan_id: ID of the plan
-            
+
         Returns:
             Plan instance or None
         """
@@ -64,7 +65,7 @@ class PlanService:
     def list_public_plans(self) -> List[Plan]:
         """
         List all public active plans.
-        
+
         Returns:
             List of Plan instances
         """
@@ -73,10 +74,10 @@ class PlanService:
     def get_plan_features(self, plan_id: str) -> List[PlanFeature]:
         """
         Get features for a plan.
-        
+
         Args:
             plan_id: Plan ID
-            
+
         Returns:
             List of PlanFeature instances
         """

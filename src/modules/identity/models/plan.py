@@ -1,7 +1,7 @@
-
 from datetime import datetime
-from typing import Optional, Any
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.modules.identity.enums.billing_period import BillingPeriod
 
@@ -37,25 +37,26 @@ class PlanUpdate(BaseModel):
 class Plan(PlanBase):
     """
     Model for representing a subscription plan.
-    
+
     This model extends the base plan attributes with additional fields
     specific to a subscription plan, such as plan ID, creation timestamp,
     update timestamp, and active status.
     """
+
     plan_id: str
     created_at: datetime
     updated_at: datetime
     active: bool = True
-    
+
     model_config = ConfigDict(from_attributes=True)
 
     def __repr__(self) -> str:
         return f"Plan(plan_id={self.plan_id}, name={self.name}, display_name={self.display_name}, price_cents={self.price_cents}, billing_period={self.billing_period}, is_public={self.is_public}, max_users={self.max_users}, max_projects={self.max_projects}, active={self.active})"
-    
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Plan):
             return False
         return self.plan_id == other.plan_id
-    
+
     def __hash__(self) -> int:
         return hash(self.plan_id)

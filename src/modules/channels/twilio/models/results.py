@@ -1,14 +1,18 @@
 """
 Twilio Result Models.
 """
+
 from typing import Optional
+
 from pydantic import BaseModel, Field
+
 
 class TwilioMessageResult(BaseModel):
     """
     Result object for Twilio message sending operations.
     Replaces generic dictionaries for better type safety.
     """
+
     sid: str
     status: str
     to: str
@@ -19,6 +23,4 @@ class TwilioMessageResult(BaseModel):
     error_code: Optional[int] = None
     error_message: Optional[str] = None
 
-    model_config = {
-        "populate_by_name": True
-    }
+    model_config = {"populate_by_name": True}

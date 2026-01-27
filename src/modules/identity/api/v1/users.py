@@ -1,12 +1,13 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Header
-from dependency_injector.wiring import inject, Provide
+
+from dependency_injector.wiring import Provide, inject
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel, EmailStr
 
 from src.core.di.container import Container
-from src.modules.identity.services.user_service import UserService
-from src.modules.identity.models.user import User, UserCreate, UserUpdate
 from src.modules.identity.dtos.user_dto import UserCreateDTO
+from src.modules.identity.models.user import User, UserCreate, UserUpdate
+from src.modules.identity.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -28,8 +29,7 @@ def get_current_user_profile(
     user = user_service.get_user_by_auth_id(x_auth_id)
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
     return user
 
@@ -51,7 +51,7 @@ def sync_user(
     user = user_service.get_user_by_auth_id(request.auth_id)
     if user:
         return user
-        
+
     # 2. Check by email
     user = user_service.get_user_by_email(request.email)
     if user:
@@ -62,14 +62,14 @@ def sync_user(
             update_data["first_name"] = request.first_name
         if request.last_name and not user.last_name:
             update_data["last_name"] = request.last_name
-            
+
         updated_user = user_service.update_user(user.user_id, update_data)
         return updated_user
-        
+
     # 3. Not found
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
-        detail="User not found. Please contact your administrator or register a new organization."
+        detail="User not found. Please contact your administrator or register a new organization.",
     )
 
 
@@ -83,8 +83,7 @@ def get_user(
     user = user_service.get_user_by_id(user_id)
     if not user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
     return user
 

@@ -1,4 +1,3 @@
-
 SYSTEM_MESSAGE = """You are tasked with completing specific objectives and must report the outcomes. At your disposal, you have a variety of tools, each specialized in performing a distinct type of task.
 
 For successful task completion:

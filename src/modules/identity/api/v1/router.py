@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from . import owners, users, plans, subscriptions, features
+from . import features, owners, plans, subscriptions, users
 
 router = APIRouter()
 

@@ -1,17 +1,21 @@
 """Test suite for conversation service."""
-import pytest
-from datetime import datetime, timedelta
+
 import unittest.mock
+from datetime import datetime, timedelta
 from unittest.mock import Mock
 
-from src.modules.conversation.enums.message_owner import MessageOwner
-from src.modules.conversation.services.conversation_service import ConversationService
-from src.modules.conversation.components.closure_detector import ClosureDetector
-from src.modules.conversation.models.conversation import Conversation, ConversationStatus
-from src.modules.conversation.models.message import Message
-from src.modules.conversation.enums.message_direction import MessageDirection
-from src.modules.conversation.enums.message_type import MessageType
+import pytest
 
+from src.modules.conversation.components.closure_detector import \
+    ClosureDetector
+from src.modules.conversation.enums.message_direction import MessageDirection
+from src.modules.conversation.enums.message_owner import MessageOwner
+from src.modules.conversation.enums.message_type import MessageType
+from src.modules.conversation.models.conversation import (Conversation,
+                                                          ConversationStatus)
+from src.modules.conversation.models.message import Message
+from src.modules.conversation.services.conversation_service import \
+    ConversationService
 
 
 class TestClosureDetector:
@@ -93,7 +97,7 @@ class TestClosureDetector:
             body="obrigado tchau",
             direction=MessageDirection.INBOUND,
             message_owner=MessageOwner.USER,
-            message_type=MessageType.TEXT
+            message_type=MessageType.TEXT,
         )
 
         # NOTE: Em um cenário real de teste, a configuração do ClosureDetector
@@ -101,7 +105,7 @@ class TestClosureDetector:
         # Aqui, estamos assumindo keywords padrão. Se falhar, pode ser
         # necessário mockar as configurações ou ajustar o threshold esperado.
         # Vamos adicionar keywords explicitamente para garantir o teste
-        self.detector.add_keywords(['obrigado', 'tchau'])
+        self.detector.add_keywords(["obrigado", "tchau"])
 
         result = self.detector.detect_closure_intent(
             message,
@@ -112,7 +116,7 @@ class TestClosureDetector:
         # Validate that keywords were detected and contributed to confidence
         # We don't necessarily need to reach the closure threshold (0.6) for
         # this unit test as long as the keyword detection logic is working
-        assert result['confidence'] > 0
+        assert result["confidence"] > 0
         assert any("Closure keywords detected" in r for r in result["reasons"])
 
     def test_min_duration_handles_timezone_aware_started_at(self):
@@ -138,7 +142,7 @@ class TestClosureDetector:
             body="ok",
             direction=MessageDirection.INBOUND,
             message_owner=MessageOwner.USER,
-            message_type=MessageType.TEXT
+            message_type=MessageType.TEXT,
         )
 
         result = self.detector.detect_closure_intent(message, conversation, [])
@@ -164,7 +168,7 @@ class TestClosureDetector:
             body="Qual o horário de funcionamento?",
             direction=MessageDirection.INBOUND,
             message_owner=MessageOwner.USER,
-            message_type=MessageType.TEXT
+            message_type=MessageType.TEXT,
         )
 
         result = self.detector.detect_closure_intent(
@@ -195,7 +199,7 @@ class TestClosureDetector:
             direction=MessageDirection.INBOUND,
             message_owner=MessageOwner.USER,
             message_type=MessageType.TEXT,
-            metadata={"action": "close_conversation"}
+            metadata={"action": "close_conversation"},
         )
 
         result = self.detector.detect_closure_intent(
@@ -215,7 +219,7 @@ class TestClosureDetector:
             from_number="+5511988887777",
             to_number="+5511999998888",
             status=ConversationStatus.PENDING,
-            started_at=datetime.now() - timedelta(minutes=1)
+            started_at=datetime.now() - timedelta(minutes=1),
         )
 
         message = Message(
@@ -227,7 +231,7 @@ class TestClosureDetector:
             body="quero cancelar",
             direction=MessageDirection.INBOUND,
             message_owner=MessageOwner.USER,
-            message_type=MessageType.TEXT
+            message_type=MessageType.TEXT,
         )
 
         result = self.detector.detect_cancellation_in_pending(
@@ -244,7 +248,7 @@ class TestClosureDetector:
             from_number="+5511988887777",
             to_number="+5511999998888",
             status=ConversationStatus.PROGRESS,
-            started_at=datetime.now() - timedelta(minutes=10)
+            started_at=datetime.now() - timedelta(minutes=10),
         )
 
         message = Message(
@@ -256,7 +260,7 @@ class TestClosureDetector:
             body="quero cancelar",
             direction=MessageDirection.INBOUND,
             message_owner=MessageOwner.USER,
-            message_type=MessageType.TEXT
+            message_type=MessageType.TEXT,
         )
 
         result = self.detector.detect_cancellation_in_pending(
@@ -278,7 +282,7 @@ class TestConversationService:
         self.service = ConversationService(
             conversation_repo=self.mock_conv_repo,
             message_repo=self.mock_msg_repo,
-            closure_detector=self.mock_detector
+            closure_detector=self.mock_detector,
         )
 
     def test_get_or_create_finds_active_conversation(self):
@@ -288,12 +292,10 @@ class TestConversationService:
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
-            status=ConversationStatus.PROGRESS
+            status=ConversationStatus.PROGRESS,
         )
 
-        self.mock_conv_repo.find_active_by_session_key.return_value = (
-            existing_conv
-        )
+        self.mock_conv_repo.find_active_by_session_key.return_value = existing_conv
 
         result = self.service.get_or_create_conversation(
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
@@ -312,7 +314,7 @@ class TestConversationService:
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             from_number="+5511988887777",
             to_number="+5511999998888",
-            status=ConversationStatus.PENDING
+            status=ConversationStatus.PENDING,
         )
         self.mock_conv_repo.create.return_value = new_conv
 
@@ -336,7 +338,7 @@ class TestConversationService:
             to_number="+5511999998888",
             status=ConversationStatus.IDLE_TIMEOUT,
             started_at=datetime.now() - timedelta(hours=1),
-            context={}
+            context={},
         )
 
         message_create = MessageCreateDTO(
@@ -347,7 +349,7 @@ class TestConversationService:
             body="Olá, voltei",
             direction=MessageDirection.INBOUND,
             message_owner=MessageOwner.USER,
-            message_type=MessageType.TEXT
+            message_type=MessageType.TEXT,
         )
 
         created_msg = Message(
@@ -385,7 +387,7 @@ class TestConversationService:
             from_number="+5511988887777",
             to_number="+5511999998888",
             status=ConversationStatus.PENDING,
-            started_at=datetime.now() - timedelta(minutes=1)
+            started_at=datetime.now() - timedelta(minutes=1),
         )
 
         message_create = MessageCreateDTO(
@@ -396,14 +398,13 @@ class TestConversationService:
             body="cancelar",
             direction=MessageDirection.INBOUND,
             message_owner=MessageOwner.USER,
-            message_type=MessageType.TEXT
+            message_type=MessageType.TEXT,
         )
 
         self.mock_detector.detect_cancellation_in_pending.return_value = True
 
         created_msg = Message(
-            msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA1",
-            **message_create.model_dump()
+            msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA1", **message_create.model_dump()
         )
         self.mock_msg_repo.create.return_value = created_msg
 

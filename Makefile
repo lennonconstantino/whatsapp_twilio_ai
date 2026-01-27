@@ -2,17 +2,18 @@
 
 help:
 	@echo "Available commands:"
-	@echo "  make install    - Install dependencies"
-	@echo "  make dev        - Install dev dependencies"
-	@echo "  make test       - Run tests"
-	@echo "  make lint       - Run linters"
-	@echo "  make format     - Format code"
-	@echo "  make clean      - Clean temporary files"
-	@echo "  make run        - Run the application (requires worker running)"
-	@echo "  make run-worker - Run the background worker"
-	@echo "  make stop       - Stop application and workers"
-	@echo "  make migrate    - Migrate Database"
-	@echo "  make seed       - Seed the database"
+	@echo "  make install          - Install dependencies"
+	@echo "  make dev              - Install dev dependencies"
+	@echo "  make test             - Run tests"
+	@echo "  make lint             - Run linters"
+	@echo "  make format           - Format code"
+	@echo "  make clean            - Clean temporary files"
+	@echo "  make run              - Run the application (requires worker running)"
+	@echo "  make run-worker       - Run the background worker"
+	@echo "  make run-scheduler    - Run the scheduler"
+	@echo "  make stop             - Stop application and workers"
+	@echo "  make migrate          - Migrate Database"
+	@echo "  make seed             - Seed the database"
 
 install:
 	pip install -r requirements.txt
@@ -49,10 +50,10 @@ clean:
 	rm -rf *.egg-info
 
 run-worker:
-	python -m src.core.queue.worker
+	python -m src.core.queue.worker >> worker.log 2>&1 &
 
 run-scheduler:
-	python -m src.modules.conversation.workers.scheduler
+	python -m src.modules.conversation.workers.scheduler >> scheduler.log 2>&1 &
 
 check-worker:
 	@if ! pgrep -f "src.core.queue.worker" > /dev/null; then \
@@ -70,6 +71,7 @@ stop:
 	@echo "Stopping application and workers..."
 	@-pkill -f "src.main" || echo "Application was not running."
 	@-pkill -f "src.core.queue.worker" || echo "Worker was not running."
+	@-pkill -f "src.modules.conversation.workers.scheduler" || echo "Scheduler was not running."
 	@echo "Stopped."
 
 migrate:
