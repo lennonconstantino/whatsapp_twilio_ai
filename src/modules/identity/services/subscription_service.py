@@ -36,7 +36,7 @@ class SubscriptionService:
         logger.info(f"Creating subscription for owner: {subscription_data.owner_id} to plan: {subscription_data.plan_id}")
         
         # Verify plan exists
-        plan = self.plan_repository.get_by_id(subscription_data.plan_id, id_column="plan_id")
+        plan = self.plan_repository.find_by_id(subscription_data.plan_id, id_column="plan_id")
         if not plan:
             raise ValueError(f"Plan not found: {subscription_data.plan_id}")
             

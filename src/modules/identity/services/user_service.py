@@ -130,7 +130,7 @@ class UserService:
         Returns:
             User instance or None
         """
-        return self.repository.get_by_id(user_id)
+        return self.repository.find_by_id(user_id)
     
     def get_users_by_role(self, owner_id: str, role: UserRole) -> List[User]:
         """

@@ -2,9 +2,9 @@
 from typing import Optional, Any
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from modules.identity.models.owner import Owner
-from modules.identity.models.subscription import Subscription, SubscriptionWithPlan
-from modules.identity.models.user import User
+from src.modules.identity.models.owner import Owner
+from src.modules.identity.models.subscription import Subscription, SubscriptionWithPlan
+from src.modules.identity.models.user import User
 
 
 

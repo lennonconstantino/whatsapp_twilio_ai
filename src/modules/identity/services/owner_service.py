@@ -77,7 +77,7 @@ class OwnerService:
         Returns:
             Owner instance or None
         """
-        return self.repository.get_by_id(owner_id)
+        return self.repository.find_by_id(owner_id)
 
     def deactivate_owner(self, owner_id: str) -> Optional[Owner]:
         """

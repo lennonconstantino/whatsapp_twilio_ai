@@ -48,7 +48,7 @@ class PlanWithFeatures(Plan):
         return hash(self.plan_id)
     
     def __contains__(self, feature_name: str) -> bool:
-        return feature_name in self.features
+        return any(f.feature_name == feature_name for f in self.features)
     
     def get_feature_value(self, feature_name: str) -> Any:
         for feature in self.features:

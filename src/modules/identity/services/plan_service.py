@@ -59,7 +59,7 @@ class PlanService:
         Returns:
             Plan instance or None
         """
-        return self.plan_repository.get_by_id(plan_id, id_column="plan_id")
+        return self.plan_repository.find_by_id(plan_id, id_column="plan_id")
 
     def list_public_plans(self) -> List[Plan]:
         """
