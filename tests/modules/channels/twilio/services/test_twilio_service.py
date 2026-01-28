@@ -201,3 +201,75 @@ class TestTwilioService:
 
             is_valid = service.validate_webhook_signature("url", {}, "sig")
             assert is_valid is False
+
+    def test_send_message_split_chunks(self, service, mock_twilio_client):
+        """Test sending message split into chunks."""
+        owner_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+        service._clients[owner_id] = mock_twilio_client
+
+        # Create a long message (3200 chars)
+        long_body = "a" * 3200
+
+        # Mocks for each call
+        mock_msg1 = Mock(
+            sid="SM1",
+            status="queued",
+            num_media=1,
+            body=long_body[:1500],
+            to="to",
+            from_="from",
+            error_code=None,
+            error_message=None,
+        )
+        mock_msg2 = Mock(
+            sid="SM2",
+            status="queued",
+            num_media=0,
+            body=long_body[1500:3000],
+            to="to",
+            from_="from",
+            error_code=None,
+            error_message=None,
+        )
+        mock_msg3 = Mock(
+            sid="SM3",
+            status="queued",
+            num_media=0,
+            body=long_body[3000:],
+            to="to",
+            from_="from",
+            error_code=None,
+            error_message=None,
+        )
+
+        mock_twilio_client.messages.create.side_effect = [
+            mock_msg1,
+            mock_msg2,
+            mock_msg3,
+        ]
+
+        result = service.send_message(
+            owner_id=owner_id,
+            from_number="from",
+            to_number="to",
+            body=long_body,
+            media_url="http://media.com",
+        )
+
+        assert mock_twilio_client.messages.create.call_count == 3
+
+        # Check args for first call
+        args1, kwargs1 = mock_twilio_client.messages.create.call_args_list[0]
+        assert kwargs1["body"] == long_body[:1500]
+        assert kwargs1["media_url"] == ["http://media.com"]
+
+        # Check args for second call
+        args2, kwargs2 = mock_twilio_client.messages.create.call_args_list[1]
+        assert kwargs2["body"] == long_body[1500:3000]
+        assert "media_url" not in kwargs2
+
+        # Check result
+        assert result.sid == "SM1"  # We decided to return first SID
+        assert result.body == long_body  # Full body
+        assert result.num_media == 1  # Total media
+

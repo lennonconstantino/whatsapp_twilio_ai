@@ -182,6 +182,14 @@ class QueueSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="QUEUE_")
 
+class LLMModelSettings(BaseSettings):
+    """LLM model settings."""
+
+    provider: str = Field(default="ollama", description="LLM provider")
+    model_name: str = Field(default="gpt-oss:20b", description="LLM model name")
+
+    model_config = SettingsConfigDict(env_prefix="LLM_", protected_namespaces=('settings_',))
+    
 
 class Settings(BaseSettings):
     """Main application settings."""
@@ -197,6 +205,7 @@ class Settings(BaseSettings):
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     log: LogSettings = Field(default_factory=LogSettings)
     whisper: WhisperSettings = Field(default_factory=WhisperSettings)
+    llm_model: LLMModelSettings = Field(default_factory=LLMModelSettings)
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"

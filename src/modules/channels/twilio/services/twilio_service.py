@@ -131,30 +131,54 @@ class TwilioService:
             return None
 
         try:
-            message_params = {"body": body, "from_": from_number, "to": to_number}
+            # Split message if body exceeds limit (Twilio limit is 1600)
+            # We use 1500 to be safe
+            max_length = 1500
+            chunks = [body[i : i + max_length] for i in range(0, len(body), max_length)]
 
-            if media_url:
-                message_params["media_url"] = [media_url]
+            if not chunks:
+                chunks = [""]  # Handle empty body if necessary
 
-            message = client.messages.create(**message_params)
+            first_message = None
+            last_message = None
+            total_media = 0
 
-            logger.info(
-                "Message sent via Twilio",
-                message_sid=message.sid,
-                to=to_number,
-                from_=from_number,
-            )
+            for i, chunk in enumerate(chunks):
+                message_params = {"body": chunk, "from_": from_number, "to": to_number}
+
+                # Attach media only to the first chunk
+                if i == 0 and media_url:
+                    message_params["media_url"] = [media_url]
+
+                message = client.messages.create(**message_params)
+
+                if i == 0:
+                    first_message = message
+                last_message = message
+
+                if message.num_media:
+                    total_media += int(message.num_media)
+
+                logger.info(
+                    f"Message chunk {i+1}/{len(chunks)} sent via Twilio",
+                    message_sid=message.sid,
+                    to=to_number,
+                    from_=from_number,
+                )
+
+            if not last_message:
+                return None
 
             return TwilioMessageResult(
-                sid=message.sid,
-                status=message.status,
-                to=message.to,
-                from_number=message.from_,
-                body=message.body,
+                sid=first_message.sid,  # Return first SID to track the start of the sequence
+                status=last_message.status,
+                to=last_message.to,
+                from_number=last_message.from_,
+                body=body,  # Return ORIGINAL full body
                 direction=MessageDirection.OUTBOUND.value,
-                num_media=int(message.num_media) if message.num_media else 0,
-                error_code=message.error_code,
-                error_message=message.error_message,
+                num_media=total_media,
+                error_code=last_message.error_code,
+                error_message=last_message.error_message,
             )
         except TwilioRestException as e:
             logger.error(

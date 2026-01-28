@@ -453,11 +453,11 @@ class TwilioWebhookService:
                 owner_id=owner_id,
                 from_number=sender_number,
                 to_number=recipient_number,
-                body=response.body,
+                body=body,  # Use original body to ensure full content is saved even if chunked
                 direction=MessageDirection.OUTBOUND,
                 message_owner=MessageOwner.SYSTEM,
                 message_type=MessageType.TEXT,
-                content=response.body,
+                content=body,  # Use original body
                 correlation_id=correlation_id,
                 metadata={
                     "message_sid": response.sid,
