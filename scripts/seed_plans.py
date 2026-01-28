@@ -1,10 +1,11 @@
 import asyncio
 import os
 import sys
+from pathlib import Path
 from datetime import datetime
 
 # Add project root to path
-sys.path.append(os.getcwd())
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.core.di.container import Container
 from src.core.utils import get_logger

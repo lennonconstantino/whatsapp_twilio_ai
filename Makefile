@@ -48,7 +48,7 @@ clean:
 	rm -rf dist
 	rm -rf build
 	rm -rf *.egg-info
-	rm -f worker.log scheduler.log
+	rm -f worker.log scheduler.log app.log
 
 run-worker:
 	python -m src.core.queue.worker >> worker.log 2>&1 &
@@ -82,9 +82,13 @@ migrate:
 	python -m scripts.migrate
 
 seed:
+	@echo "Seeding database..."
 	python -m scripts.seed
-	@echo "---"
+	@echo "\n---\n"
 	python -m scripts.seed_feature_finance
+	@echo "\n---\n"
+	python -m scripts.seed_feature_relationships
+	@echo "\n---\n"
 
 shell:
 	python -i -c "from src.utils import get_db; from src.repositories import *; from src.services import *; db = get_db()"

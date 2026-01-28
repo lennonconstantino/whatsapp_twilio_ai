@@ -4,16 +4,18 @@ Populates initial financial data: revenues, expenses, customers, and invoices.
 """
 
 from datetime import datetime
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Add src to path if needed
-# sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.core.config import settings
-from src.core.utils import configure_logging, get_db, get_logger
+from src.core.utils import configure_logging, get_logger
 from src.modules.ai.engines.lchain.feature.finance.models.models import (
     CustomerCreate, ExpenseCreate, InvoiceCreate, RevenueCreate)
 # Import finance repositories and models
@@ -309,8 +311,6 @@ def main(clear_data: bool = False):
     logger.info("Starting finance seed process...")
 
     try:
-        db_client = get_db()
-
         # Initialize repositories
         revenue_repo = get_revenue_repository()
         expense_repo = get_expense_repository()

@@ -3,6 +3,7 @@ from typing import Any, Dict
 
 from fastapi import BackgroundTasks, HTTPException
 
+from src.core.utils.helpers import TwilioHelpers
 from src.core.queue.service import QueueService
 from src.core.utils import get_logger
 from src.core.utils.exceptions import DuplicateError
@@ -187,6 +188,15 @@ class TwilioWebhookService:
         message_type = self._determine_message_type(
             payload.num_media, payload.media_content_type
         )
+
+        media_content = None
+        if payload.media_url:
+            media_content = TwilioHelpers.download_media(
+                media_type=payload.media_content_type,
+                media_url=payload.media_url,
+            )
+            logger.info("--> Determined message type: %s", message_type)
+            logger.info("--> Downloaded media content: %s", media_content)
 
         # 1. Get/Create Conversation
         conversation = await run_in_threadpool(

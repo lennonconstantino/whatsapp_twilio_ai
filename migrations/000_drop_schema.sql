@@ -10,6 +10,9 @@ SET session_replication_role = 'replica';
 -- 1. DROP TABLES (in reverse dependency order)
 -- ============================================================================
 -- Drop child tables first
+DROP TABLE IF EXISTS reminder CASCADE;
+DROP TABLE IF EXISTS interaction CASCADE;
+DROP TABLE IF EXISTS person CASCADE;
 DROP TABLE IF EXISTS subscriptions CASCADE;
 DROP TABLE IF EXISTS plan_features CASCADE;
 DROP TABLE IF EXISTS plans CASCADE;
