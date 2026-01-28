@@ -535,37 +535,4 @@ def build_simple_query(
 
 
 # ============================================
-# EXEMPLOS DE USO
-# ============================================
-
-if __name__ == "__main__":
-    # Exemplo 1: Query simples - todos os expenses
-    config1 = QueryConfig(table_name="expense")
-    result1 = query_data_function(config1)
-    print(result1.content)
-
-    # Exemplo 2: Query com filtro
-    config2 = QueryConfig(
-        table_name="expense",
-        where=[WhereStatement(column="net_amount", operator="gt", value="100")],
-    )
-    result2 = query_data_function(config2)
-    print(result2.content)
-
-    # Exemplo 3: Query com colunas específicas
-    config3 = QueryConfig(
-        table_name="revenue",
-        select_columns=["id", "description", "gross_amount"],
-        where=[WhereStatement(column="description", operator="ct", value="consulting")],
-    )
-    result3 = query_data_function(config3)
-    print(result3.content)
-
-    # Exemplo 4: Usando helper
-    config4 = build_simple_query(
-        table_name="customer",
-        filters={"city": "São Paulo"},
-        columns=["first_name", "last_name", "phone"],
-    )
-    result4 = query_data_function(config4)
-    print(result4.content)
+# INSTÂNCIA DA TOOL (SINGLETON)

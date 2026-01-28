@@ -1,8 +1,8 @@
 from typing import Any, Dict, List
 
-import colorama
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
+from src.core.utils.logging import get_logger
 from src.modules.ai.ai_result.enums.ai_result_type import AIResultType
 from src.modules.ai.ai_result.services.ai_log_thought_service import \
     AILogThoughtService
@@ -10,6 +10,8 @@ from src.modules.ai.engines.lchain.core.agents.task_agent import TaskAgent
 from src.modules.ai.engines.lchain.core.models.agent_context import \
     AgentContext
 from src.modules.ai.infrastructure.llm import LLM, models
+
+logger = get_logger(__name__)
 
 NOTES = """Important Notes:
 Always confirm the completion of the requested operation with the user.
@@ -25,7 +27,6 @@ class RoutingAgent:
         llm: Dict[str, Any] = models,
         system_message: str = "",
         max_steps: int = 5,
-        verbose: bool = True,
         prompt_extra: Dict[str, Any] = None,
         examples: List[dict] = None,
         context: str = None,
@@ -38,7 +39,6 @@ class RoutingAgent:
         self.memory = []
         self.step_history = []
         self.max_steps = max_steps
-        self.verbose = verbose
         self.prompt_extra = prompt_extra or {}
         self.examples = self.load_examples(examples)
         self.context = context or ""
@@ -104,16 +104,21 @@ class RoutingAgent:
         else:
             context_formatted = user_input
 
-        self.to_console("START", f"===== Starting Routing Agent ======")
-        self.to_console("START", f"Correlation ID: {self.agent_context.correlation_id}")
-        self.to_console("START", f"Feature: {self.agent_context.feature}")
-        self.to_console("START", f"Owner ID: {self.agent_context.owner_id}")
-        self.to_console("START", f"Channel: {self.agent_context.channel}")
-        self.to_console(
-            "START",
-            f"Phone: {self.agent_context.user.get('phone') if self.agent_context.user else 'N/A'}",
+        logger.info("Starting Routing Agent", event="routing_agent_start")
+        logger.info(
+            "Routing Agent Context",
+            event="routing_agent_context",
+            correlation_id=self.agent_context.correlation_id,
+            feature=self.agent_context.feature,
+            owner_id=self.agent_context.owner_id,
+            channel=self.agent_context.channel,
+            phone=(
+                self.agent_context.user.get("phone") if self.agent_context.user else "N/A"
+            ),
         )
-        self.to_console("START", f"Prompt Formatted: {context_formatted}")
+        logger.info(
+            "Prompt Formatted", event="routing_agent_prompt", prompt=context_formatted
+        )
 
         partial_variables = {**self.prompt_extra, "context": context_formatted}
         system_message = self.system_message.format(**partial_variables)
@@ -150,13 +155,17 @@ class RoutingAgent:
         )
 
         self.step_history.append(response)
-        self.to_console(
-            "RESPONSE", response.content if response.content else "None", color="blue"
+        logger.info(
+            "Routing Agent Response",
+            event="routing_agent_response",
+            response=response.content if response.content else "None",
         )
 
         # Verificar se há tool calls
         if not response.tool_calls:
-            self.to_console("NO TOOL CALLS", "No tool calls found in the response.")
+            logger.info(
+                "No tool calls found in response", event="routing_agent_no_tool_calls"
+            )
             return response.content
 
         self.ai_log_thought_service.log_agent_thought(
@@ -173,8 +182,12 @@ class RoutingAgent:
         tool_name = tool_call["name"]
         tool_args = tool_call["args"]
 
-        self.to_console("Tool Name", tool_name)
-        self.to_console("Tool Args", str(tool_args))
+        logger.info(
+            "Routing Agent Tool Call",
+            event="routing_agent_tool_call",
+            tool_name=tool_name,
+            tool_args=tool_args,
+        )
 
         # Preparar e executar o agente
         agent = self.prepare_agent(tool_name, tool_args)
@@ -198,8 +211,3 @@ class RoutingAgent:
         for agent in self.task_agents:
             examples.extend(agent.routing_example)
         return examples
-
-    def to_console(self, tag: str, message: str, color: str = "green"):
-        if self.verbose:
-            color_prefix = colorama.Fore.__dict__[color.upper()]
-            print(color_prefix + f"{tag}: {message}{colorama.Style.RESET_ALL}")

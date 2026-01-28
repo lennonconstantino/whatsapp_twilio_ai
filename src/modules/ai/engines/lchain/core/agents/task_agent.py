@@ -3,12 +3,16 @@ from typing import Any, Callable, Dict, List, Optional, Type
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.core.utils.logging import get_logger
 from src.modules.ai.ai_result.services.ai_log_thought_service import \
     AILogThoughtService
 from src.modules.ai.engines.lchain.core.agents.agent import Agent
 from src.modules.ai.engines.lchain.core.tools.report_tool import report_tool
 from src.modules.ai.engines.lchain.core.utils.utils import (
     convert_to_langchain_tool, convert_to_openai_tool)
+
+
+logger = get_logger(__name__)
 
 
 class EmptyArgModel(BaseModel):
@@ -33,19 +37,42 @@ class TaskAgent(BaseModel):
     def load_agent(
         self, ai_log_thought_service: AILogThoughtService = None, **kwargs
     ) -> Agent:
+        logger.info(
+            "Initializing TaskAgent load",
+            agent_name=self.name,
+            input_keys=list(kwargs.keys()),
+        )
+
         input_kwargs = self.arg_model(**kwargs)
         kwargs = input_kwargs.model_dump()
 
         context = self.create_context(**kwargs) if self.create_context else None
+        if context:
+            logger.debug("Context created", agent_name=self.name)
+
         user_context = (
             self.create_user_context(**kwargs) if self.create_user_context else None
         )
+        if user_context:
+            logger.debug("User context created", agent_name=self.name)
 
         if self.tool_loader:
-            self.tools.extend(self.tool_loader(**kwargs))
+            loaded_tools = self.tool_loader(**kwargs)
+            self.tools.extend(loaded_tools)
+            logger.info(
+                "Extra tools loaded",
+                agent_name=self.name,
+                count=len(loaded_tools),
+            )
 
         if report_tool not in self.tools:
             self.tools.append(report_tool)
+
+        logger.info(
+            "TaskAgent loaded successfully",
+            agent_name=self.name,
+            total_tools=len(self.tools),
+        )
 
         return Agent(
             tools=self.tools,

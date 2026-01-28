@@ -226,7 +226,7 @@ def generate_query_context(*table_models: Type[BaseModel]) -> str:
 
     Example:
         >>> context = generate_query_context(Revenue, Expense, Customer)
-        >>> print(context)
+        >>> # print(context)
         Today is 2024-01-15 10:30:00
         You can access the following tables in database:
          - revenue: id = <int>, description = <str>, amount = <float>, ...

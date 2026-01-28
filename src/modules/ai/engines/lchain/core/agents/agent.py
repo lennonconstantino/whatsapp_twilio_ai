@@ -2,11 +2,10 @@ import json
 import uuid
 from typing import Any, Dict, List
 
-import colorama
-from colorama import Fore
 from langchain_core.messages import (AIMessage, HumanMessage, SystemMessage,
                                      ToolMessage)
 
+from src.core.utils.logging import get_logger
 from src.modules.ai.ai_result.enums.ai_result_type import AIResultType
 from src.modules.ai.ai_result.services.ai_log_thought_service import \
     AILogThoughtService
@@ -17,6 +16,8 @@ from src.modules.ai.engines.lchain.core.utils.utils import (
     parse_function_args, run_tool_from_response)
 from src.modules.ai.infrastructure.llm import LLM, models
 
+logger = get_logger(__name__)
+
 
 class Agent:
 
@@ -26,7 +27,6 @@ class Agent:
         system_message: str = None,
         llm: Dict[str, Any] = models,
         max_steps: int = 5,
-        verbose: bool = True,
         examples: List[dict] = None,
         context: str = None,
         user_context: str = None,
@@ -39,7 +39,6 @@ class Agent:
         self.memory = []
         self.step_history = []
         self.max_steps = max_steps
-        self.verbose = verbose
         self.examples = examples or []
         self.context = context or ""
         self.user_context = user_context or ""
@@ -58,8 +57,8 @@ class Agent:
         if context:
             body = f"{context}\n---\n\nUser Message: {body}"
 
-        self.to_console("START", f"====== Starting Agent ======")
-        self.to_console("START", f"Input:\n'''{body}'''")
+        logger.info("Starting Agent", event="agent_start")
+        logger.info("Agent Input", event="agent_input", input=body)
 
         # Safe access to agent_context attributes if it's a dict or object
         owner_id = (
@@ -79,9 +78,13 @@ class Agent:
         )
         phone = user.get("phone") if user else "N/A"
 
-        self.to_console("START", f"Owner: {owner_id}")
-        self.to_console("START", f"Channel: {channel}")
-        self.to_console("START", f"Phone: {phone}")
+        logger.info(
+            "Agent Context",
+            event="agent_context",
+            owner_id=owner_id,
+            channel=channel,
+            phone=phone,
+        )
 
         self.step_history = [
             {"role": "system", "content": system_message},
@@ -102,7 +105,12 @@ class Agent:
             if step_result.event == "finish":
                 break
             elif step_result.event == "error":
-                self.to_console(step_result.event, step_result.content, "red")
+                logger.error(
+                    "Agent Step Error",
+                    event="agent_step_error",
+                    content=step_result.content,
+                    step_event=step_result.event,
+                )
                 # Feedback loop: Add error to history so the model can correct itself
                 self.step_history.append(
                     {
@@ -111,18 +119,23 @@ class Agent:
                     }
                 )
             else:
-                self.to_console(step_result.event, step_result.content, "yellow")
+                logger.warning(
+                    "Agent Step Event",
+                    event="agent_step_event",
+                    content=step_result.content,
+                    step_event=step_result.event,
+                )
 
             i += 1
 
         final_content = step_result.content
         if (not final_content or not str(final_content).strip()) and last_valid_content:
-            self.to_console(
-                "Fallback", "Using last valid content as final result", "yellow"
+            logger.warning(
+                "Using last valid content as final result", event="agent_fallback"
             )
             final_content = last_valid_content
 
-        self.to_console("Final Result", final_content, "green")
+        logger.info("Agent Final Result", event="agent_finish", result=final_content)
         return final_content
 
     def run_step(self, messages: List[dict], tools):
@@ -195,10 +208,12 @@ class Agent:
             )
         tool_kwargs = parse_function_args(response)
 
-        self.to_console(
-            "Tool Call",
-            f"Name: {tool_name}\nArgs: {tool_kwargs}\nMessage: {response.content}",
-            "magenta",
+        logger.info(
+            "Agent Tool Call",
+            event="tool_call",
+            tool_name=tool_name,
+            tool_args=tool_kwargs,
+            message=response.content,
         )
         tool_result = run_tool_from_response(response, tools=self.tools)
 
@@ -366,7 +381,3 @@ class Agent:
                     processed_tool_message_ids.add(tool_call_id)
 
         return langchain_messages
-
-    def to_console(self, tag: str, message: str, color: str = "green"):
-        color_prefix = Fore.__dict__.get(color.upper(), "")
-        print(color_prefix + f"{tag}: {message}{colorama.Style.RESET_ALL}")
