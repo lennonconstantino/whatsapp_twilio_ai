@@ -15,7 +15,7 @@ class TwilioHelpers:
     """Helper para chamar funcoes utils de forma simples"""
 
     @staticmethod
-    def çdownload_media(media_type: str, media_url: str) -> Optional[str]:
+    def download_media(media_type: str, media_url: str) -> Optional[str]:
         """
         Baixa o media do Twilio.
         

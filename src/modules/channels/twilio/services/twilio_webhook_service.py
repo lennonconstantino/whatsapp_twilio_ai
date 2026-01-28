@@ -1,7 +1,7 @@
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from fastapi import BackgroundTasks, HTTPException
+from fastapi import HTTPException
 
 from src.core.utils.helpers import TwilioHelpers
 from src.core.queue.service import QueueService
@@ -13,6 +13,7 @@ from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
 from src.modules.channels.twilio.services.twilio_account_service import \
     TwilioAccountService
 from src.modules.channels.twilio.services.twilio_service import TwilioService
+from src.modules.channels.twilio.services.transcription_service import TranscriptionService
 from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.modules.conversation.enums.message_direction import MessageDirection
 from src.modules.conversation.enums.message_owner import MessageOwner
@@ -39,6 +40,7 @@ class TwilioWebhookService:
         twilio_account_service: TwilioAccountService,
         agent_factory: AgentFactory,
         queue_service: QueueService,
+        transcription_service: Optional[TranscriptionService] = None,
     ):
         self.twilio_service = twilio_service
         self.conversation_service = conversation_service
@@ -46,6 +48,7 @@ class TwilioWebhookService:
         self.twilio_account_service = twilio_account_service
         self.agent_factory = agent_factory
         self.queue_service = queue_service
+        self.transcription_service = transcription_service
 
         # Register queue handler
         self.queue_service.register_handler(
@@ -210,6 +213,17 @@ class TwilioWebhookService:
                 media_type=payload.media_content_type,
                 media_url=payload.media_url,
             )
+            
+            if message_type == MessageType.AUDIO and media_content and self.transcription_service:
+                logger.info("Audio message detected, starting transcription...")
+                transcription = await run_in_threadpool(
+                    self.transcription_service.transcribe, media_content
+                )
+                if transcription:
+                    original_body = payload.body or ""
+                    payload.body = f"{original_body}\n[Transcrição de Áudio: {transcription}]".strip()
+                    logger.info("Audio transcribed successfully: %s", transcription)
+            
             logger.info("--> Determined message type: %s", message_type)
             logger.info("--> Downloaded media content: %s", media_content)
 

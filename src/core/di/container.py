@@ -4,6 +4,7 @@ Dependency Injection Container.
 
 from dependency_injector import containers, providers
 
+from src.modules.channels.twilio.services.transcription_service import TranscriptionService
 from src.modules.ai.engines.lchain.feature.relationships.relationships_agent import create_relationships_agent
 from src.core.database.session import DatabaseConnection
 from src.core.queue.service import QueueService
@@ -155,6 +156,8 @@ class Container(containers.DeclarativeContainer):
         AILogThoughtService, ai_result_service=ai_result_service
     )
 
+    transcription_service = providers.Singleton(TranscriptionService)
+
     finance_agent = providers.Factory(
         create_finance_agent, ai_log_thought_service=ai_log_thought_service
     )
@@ -180,4 +183,5 @@ class Container(containers.DeclarativeContainer):
         twilio_account_service=twilio_account_service,
         agent_factory=agent_factory,
         queue_service=queue_service,
+        transcription_service=transcription_service,
     )
