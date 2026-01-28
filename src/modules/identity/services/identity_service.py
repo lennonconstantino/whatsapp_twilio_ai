@@ -4,6 +4,7 @@ Identity Service module.
 
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.core.config import settings
 from src.core.utils import get_logger
 from src.modules.identity.dtos.feature_dto import FeatureCreateDTO
 from src.modules.identity.dtos.owner_dto import OwnerCreateDTO
@@ -204,6 +205,39 @@ class IdentityService:
         features = self.get_consolidated_features(owner.owner_id)
 
         return {"user": user, "owner": owner, "features": features}
+
+    def validate_owner_access(self, owner_id: str) -> bool:
+        """
+        Check if the owner has a valid subscription to access the service.
+
+        Args:
+            owner_id: The Owner ID
+
+        Returns:
+            bool: True if access is allowed, False otherwise.
+        """
+        # Bypass check in development if configured
+        if (
+            settings.api.environment == "development"
+            and settings.api.bypass_subscription_check
+        ):
+            logger.warning(
+                f"Bypassing subscription check for owner {owner_id} (DEV MODE)"
+            )
+            return True
+
+        try:
+            subscription = self.subscription_service.get_active_subscription(owner_id)
+            if not subscription:
+                logger.warning(
+                    f"Access denied for owner {owner_id}: No active subscription found."
+                )
+                return False
+
+            return True
+        except Exception as e:
+            logger.error(f"Error validating access for owner {owner_id}: {e}")
+            return False
 
     def check_feature_access(self, user_id: str, feature_name: str) -> bool:
         """

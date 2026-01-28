@@ -101,6 +101,22 @@ class TwilioWebhookService:
         # 1. Resolve Owner (Run sync DB op in threadpool)
         owner_id = await run_in_threadpool(self.resolve_owner_id, payload)
 
+        # 1.5. Validate Owner Plan (Access Control)
+        if not payload.local_sender:
+            has_access = await run_in_threadpool(
+                self.identity_service.validate_owner_access, owner_id
+            )
+            if not has_access:
+                logger.warning(
+                    "Processing blocked due to inactive plan", owner_id=owner_id
+                )
+                return TwilioWebhookResponseDTO(
+                    success=True,
+                    message="Plan inactive or expired. Message processing skipped.",
+                    conv_id=None,
+                    msg_id=None,
+                )
+
         # 2. Route based on flow (Local Sender vs Normal Inbound)
         if payload.local_sender:
             return await self._process_local_sender(owner_id, payload)

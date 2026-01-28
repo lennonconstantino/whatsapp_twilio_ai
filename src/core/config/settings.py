@@ -99,6 +99,10 @@ class APISettings(BaseSettings):
     use_fake_sender: bool = Field(
         default=False, description="Use fake sender in development environment"
     )
+    bypass_subscription_check: bool = Field(
+        default=False,
+        description="Bypass subscription validation (Development only)",
+    )
 
     model_config = SettingsConfigDict(env_prefix="API_")
 
