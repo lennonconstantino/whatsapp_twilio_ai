@@ -78,6 +78,9 @@ stop:
 	@-pkill -f "src.modules.conversation.workers.scheduler" || echo "Scheduler was not running."
 	@echo "Stopped."
 
+restart: stop run-worker run-scheduler run
+	@echo "✅ Application restarted."
+
 migrate:
 	python -m scripts.migrate
 

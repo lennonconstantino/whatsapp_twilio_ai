@@ -51,9 +51,12 @@ class TwilioWebhookService:
         self.queue_service = queue_service
         self.transcription_service = transcription_service
 
-        # Register queue handler
+        # Register queue handlers
         self.queue_service.register_handler(
             "process_ai_response", self.handle_ai_response_task
+        )
+        self.queue_service.register_handler(
+            "transcribe_audio", self.handle_audio_transcription_task
         )
 
     def _determine_message_type(
@@ -209,37 +212,12 @@ class TwilioWebhookService:
         )
 
         media_content = None
-        if payload.media_url:
-            media_content = TwilioHelpers.download_media(
-                media_type=payload.media_content_type,
-                media_url=payload.media_url,
-            )
+        if payload.media_url and message_type != MessageType.AUDIO:
+             # For non-audio media, we might want to download or just log
+             # Currently only downloading audio for transcription
+             pass
             
-            if message_type == MessageType.AUDIO and media_content and self.transcription_service:
-                logger.info("Audio message detected, starting transcription...")
-                try:
-                    transcription = await run_in_threadpool(
-                        self.transcription_service.transcribe, media_content
-                    )
-                    if transcription:
-                        original_body = payload.body or ""
-                        payload.body = f"{original_body}\n[Transcrição de Áudio: {transcription}]".strip()
-                        logger.info("Audio transcribed successfully: %s", transcription)
-                except Exception as e:
-                    logger.error("Error during transcription process: %s", e)
-                finally:
-                    # Cleanup audio file after processing (success or fail)
-                    if media_content and os.path.exists(media_content):
-                        try:
-                            os.remove(media_content)
-                            logger.info("Cleaned up audio file: %s", media_content)
-                        except Exception as cleanup_error:
-                            logger.warning("Failed to cleanup audio file %s: %s", media_content, cleanup_error)
-            
-            logger.info("--> Determined message type: %s", message_type)
-            # Log only if file still exists (non-audio media)
-            if media_content and os.path.exists(media_content):
-                 logger.info("--> Downloaded media content: %s", media_content)
+        logger.info("--> Determined message type: %s", message_type)
 
         # 1. Get/Create Conversation
         conversation = await run_in_threadpool(
@@ -251,16 +229,21 @@ class TwilioWebhookService:
         )
 
         # 2. Persist Inbound Message (User)
+        # If AUDIO, body starts with placeholder or empty
+        message_body = payload.body
+        if message_type == MessageType.AUDIO:
+             message_body = message_body or "[Áudio recebido, processando transcrição...]"
+
         message_data = MessageCreateDTO(
             conv_id=conversation.conv_id,
             owner_id=owner_id,
             from_number=payload.from_number,
             to_number=payload.to_number,
-            body=payload.body,
+            body=message_body,
             direction=MessageDirection.INBOUND,
             message_owner=MessageOwner.USER,
             message_type=message_type,
-            content=payload.body,
+            content=message_body,
             correlation_id=correlation_id,
             metadata={
                 "message_sid": payload.message_sid,
@@ -302,26 +285,42 @@ class TwilioWebhookService:
             correlation_id=correlation_id,
         )
 
-        # 3. Schedule AI Processing in Queue
-        # We replace BackgroundTasks with QueueService
-        await self.queue_service.enqueue(
-            task_name="process_ai_response",
-            payload={
-                "owner_id": owner_id,
-                "conversation_id": conversation.conv_id,
-                "msg_id": message.msg_id,
-                "payload": payload.model_dump(),
-                "correlation_id": correlation_id,
-            },
-            correlation_id=correlation_id,
-            owner_id=owner_id,
-        )
+        # 3. Schedule Processing
+        if message_type == MessageType.AUDIO and payload.media_url:
+             # Async Transcription
+             await self.queue_service.enqueue(
+                task_name="transcribe_audio",
+                payload={
+                    "msg_id": message.msg_id,
+                    "media_url": payload.media_url,
+                    "media_type": payload.media_content_type,
+                    "owner_id": owner_id,
+                    "conversation_id": conversation.conv_id,
+                    "payload_dump": payload.model_dump(),
+                },
+                correlation_id=correlation_id,
+                owner_id=owner_id,
+             )
+        else:
+            # Direct AI Response
+            await self.queue_service.enqueue(
+                task_name="process_ai_response",
+                payload={
+                    "owner_id": owner_id,
+                    "conversation_id": conversation.conv_id,
+                    "msg_id": message.msg_id,
+                    "payload": payload.model_dump(),
+                    "correlation_id": correlation_id,
+                },
+                correlation_id=correlation_id,
+                owner_id=owner_id,
+            )
 
         return TwilioWebhookResponseDTO(
             success=True,
             message="Message received and processing started",
             conv_id=conversation.conv_id,
-            msg_id=message.msg_id,
+            msg_id=message.msg_id if message else None,
         )
 
     async def handle_ai_response_task(self, task_payload: Dict[str, Any]):
@@ -338,6 +337,87 @@ class TwilioWebhookService:
             payload=payload,
             correlation_id=task_payload["correlation_id"],
         )
+
+    async def handle_audio_transcription_task(self, task_payload: Dict[str, Any]):
+        """
+        Handler for async audio transcription.
+        """
+        logger.info("Starting async audio transcription", task_payload=task_payload)
+        
+        msg_id = task_payload.get("msg_id")
+        media_url = task_payload.get("media_url")
+        media_type = task_payload.get("media_type")
+        owner_id = task_payload.get("owner_id")
+        conversation_id = task_payload.get("conversation_id")
+        payload_dump = task_payload.get("payload_dump")
+        
+        if not all([msg_id, media_url]):
+            logger.error("Missing required fields for transcription task")
+            return
+
+        media_content = None
+        try:
+            # 1. Download Media
+            media_content = await run_in_threadpool(
+                TwilioHelpers.download_media,
+                media_type=media_type,
+                media_url=media_url
+            )
+            
+            if not media_content or not self.transcription_service:
+                logger.warning("Failed to download media or transcription service unavailable")
+                return
+
+            # 2. Transcribe
+            logger.info("Transcribing audio file...")
+            transcription = await run_in_threadpool(
+                self.transcription_service.transcribe, media_content
+            )
+            
+            if transcription:
+                logger.info("Audio transcribed successfully: %s", transcription)
+                
+                # 3. Update Message in Database
+                # Append transcription to the placeholder
+                new_body = f"[Transcrição de Áudio: {transcription}]"
+                
+                await run_in_threadpool(
+                    self.conversation_service.message_repo.update,
+                    id_value=msg_id,
+                    data={"body": new_body, "content": new_body},
+                    id_column="msg_id"
+                )
+                
+                # Update payload dump body for the AI agent
+                if payload_dump:
+                    payload_dump["body"] = new_body
+
+                # 4. Enqueue AI Response Task (Chain the next step)
+                await self.queue_service.enqueue(
+                    task_name="process_ai_response",
+                    payload={
+                        "owner_id": owner_id,
+                        "conversation_id": conversation_id,
+                        "msg_id": msg_id,
+                        "payload": payload_dump,
+                        "correlation_id": str(uuid.uuid4()),
+                    },
+                    correlation_id=str(uuid.uuid4()),
+                    owner_id=owner_id
+                )
+            else:
+                logger.warning("Transcription returned empty result")
+
+        except Exception as e:
+            logger.error("Error in async transcription task", error=str(e))
+        finally:
+             # Cleanup audio file
+             if media_content and os.path.exists(media_content):
+                 try:
+                     os.remove(media_content)
+                     logger.info("Cleaned up audio file: %s", media_content)
+                 except Exception as cleanup_error:
+                     logger.warning("Failed to cleanup audio file %s: %s", media_content, cleanup_error)
 
     def _send_and_persist_response(
         self,
