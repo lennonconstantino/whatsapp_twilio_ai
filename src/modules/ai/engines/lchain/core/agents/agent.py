@@ -57,8 +57,8 @@ class Agent:
         if context:
             body = f"{context}\n---\n\nUser Message: {body}"
 
-        logger.info("Starting Agent", event="agent_start")
-        logger.info("Agent Input", event="agent_input", input=body)
+        logger.info("Starting Agent", event_type="agent_start")
+        logger.info("Agent Input", event_type="agent_input", input=body)
 
         # Safe access to agent_context attributes if it's a dict or object
         owner_id = (
@@ -80,7 +80,7 @@ class Agent:
 
         logger.info(
             "Agent Context",
-            event="agent_context",
+            event_type="agent_context",
             owner_id=owner_id,
             channel=channel,
             phone=phone,
@@ -107,7 +107,7 @@ class Agent:
             elif step_result.event == "error":
                 logger.error(
                     "Agent Step Error",
-                    event="agent_step_error",
+                    event_type="agent_step_error",
                     content=step_result.content,
                     step_event=step_result.event,
                 )
@@ -121,7 +121,7 @@ class Agent:
             else:
                 logger.warning(
                     "Agent Step Event",
-                    event="agent_step_event",
+                    event_type="agent_step_event",
                     content=step_result.content,
                     step_event=step_result.event,
                 )
@@ -131,11 +131,11 @@ class Agent:
         final_content = step_result.content
         if (not final_content or not str(final_content).strip()) and last_valid_content:
             logger.warning(
-                "Using last valid content as final result", event="agent_fallback"
+                "Using last valid content as final result", event_type="agent_fallback"
             )
             final_content = last_valid_content
 
-        logger.info("Agent Final Result", event="agent_finish", result=final_content)
+        logger.info("Agent Final Result", event_type="agent_finish", result=final_content)
         return final_content
 
     def run_step(self, messages: List[dict], tools):
@@ -210,7 +210,7 @@ class Agent:
 
         logger.info(
             "Agent Tool Call",
-            event="tool_call",
+            event_type="tool_call",
             tool_name=tool_name,
             tool_args=tool_kwargs,
             message=response.content,

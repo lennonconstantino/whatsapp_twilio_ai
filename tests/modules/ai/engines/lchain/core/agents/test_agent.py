@@ -44,7 +44,6 @@ class TestAgent:
             system_message="System: {context}",
             llm={LLM: mock_llm_model},
             max_steps=3,
-            verbose=False,
         )
 
     def test_init(self, mock_tool):

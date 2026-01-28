@@ -53,7 +53,6 @@ class TestRoutingAgent:
             llm={LLM: mock_llm_model},
             system_message="System: {context}",
             ai_log_thought_service=mock_log_service,
-            verbose=False,
         )
 
     def test_init(self, routing_agent, mock_task_agent):

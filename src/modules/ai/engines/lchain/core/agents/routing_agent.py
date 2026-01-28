@@ -104,10 +104,10 @@ class RoutingAgent:
         else:
             context_formatted = user_input
 
-        logger.info("Starting Routing Agent", event="routing_agent_start")
+        logger.info("Starting Routing Agent", event_type="routing_agent_start")
         logger.info(
             "Routing Agent Context",
-            event="routing_agent_context",
+            event_type="routing_agent_context",
             correlation_id=self.agent_context.correlation_id,
             feature=self.agent_context.feature,
             owner_id=self.agent_context.owner_id,
@@ -117,7 +117,7 @@ class RoutingAgent:
             ),
         )
         logger.info(
-            "Prompt Formatted", event="routing_agent_prompt", prompt=context_formatted
+            "Prompt Formatted", event_type="routing_agent_prompt", prompt=context_formatted
         )
 
         partial_variables = {**self.prompt_extra, "context": context_formatted}
@@ -157,14 +157,14 @@ class RoutingAgent:
         self.step_history.append(response)
         logger.info(
             "Routing Agent Response",
-            event="routing_agent_response",
+            event_type="routing_agent_response",
             response=response.content if response.content else "None",
         )
 
         # Verificar se há tool calls
         if not response.tool_calls:
             logger.info(
-                "No tool calls found in response", event="routing_agent_no_tool_calls"
+                "No tool calls found in response", event_type="routing_agent_no_tool_calls"
             )
             return response.content
 
@@ -184,7 +184,7 @@ class RoutingAgent:
 
         logger.info(
             "Routing Agent Tool Call",
-            event="routing_agent_tool_call",
+            event_type="routing_agent_tool_call",
             tool_name=tool_name,
             tool_args=tool_args,
         )
