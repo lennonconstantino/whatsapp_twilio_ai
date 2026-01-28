@@ -66,6 +66,7 @@ class RoutingAgent:
             owner_id=ctx_data.get("owner_id"),
             correlation_id=ctx_data.get("correlation_id"),
             feature=ctx_data.get("feature"),
+            feature_id=ctx_data.get("feature_id"),  # Required to populate the ai_result table.
             msg_id=ctx_data.get("msg_id"),
             user_input=user_input,
             user=ctx_data.get("user"),

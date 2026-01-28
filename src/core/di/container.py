@@ -4,6 +4,7 @@ Dependency Injection Container.
 
 from dependency_injector import containers, providers
 
+from src.modules.ai.engines.lchain.feature.relationships.relationships_agent import create_relationships_agent
 from src.core.database.session import DatabaseConnection
 from src.core.queue.service import QueueService
 from src.modules.ai.ai_result.repositories.ai_result_repository import \
@@ -12,7 +13,7 @@ from src.modules.ai.ai_result.services.ai_log_thought_service import \
     AILogThoughtService
 from src.modules.ai.ai_result.services.ai_result_service import AIResultService
 from src.modules.ai.engines.lchain.core.agents.agent_factory import \
-    create_master_agent
+    AgentFactory
 from src.modules.ai.engines.lchain.feature.finance.finance_agent import \
     create_finance_agent
 from src.modules.channels.twilio.repositories.account_repository import \
@@ -158,7 +159,18 @@ class Container(containers.DeclarativeContainer):
         create_finance_agent, ai_log_thought_service=ai_log_thought_service
     )
 
-    master_agent = providers.Factory(create_master_agent, finance_agent=finance_agent)
+    relationships_agent = providers.Factory(
+        create_relationships_agent, ai_log_thought_service=ai_log_thought_service
+    )
+
+    agent_factory = providers.Factory(
+        AgentFactory,
+        agents_registry=providers.Dict(
+            finance=finance_agent.provider,
+            finance_agent=finance_agent.provider,
+            relationships=relationships_agent.provider,
+        ),
+    )
 
     twilio_webhook_service = providers.Factory(
         TwilioWebhookService,
@@ -166,6 +178,6 @@ class Container(containers.DeclarativeContainer):
         conversation_service=conversation_service,
         identity_service=identity_service,
         twilio_account_service=twilio_account_service,
-        agent_runner=master_agent,
+        agent_factory=agent_factory,
         queue_service=queue_service,
     )

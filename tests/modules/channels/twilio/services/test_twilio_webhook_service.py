@@ -20,7 +20,7 @@ def mock_services():
         "conversation_service": MagicMock(),
         "identity_service": MagicMock(),
         "twilio_account_service": MagicMock(),
-        "agent_runner": MagicMock(),
+        "agent_factory": MagicMock(),
         "queue_service": AsyncMock(),
     }
 
@@ -33,7 +33,7 @@ def service(mock_services):
         conversation_service=mock_services["conversation_service"],
         identity_service=mock_services["identity_service"],
         twilio_account_service=mock_services["twilio_account_service"],
-        agent_runner=mock_services["agent_runner"],
+        agent_factory=mock_services["agent_factory"],
         queue_service=mock_services["queue_service"],
     )
 
@@ -146,6 +146,7 @@ async def test_process_webhook_inbound(service, payload, owner_id):
     ) as mock_run:
         mock_run.side_effect = [
             owner_id,  # resolve_owner_id
+            True,      # validate_owner_access
         ]
 
         with patch.object(
@@ -276,14 +277,14 @@ def test_handle_ai_response_success(
     mock_user.model_dump.return_value = {"id": "user_1"}
     mock_services["identity_service"].get_user_by_phone.return_value = mock_user
 
-    mock_services["identity_service"].validate_feature_path.return_value = {
-        "feature": "finance"
-    }
     mock_feature = MagicMock()
-    mock_feature.feature_id = "feat_1"
-    mock_services["identity_service"].get_feature_by_name.return_value = mock_feature
+    mock_feature.name = "finance"
+    mock_feature.feature_id = 123
+    mock_services["identity_service"].get_active_feature.return_value = mock_feature
 
-    mock_services["agent_runner"].run.return_value = "AI Response"
+    mock_agent = MagicMock()
+    mock_agent.run.return_value = "AI Response"
+    mock_services["agent_factory"].get_agent.return_value = mock_agent
 
     mock_twilio_resp = MagicMock()
     mock_twilio_resp.body = "AI Response"
@@ -298,7 +299,16 @@ def test_handle_ai_response_success(
         correlation_id="corr_123",
     )
 
-    mock_services["agent_runner"].run.assert_called_once()
+    mock_services["agent_factory"].get_agent.assert_called_once()
+    
+    # Verify agent.run call args include feature_id
+    call_args = mock_agent.run.call_args
+    assert call_args is not None
+    _, kwargs = call_args
+    assert kwargs.get("user_input") == payload.body
+    assert kwargs.get("feature_id") == 123
+    assert kwargs.get("owner_id") == owner_id
+
     mock_services["twilio_service"].send_message.assert_called_once()
     mock_services["conversation_service"].add_message.assert_called_once()
 
@@ -324,7 +334,7 @@ def test_handle_ai_response_user_not_found(
     )
 
     # Should not call agent runner
-    mock_services["agent_runner"].run.assert_not_called()
+    mock_services["agent_factory"].get_agent.assert_not_called()
     # Should send fallback message
     mock_services["twilio_service"].send_message.assert_called_once()
     args = mock_services["twilio_service"].send_message.call_args[1]
@@ -371,7 +381,9 @@ def test_handle_ai_response_empty_agent_response(
     mock_services["identity_service"].get_feature_by_name.return_value = mock_feature
 
     # Mock empty response
-    mock_services["agent_runner"].run.return_value = ""
+    mock_agent = MagicMock()
+    mock_agent.run.return_value = ""
+    mock_services["agent_factory"].get_agent.return_value = mock_agent
 
     mock_twilio_resp = MagicMock()
     mock_services["twilio_service"].send_message.return_value = mock_twilio_resp

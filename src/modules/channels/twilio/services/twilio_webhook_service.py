@@ -7,8 +7,7 @@ from src.core.utils.helpers import TwilioHelpers
 from src.core.queue.service import QueueService
 from src.core.utils import get_logger
 from src.core.utils.exceptions import DuplicateError
-from src.modules.ai.engines.lchain.core.agents.routing_agent import \
-    RoutingAgent
+from src.modules.ai.engines.lchain.core.agents.agent_factory import AgentFactory
 from src.modules.channels.twilio.dtos import TwilioWebhookResponseDTO
 from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
 from src.modules.channels.twilio.services.twilio_account_service import \
@@ -38,14 +37,14 @@ class TwilioWebhookService:
         conversation_service: ConversationService,
         identity_service: IdentityService,
         twilio_account_service: TwilioAccountService,
-        agent_runner: RoutingAgent,
+        agent_factory: AgentFactory,
         queue_service: QueueService,
     ):
         self.twilio_service = twilio_service
         self.conversation_service = conversation_service
         self.identity_service = identity_service
         self.twilio_account_service = twilio_account_service
-        self.agent_runner = agent_runner
+        self.agent_factory = agent_factory
         self.queue_service = queue_service
 
         # Register queue handler
@@ -413,6 +412,7 @@ class TwilioWebhookService:
                 "user": user.model_dump() if user else None,
                 "channel": "whatsapp",
                 "feature": feature.name if feature else None,
+                "feature_id": feature.feature_id if feature else None,
                 "memory": None,
                 "additional_context": "",
             }
@@ -420,8 +420,11 @@ class TwilioWebhookService:
             # 3. Run Agent (Synchronous Blocking Call)
             # In a real async architecture, this should be run_in_executor
             if user:
-                # Agent is now injected via DI (agent_runner)
-                response_text = self.agent_runner.run(
+                # Agent is now created via Factory based on feature
+                feature_name = feature.name if feature else "finance"
+                agent = self.agent_factory.get_agent(feature_name)
+
+                response_text = agent.run(
                     user_input=payload.body, **agent_context
                 )
             else:
