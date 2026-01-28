@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from postgrest.exceptions import APIError
 
 from src.core.config import settings
-from src.core.utils import configure_logging, get_db, get_logger
+from src.core.utils import get_db, get_logger
 from src.modules.channels.twilio.repositories.account_repository import \
     TwilioAccountRepository
 from src.modules.conversation.enums.conversation_status import \
@@ -37,7 +37,7 @@ from src.modules.identity.repositories.feature_repository import \
 from src.modules.identity.repositories.owner_repository import OwnerRepository
 from src.modules.identity.repositories.user_repository import UserRepository
 
-configure_logging()
+
 logger = get_logger(__name__)
 
 # .env environments variables

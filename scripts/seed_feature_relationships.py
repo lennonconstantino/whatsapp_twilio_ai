@@ -15,7 +15,7 @@ load_dotenv()
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.core.config import settings
-from src.core.utils import configure_logging, get_logger
+from src.core.utils import get_logger
 from src.modules.ai.engines.lchain.feature.relationships.models.models import (
     PersonCreate, InteractionCreate, ReminderCreate
 )
@@ -23,7 +23,7 @@ from src.modules.ai.engines.lchain.feature.relationships.repositories.repository
     get_person_repository, get_interaction_repository, get_reminder_repository
 )
 
-configure_logging()
+
 logger = get_logger(__name__)
 
 def seed_people(person_repo):

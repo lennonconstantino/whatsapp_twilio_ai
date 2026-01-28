@@ -14,12 +14,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .core.config import settings
 from .core.di.container import Container
-from .core.utils import configure_logging, get_logger
+from .core.utils import get_logger
 from .modules.channels.twilio.api import router as twilio_router
 from .modules.conversation.api import router as conversation_router
 from .modules.identity.api import router as identity_router
 
-configure_logging()
 logger = get_logger(__name__)
 
 # Initialize DI Container

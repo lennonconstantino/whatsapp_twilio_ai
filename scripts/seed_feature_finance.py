@@ -15,7 +15,7 @@ load_dotenv()
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.core.config import settings
-from src.core.utils import configure_logging, get_logger
+from src.core.utils import get_logger
 from src.modules.ai.engines.lchain.feature.finance.models.models import (
     CustomerCreate, ExpenseCreate, InvoiceCreate, RevenueCreate)
 # Import finance repositories and models
@@ -23,7 +23,7 @@ from src.modules.ai.engines.lchain.feature.finance.repositories.repository_finan
     get_customer_repository, get_expense_repository, get_invoice_repository,
     get_revenue_repository)
 
-configure_logging()
+
 logger = get_logger(__name__)
 
 

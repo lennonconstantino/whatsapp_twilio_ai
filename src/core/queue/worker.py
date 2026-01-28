@@ -8,11 +8,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from src.core.di.container import Container
-from src.core.utils.logging import configure_logging
+from src.core.utils.logging import get_logger
 
 # Setup logging
-configure_logging()
-logger = logging.getLogger("worker")
+logger = get_logger("worker")
 
 
 async def main():

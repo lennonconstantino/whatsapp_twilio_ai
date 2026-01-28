@@ -17,21 +17,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.core.config import settings
-from src.core.utils import configure_logging, get_db, get_logger
+from src.core.utils import get_db, get_logger
 from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.modules.conversation.enums import (ConversationStatus,
                                             MessageDirection, MessageOwner,
                                             MessageType)
-from src.modules.conversation.repositories.conversation_repository import \
-    ConversationRepository
-from src.modules.conversation.repositories.message_repository import \
-    MessageRepository
 from src.modules.conversation.services.conversation_service import \
     ConversationService
 from src.modules.identity.repositories.owner_repository import OwnerRepository
-from src.modules.identity.repositories.user_repository import UserRepository
 
-configure_logging()
+
 logger = get_logger(__name__)
 
 # Mock valid ULID for owner_id

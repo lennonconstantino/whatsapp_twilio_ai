@@ -51,25 +51,28 @@ clean:
 	rm -f worker.log scheduler.log app.log
 
 run-worker:
-	python -m src.core.queue.worker >> worker.log 2>&1 &
+	@echo "Starting worker in background (logs -> worker.log)..."
+	FORCE_COLOR=true python -m src.core.queue.worker >> worker.log 2>&1 &
 
 run-scheduler:
-	python -m src.modules.conversation.workers.scheduler >> scheduler.log 2>&1 &
+	@echo "Starting scheduler in background (logs -> scheduler.log)..."
+	FORCE_COLOR=true python -m src.modules.conversation.workers.scheduler >> scheduler.log 2>&1 &
 	@echo "✅ Scheduler is running."
 
 check-worker:
 	@if ! pgrep -f "src.core.queue.worker" > /dev/null; then \
 		echo "❌ Error: Worker is not running!"; \
-		echo "👉 Please run 'make run-worker' in a separate terminal first."; \
+		echo "👉 Please run 'make run-worker' first."; \
 		exit 1; \
 	else \
 		echo "✅ Worker is running."; \
 	fi
 
 run: check-worker
-	python -m src.main >> app.log 2>&1 &
+	@echo "Starting application in background (logs -> app.log)..."
+	FORCE_COLOR=true python -m src.main >> app.log 2>&1 &
 	@echo "✅ Application is running."
-	@echo "-> see app.log for more details."
+	@echo "-> see logs: tail -f app.log worker.log scheduler.log"
 
 stop:
 	@echo "Stopping application and workers..."
