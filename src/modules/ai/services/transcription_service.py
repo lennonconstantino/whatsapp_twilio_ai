@@ -19,10 +19,12 @@ class TranscriptionService:
         model_size: str = "base",
         device: str = "cpu",
         compute_type: str = "int8",
+        beam_size: int = 5,
     ):
         self.model_size = model_size
         self.device = device
         self.compute_type = compute_type
+        self.beam_size = beam_size
         self._model: Optional[WhisperModel] = None
 
     @property
@@ -41,13 +43,13 @@ class TranscriptionService:
             logger.info("Whisper model loaded successfully")
         return self._model
 
-    def transcribe(self, audio_path: str, language: str = "pt") -> str:
+    def transcribe(self, audio_path: str, language: Optional[str] = None) -> str:
         """
         Transcribe audio file to text.
         
         Args:
             audio_path: Path to the audio file
-            language: Language code (default: pt)
+            language: Language code (default: None for auto-detection)
             
         Returns:
             Transcribed text or empty string if failed
@@ -60,7 +62,9 @@ class TranscriptionService:
             logger.info("Starting transcription", path=audio_path)
             
             # Run transcription
-            segments, info = self.model.transcribe(audio_path, language=language)
+            segments, info = self.model.transcribe(
+                audio_path, language=language, beam_size=self.beam_size
+            )
             
             # Combine segments
             text = " ".join([segment.text for segment in segments]).strip()

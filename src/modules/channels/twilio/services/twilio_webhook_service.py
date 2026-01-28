@@ -1,4 +1,5 @@
 import uuid
+import os
 from typing import Any, Dict, Optional
 
 from fastapi import HTTPException
@@ -7,13 +8,13 @@ from src.core.utils.helpers import TwilioHelpers
 from src.core.queue.service import QueueService
 from src.core.utils import get_logger
 from src.core.utils.exceptions import DuplicateError
+from src.modules.ai.services.transcription_service import TranscriptionService
 from src.modules.ai.engines.lchain.core.agents.agent_factory import AgentFactory
 from src.modules.channels.twilio.dtos import TwilioWebhookResponseDTO
 from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
 from src.modules.channels.twilio.services.twilio_account_service import \
     TwilioAccountService
 from src.modules.channels.twilio.services.twilio_service import TwilioService
-from src.modules.channels.twilio.services.transcription_service import TranscriptionService
 from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.modules.conversation.enums.message_direction import MessageDirection
 from src.modules.conversation.enums.message_owner import MessageOwner
@@ -216,16 +217,29 @@ class TwilioWebhookService:
             
             if message_type == MessageType.AUDIO and media_content and self.transcription_service:
                 logger.info("Audio message detected, starting transcription...")
-                transcription = await run_in_threadpool(
-                    self.transcription_service.transcribe, media_content
-                )
-                if transcription:
-                    original_body = payload.body or ""
-                    payload.body = f"{original_body}\n[Transcrição de Áudio: {transcription}]".strip()
-                    logger.info("Audio transcribed successfully: %s", transcription)
+                try:
+                    transcription = await run_in_threadpool(
+                        self.transcription_service.transcribe, media_content
+                    )
+                    if transcription:
+                        original_body = payload.body or ""
+                        payload.body = f"{original_body}\n[Transcrição de Áudio: {transcription}]".strip()
+                        logger.info("Audio transcribed successfully: %s", transcription)
+                except Exception as e:
+                    logger.error("Error during transcription process: %s", e)
+                finally:
+                    # Cleanup audio file after processing (success or fail)
+                    if media_content and os.path.exists(media_content):
+                        try:
+                            os.remove(media_content)
+                            logger.info("Cleaned up audio file: %s", media_content)
+                        except Exception as cleanup_error:
+                            logger.warning("Failed to cleanup audio file %s: %s", media_content, cleanup_error)
             
             logger.info("--> Determined message type: %s", message_type)
-            logger.info("--> Downloaded media content: %s", media_content)
+            # Log only if file still exists (non-audio media)
+            if media_content and os.path.exists(media_content):
+                 logger.info("--> Downloaded media content: %s", media_content)
 
         # 1. Get/Create Conversation
         conversation = await run_in_threadpool(

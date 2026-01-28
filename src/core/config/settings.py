@@ -129,6 +129,29 @@ class LogSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="LOG_")
 
 
+class WhisperSettings(BaseSettings):
+    """Whisper transcription settings."""
+
+    size: str = Field(
+        default="base",
+        description="Model size (tiny, base, small, medium, large-v3). Use 'medium' or 'large-v3' for better accuracy.",
+    )
+    device: str = Field(
+        default="cpu",
+        description="Device to use (cpu, cuda, auto). Use 'cuda' or 'auto' for GPU acceleration.",
+    )
+    compute_type: str = Field(
+        default="int8",
+        description="Compute type (int8, float16, int8_float16). Use 'float16' for GPU.",
+    )
+    beam_size: int = Field(
+        default=5,
+        description="Beam size for decoding. Higher values improve accuracy but slow down transcription.",
+    )
+
+    model_config = SettingsConfigDict(env_prefix="WHISPER_")
+
+
 class ToggleSettings(BaseSettings):
     """Toggle settings."""
 
@@ -173,6 +196,7 @@ class Settings(BaseSettings):
     api: APISettings = Field(default_factory=APISettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     log: LogSettings = Field(default_factory=LogSettings)
+    whisper: WhisperSettings = Field(default_factory=WhisperSettings)
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
