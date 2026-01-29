@@ -10,6 +10,7 @@ from src.modules.ai.engines.lchain.core.agents.agent import Agent
 from src.modules.ai.engines.lchain.core.tools.report_tool import report_tool
 from src.modules.ai.engines.lchain.core.utils.utils import (
     convert_to_langchain_tool, convert_to_openai_tool)
+from src.modules.ai.memory.interfaces.memory_interface import MemoryInterface
 
 
 logger = get_logger(__name__)
@@ -35,7 +36,7 @@ class TaskAgent(BaseModel):
     agent_context: Optional[Dict[str, Any]] = None
 
     def load_agent(
-        self, ai_log_thought_service: AILogThoughtService = None, **kwargs
+        self, ai_log_thought_service: AILogThoughtService = None, memory_service: MemoryInterface = None, **kwargs
     ) -> Agent:
         logger.info(
             "Initializing TaskAgent load",
@@ -82,6 +83,7 @@ class TaskAgent(BaseModel):
             examples=self.examples,
             agent_context=self.agent_context or {},
             ai_log_thought_service=ai_log_thought_service,
+            memory_service=memory_service,
         )
 
     @property

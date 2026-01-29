@@ -15,6 +15,7 @@ from src.modules.ai.engines.lchain.core.tools.tool import Tool
 from src.modules.ai.engines.lchain.core.utils.utils import (
     parse_function_args, run_tool_from_response)
 from src.modules.ai.infrastructure.llm import LLM, models
+from src.modules.ai.memory.interfaces.memory_interface import MemoryInterface
 
 logger = get_logger(__name__)
 
@@ -32,11 +33,12 @@ class Agent:
         user_context: str = None,
         agent_context: Dict[str, Any] = None,
         ai_log_thought_service: AILogThoughtService = None,
+        memory_service: MemoryInterface = None,
     ):
         self.tools = tools
         self.llm = llm
         self.system_message = system_message
-        self.memory = []
+        self.memory_service = memory_service
         self.step_history = []
         self.max_steps = max_steps
         self.examples = examples or []

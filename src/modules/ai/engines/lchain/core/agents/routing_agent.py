@@ -36,7 +36,6 @@ class RoutingAgent:
         self.task_agents = task_agents or []
         self.llm = llm
         self.system_message = system_message
-        self.memory = []
         self.step_history = []
         self.max_steps = max_steps
         self.prompt_extra = prompt_extra or {}
