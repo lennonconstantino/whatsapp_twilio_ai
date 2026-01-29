@@ -60,6 +60,7 @@ from src.modules.identity.services.user_service import UserService
 
 
 from src.modules.ai.memory.repositories.redis_memory_repository import RedisMemoryRepository
+from src.modules.ai.memory.repositories.vector_memory_repository import VectorMemoryRepository
 from src.modules.ai.memory.services.hybrid_memory_service import HybridMemoryService
 
 class Container(containers.DeclarativeContainer):
@@ -91,6 +92,8 @@ class Container(containers.DeclarativeContainer):
     db_connection = providers.Singleton(DatabaseConnection)
 
     db_session = providers.Singleton(lambda db: db.session, db_connection)
+    
+    db_client = providers.Singleton(lambda db: db.client, db_connection)
 
     # Core Services
     queue_service = providers.Singleton(QueueService)
@@ -100,6 +103,11 @@ class Container(containers.DeclarativeContainer):
         RedisMemoryRepository,
         redis_url=settings.queue.redis_url, # Reusing redis config or we should add a new one. Using queue redis for now.
         ttl_seconds=3600
+    )
+
+    vector_memory_repository = providers.Factory(
+        VectorMemoryRepository,
+        supabase_client=db_client
     )
 
     # Repositories
@@ -203,6 +211,14 @@ class Container(containers.DeclarativeContainer):
         create_relationships_agent, ai_log_thought_service=ai_log_thought_service
     )
 
+    # Memory Services (AI) - Hybrid
+    hybrid_memory_service = providers.Factory(
+        HybridMemoryService,
+        redis_repo=redis_memory_repository,
+        message_repo=message_repository,
+        vector_repo=vector_memory_repository
+    )
+
     agent_factory = providers.Factory(
         AgentFactory,
         agents_registry=providers.Dict(
@@ -224,6 +240,7 @@ class Container(containers.DeclarativeContainer):
         TwilioWebhookMessageHandler,
         twilio_service=twilio_service,
         conversation_service=conversation_service,
+        queue_service=queue_service,
     )
 
     twilio_webhook_audio_processor = providers.Factory(

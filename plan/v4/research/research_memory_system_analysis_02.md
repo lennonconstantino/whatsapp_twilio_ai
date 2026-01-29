@@ -109,12 +109,13 @@ sequenceDiagram
 ### Fase 3: Memória Semântica (Vector Store)
 **Foco:** Permitir que o agente lembre de fatos antigos.
 
-1.  **Setup Vector DB:** Configurar cliente (Qdrant/Pinecone).
+1.  **Setup Vector DB:** Configurado Supabase Vector (pgvector) com `message_embeddings`.
 2.  **Indexação:**
-    *   Criar um *Background Service* que escuta novos inserts na tabela `messages` (ou via evento da aplicação) e gera embeddings.
+    *   Criado `EmbeddingTasks` (Worker) que gera embeddings via Queue.
+    *   Integrado ao `TwilioWebhookMessageHandler`.
 3.  **Retrieval:**
-    *   No `MemoryService.get_context()`, incluir uma chamada ao Vector DB usando o input atual do usuário como query.
-    *   Concatenar documentos relevantes no prompt do sistema.
+    *   No `HybridMemoryService.get_context()`, incluída busca vetorial usando `query` (user input).
+    *   Resultados concatenados como System Message no início do contexto.
 
 ---
 
@@ -134,4 +135,4 @@ sequenceDiagram
 1.  [x] Criar pacote `src/modules/ai/memory`.
 2.  [x] Implementar `HybridMemoryService` (L1 + L2 Read-Through).
 3.  [x] Refatorar `Agent` e `Webhook` para passar `session_id`.
-4.  [ ] Criar Teste de Integração: Salvar msg no `MessageRepository` -> Ler via `MemoryService` (com hit no Redis na 2ª vez).
+4.  [x] Criar Teste de Integração: Salvar msg no `MessageRepository` -> Ler via `MemoryService` (com hit no Redis na 2ª vez).

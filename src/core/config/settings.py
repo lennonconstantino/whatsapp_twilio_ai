@@ -191,6 +191,20 @@ class LLMModelSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="LLM_", protected_namespaces=('settings_',))
     
 
+class EmbeddingSettings(BaseSettings):
+    """Embedding settings."""
+
+    provider: str = Field(
+        default="openai", description="Embedding provider (openai, ollama)"
+    )
+    model_name: str = Field(
+        default="text-embedding-3-small", description="Embedding model name"
+    )
+    dimensions: int = Field(default=1536, description="Embedding dimensions")
+
+    model_config = SettingsConfigDict(env_prefix="EMBEDDING_")
+
+
 class Settings(BaseSettings):
     """Main application settings."""
 
@@ -206,6 +220,7 @@ class Settings(BaseSettings):
     log: LogSettings = Field(default_factory=LogSettings)
     whisper: WhisperSettings = Field(default_factory=WhisperSettings)
     llm_model: LLMModelSettings = Field(default_factory=LLMModelSettings)
+    embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"

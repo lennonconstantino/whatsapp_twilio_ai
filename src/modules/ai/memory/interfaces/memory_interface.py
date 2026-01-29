@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Any, Dict
+from typing import List, Any, Dict, Optional
 
 class MemoryInterface(ABC):
     """
@@ -8,10 +8,15 @@ class MemoryInterface(ABC):
     """
 
     @abstractmethod
-    def get_context(self, session_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_context(self, session_id: str, limit: int = 10, query: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Retrieves the conversation history for a given session.
         Returns a list of messages in a dict format compatible with the Agent (role/content).
+        
+        Args:
+            session_id: The session/conversation ID.
+            limit: Max number of recent messages.
+            query: Optional query string for semantic search (L3).
         """
         pass
 

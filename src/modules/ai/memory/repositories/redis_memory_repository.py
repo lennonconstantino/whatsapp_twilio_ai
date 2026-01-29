@@ -1,4 +1,3 @@
-
 import json
 from typing import Any, Dict, List, Optional
 
@@ -29,9 +28,10 @@ class RedisMemoryRepository(MemoryInterface):
         self.ttl_seconds = ttl_seconds
         self.redis = redis.from_url(redis_url, decode_responses=True)
 
-    def get_context(self, session_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_context(self, session_id: str, limit: int = 10, query: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Retrieves the last N messages from Redis list.
+        Ignores query (L1 Cache is purely chronological).
         """
         key = self._get_key(session_id)
         try:

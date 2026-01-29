@@ -44,6 +44,16 @@ async def main():
         conversation_tasks.process_expired_conversations,
     )
 
+    # Register AI Embedding tasks
+    vector_repo = container.vector_memory_repository()
+    from src.modules.ai.workers.embedding_tasks import EmbeddingTasks
+
+    embedding_tasks = EmbeddingTasks(vector_repo)
+
+    queue_service.register_handler(
+        "generate_embedding", embedding_tasks.generate_embedding
+    )
+
     logger.info("Services initialized. Starting worker...")
 
     try:

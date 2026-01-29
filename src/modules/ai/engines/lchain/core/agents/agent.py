@@ -100,7 +100,8 @@ class Agent:
             if session_id:
                 try:
                     # Fetch recent history (e.g. last 10 messages)
-                    memory_messages = self.memory_service.get_context(session_id, limit=10)
+                    # Pass user input as query for semantic search (L3)
+                    memory_messages = self.memory_service.get_context(session_id, limit=10, query=body)
                     if memory_messages:
                         logger.info(f"Loaded {len(memory_messages)} messages from memory", event_type="agent_memory")
                 except Exception as e:

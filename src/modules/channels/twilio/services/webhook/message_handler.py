@@ -5,6 +5,7 @@ from starlette.concurrency import run_in_threadpool
 
 from src.core.utils import get_logger
 from src.core.utils.exceptions import DuplicateError
+from src.core.queue.service import QueueService
 from src.modules.channels.twilio.dtos import TwilioWebhookResponseDTO
 from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
 from src.modules.channels.twilio.services.twilio_service import TwilioService
@@ -27,9 +28,34 @@ class TwilioWebhookMessageHandler:
         self,
         conversation_service: ConversationService,
         twilio_service: TwilioService,
+        queue_service: QueueService,
     ):
         self.conversation_service = conversation_service
         self.twilio_service = twilio_service
+        self.queue_service = queue_service
+
+    async def _enqueue_embedding(self, message: Message):
+        """Enqueue embedding generation task."""
+        if not message.body or not message.body.strip():
+            return
+            
+        try:
+            await self.queue_service.enqueue(
+                task_name="generate_embedding",
+                payload={
+                    "content": message.body,
+                    "metadata": {
+                        "msg_id": message.msg_id,
+                        "conv_id": message.conv_id,
+                        "owner_id": message.owner_id,
+                        "role": "user" if message.message_owner == MessageOwner.USER else "assistant",
+                        "timestamp": message.timestamp.isoformat() if message.timestamp else None
+                    }
+                },
+                owner_id=message.owner_id
+            )
+        except Exception as e:
+            logger.error(f"Failed to enqueue embedding task for msg {message.msg_id}: {e}")
 
     def determine_message_type(
         self, num_media: int, media_content_type: Optional[str]
@@ -229,9 +255,11 @@ class TwilioWebhookMessageHandler:
                 channel="whatsapp",
             )
 
-            await run_in_threadpool(
+            message = await run_in_threadpool(
                 self.conversation_service.add_message, conversation, message_data
             )
+            
+            await self._enqueue_embedding(message)
 
         except Exception as e:
             # If even sending the response fails, we just log it as critical
