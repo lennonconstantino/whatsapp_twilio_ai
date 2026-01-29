@@ -43,6 +43,13 @@ class QueueBackend(ABC):
         """
         pass
 
+    @abstractmethod
+    async def fail(self, message_id: str, error: str = "") -> None:
+        """
+        Mark message as permanently failed (DLQ).
+        """
+        pass
+
     async def start_consuming(
         self, handler: Callable[[QueueMessage], Awaitable[None]]
     ) -> None:
@@ -51,6 +58,8 @@ class QueueBackend(ABC):
         This method might block or run forever.
         Default implementation for pull-based backends (polling).
         """
+        MAX_RETRIES = 3  # Hardcoded for now, or move to settings
+
         while True:
             try:
                 msg = await self.dequeue()
@@ -59,9 +68,15 @@ class QueueBackend(ABC):
                         await handler(msg)
                         await self.ack(msg.id)
                     except Exception as e:
-                        # Logic for retry should be handled by backend specific nack
-                        # But here we can calculate retry
-                        await self.nack(msg.id, retry_after=10)  # Default retry
+                        # Check max retries
+                        if msg.attempts >= MAX_RETRIES:
+                            print(f"Message {msg.id} failed permanently after {msg.attempts} attempts. Error: {e}")
+                            await self.fail(msg.id, error=str(e))
+                        else:
+                            # Exponential backoff: 10s, 20s, 40s...
+                            retry_after = 10 * (2 ** msg.attempts)
+                            print(f"Message {msg.id} failed (attempt {msg.attempts}). Retrying in {retry_after}s. Error: {e}")
+                            await self.nack(msg.id, retry_after=retry_after)
                 else:
                     await asyncio.sleep(1)
             except asyncio.CancelledError:

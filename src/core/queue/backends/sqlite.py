@@ -43,10 +43,17 @@ class SqliteQueueBackend(QueueBackend):
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             next_retry_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             correlation_id TEXT,
-            owner_id TEXT
+            owner_id TEXT,
+            error_reason TEXT
         )
         """
         )
+
+        # Try to add error_reason column if it doesn't exist (for migration)
+        try:
+            cursor.execute("ALTER TABLE message_queue ADD COLUMN error_reason TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column likely already exists
 
         # Create index for polling
         cursor.execute(
@@ -224,5 +231,29 @@ class SqliteQueueBackend(QueueBackend):
             )
             conn.commit()
             logger.debug(f"Nacked message {message_id} (retry in {retry_after}s)")
+        finally:
+            conn.close()
+
+    async def fail(self, message_id: str, error: str = "") -> None:
+        """Mark message as permanently failed (DLQ)."""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._fail_sync, message_id, error)
+
+    def _fail_sync(self, message_id: str, error: str):
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                """
+            UPDATE message_queue
+            SET status = 'failed', 
+                updated_at = ?,
+                error_reason = ?
+            WHERE id = ?
+            """,
+                (datetime.utcnow(), error, message_id),
+            )
+            conn.commit()
+            logger.error(f"Marked message {message_id} as FAILED. Reason: {error}")
         finally:
             conn.close()

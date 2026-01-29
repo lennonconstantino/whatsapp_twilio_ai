@@ -25,6 +25,10 @@ from src.modules.channels.twilio.services.twilio_account_service import \
 from src.modules.channels.twilio.services.twilio_service import TwilioService
 from src.modules.channels.twilio.services.twilio_webhook_service import \
     TwilioWebhookService
+from src.modules.channels.twilio.services.webhook.owner_resolver import TwilioWebhookOwnerResolver
+from src.modules.channels.twilio.services.webhook.message_handler import TwilioWebhookMessageHandler
+from src.modules.channels.twilio.services.webhook.audio_processor import TwilioWebhookAudioProcessor
+from src.modules.channels.twilio.services.webhook.ai_processor import TwilioWebhookAIProcessor
 from src.modules.conversation.components.closure_detector import \
     ClosureDetector
 from src.modules.conversation.repositories.conversation_repository import \
@@ -182,13 +186,39 @@ class Container(containers.DeclarativeContainer):
         ),
     )
 
-    twilio_webhook_service = providers.Factory(
-        TwilioWebhookService,
+    # Twilio Webhook Components
+    twilio_webhook_owner_resolver = providers.Factory(
+        TwilioWebhookOwnerResolver,
+        twilio_account_service=twilio_account_service,
+        identity_service=identity_service,
+    )
+
+    twilio_webhook_message_handler = providers.Factory(
+        TwilioWebhookMessageHandler,
         twilio_service=twilio_service,
         conversation_service=conversation_service,
+    )
+
+    twilio_webhook_audio_processor = providers.Factory(
+        TwilioWebhookAudioProcessor,
+        transcription_service=transcription_service,
+        queue_service=queue_service,
+        message_handler=twilio_webhook_message_handler,
+    )
+
+    twilio_webhook_ai_processor = providers.Factory(
+        TwilioWebhookAIProcessor,
         identity_service=identity_service,
-        twilio_account_service=twilio_account_service,
         agent_factory=agent_factory,
         queue_service=queue_service,
-        transcription_service=transcription_service,
+        message_handler=twilio_webhook_message_handler,
+    )
+
+    twilio_webhook_service = providers.Factory(
+        TwilioWebhookService,
+        owner_resolver=twilio_webhook_owner_resolver,
+        message_handler=twilio_webhook_message_handler,
+        audio_processor=twilio_webhook_audio_processor,
+        ai_processor=twilio_webhook_ai_processor,
+        queue_service=queue_service,
     )

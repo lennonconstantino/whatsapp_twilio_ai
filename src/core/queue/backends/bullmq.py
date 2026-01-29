@@ -77,6 +77,14 @@ class BullMQBackend(QueueBackend):
         """Handled by Worker automatically on failure."""
         pass
 
+    async def fail(self, message_id: str, error: str = "") -> None:
+        """
+        Mark message as permanently failed.
+        BullMQ handles this via removeOnFail=False configuration.
+        """
+        logger.warning(f"Manual fail requested for message {message_id}. Reason: {error}")
+        pass
+
     async def start_consuming(
         self, handler: Callable[[QueueMessage], Awaitable[None]]
     ) -> None:

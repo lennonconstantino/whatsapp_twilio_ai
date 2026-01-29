@@ -20,3 +20,4 @@ class QueueMessage(BaseModel):
     # Optional metadata
     correlation_id: Optional[str] = None
     owner_id: Optional[str] = None
+    error_reason: Optional[str] = None

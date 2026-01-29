@@ -144,6 +144,14 @@ class SQSBackend(QueueBackend):
         except ClientError as e:
             logger.error(f"SQS nack error: {e}")
 
+    async def fail(self, message_id: str, error: str = "") -> None:
+        """
+        Mark message as permanently failed.
+        Relying on SQS Redrive Policy (DLQ).
+        """
+        logger.warning(f"Manual fail requested for message {message_id}. Reason: {error}")
+        pass
+
     # start_consuming uses the default polling implementation from base class
     # which calls dequeue -> handler -> ack/nack.
     # Since we implemented dequeue with WaitTimeSeconds (Long Polling), it's efficient.
