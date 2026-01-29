@@ -94,6 +94,28 @@ class ConversationRepositoryV2(SupabaseRepository[Conversation]):
             logger.error("Error finding conversation by session key", error=str(e))
             raise
 
+    def find_active_by_owner(
+        self, owner_id: str, limit: int = 100
+    ) -> List[Conversation]:
+        """
+        Find all active conversations for an owner.
+        """
+        try:
+            result = (
+                self.client.table(self.table_name)
+                .select("*")
+                .eq("owner_id", owner_id)
+                .in_("status", [s.value for s in ConversationStatus.active_statuses()])
+                .order("started_at", desc=True)
+                .limit(limit)
+                .execute()
+            )
+
+            return [self.model_class(**item) for item in result.data]
+        except Exception as e:
+            logger.error("Error finding active conversations by owner", error=str(e))
+            raise
+
     def find_all_by_session_key(
         self, owner_id: str, session_key: str, limit: int = 10
     ) -> List[Conversation]:

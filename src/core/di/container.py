@@ -33,10 +33,20 @@ from src.modules.conversation.components.closure_detector import \
     ClosureDetector
 from src.modules.conversation.repositories.conversation_repository import \
     ConversationRepository
+from src.modules.conversation.v2.repositories.conversation_repository import \
+    ConversationRepositoryV2
 from src.modules.conversation.repositories.message_repository import \
     MessageRepository
 from src.modules.conversation.services.conversation_service import \
     ConversationService
+from src.modules.conversation.v2.services.conversation_service import \
+    ConversationServiceV2
+from src.modules.conversation.v2.components.conversation_finder import \
+    ConversationFinder
+from src.modules.conversation.v2.components.conversation_lifecycle import \
+    ConversationLifecycle
+from src.modules.conversation.v2.components.conversation_closer import \
+    ConversationCloser
 from src.modules.identity.repositories.feature_repository import \
     FeatureRepository
 # Repositories
@@ -69,6 +79,7 @@ class Container(containers.DeclarativeContainer):
             "src.modules.channels.twilio.api.v1.webhooks",
             "src.modules.channels.twilio.api.dependencies",
             "src.modules.conversation.api.v1.conversations",
+            "src.modules.conversation.api.v2.conversations",
             "src.modules.identity.api.v1.owners",
             "src.modules.identity.api.v1.users",
             "src.modules.identity.api.v1.plans",
@@ -106,6 +117,10 @@ class Container(containers.DeclarativeContainer):
 
     conversation_repository = providers.Factory(
         ConversationRepository, client=db_session
+    )
+
+    conversation_repository_v2 = providers.Factory(
+        ConversationRepositoryV2, client=db_session
     )
 
     message_repository = providers.Factory(MessageRepository, client=db_session)
@@ -151,6 +166,26 @@ class Container(containers.DeclarativeContainer):
         conversation_repo=conversation_repository,
         message_repo=message_repository,
         closure_detector=closure_detector,
+    )
+
+    # Conversation V2 Components
+    conversation_finder = providers.Factory(
+        ConversationFinder, repository=conversation_repository_v2
+    )
+
+    conversation_lifecycle = providers.Factory(
+        ConversationLifecycle, repository=conversation_repository_v2
+    )
+
+    conversation_closer = providers.Factory(ConversationCloser)
+
+    conversation_service_v2 = providers.Factory(
+        ConversationServiceV2,
+        conversation_repo=conversation_repository_v2,
+        message_repo=message_repository,
+        finder=conversation_finder,
+        lifecycle=conversation_lifecycle,
+        closer=conversation_closer,
     )
 
     ai_result_service = providers.Factory(

@@ -201,6 +201,22 @@ class ConversationServiceV2:
         """
         return self.lifecycle.transition_to(conversation, status, reason, initiated_by)
 
+    def get_conversation_by_id(self, conv_id: str) -> Optional[Conversation]:
+        """Get conversation by ID."""
+        return self.conversation_repo.find_by_id(conv_id, id_column="conv_id")
+
+    def get_active_conversations(
+        self, owner_id: str, limit: int = 100
+    ) -> List[Conversation]:
+        """Get active conversations for an owner."""
+        return self.conversation_repo.find_active_by_owner(owner_id, limit)
+
+    def get_conversation_messages(
+        self, conv_id: str, limit: int = 100, offset: int = 0
+    ) -> List[Message]:
+        """Get messages for a conversation."""
+        return self.message_repo.find_by_conversation(conv_id, limit, offset)
+
     def _update_acceptance_context(
         self, conversation: Conversation, message_create: MessageCreateDTO
     ):
