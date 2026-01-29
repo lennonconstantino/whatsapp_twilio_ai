@@ -201,6 +201,39 @@ class ConversationServiceV2:
         """
         return self.lifecycle.transition_to(conversation, status, reason, initiated_by)
 
+    def close_conversation_with_priority(
+        self,
+        conversation: Conversation,
+        status: ConversationStatus,
+        initiated_by: str,
+        reason: str,
+    ) -> Conversation:
+        """
+        Close a conversation respecting status priority.
+        """
+        return self.lifecycle.transition_to_with_priority(
+            conversation, status, reason, initiated_by
+        )
+
+    def extend_expiration(
+        self, conversation: Conversation, additional_minutes: Optional[int] = None
+    ) -> Conversation:
+        """Extend conversation expiration time."""
+        minutes = additional_minutes or settings.conversation.expiration_minutes
+        return self.lifecycle.extend_expiration(conversation, minutes)
+
+    def transfer_conversation(
+        self, conversation: Conversation, new_user_id: str, reason: str
+    ) -> Conversation:
+        """Transfer conversation to another agent."""
+        return self.lifecycle.transfer_owner(conversation, new_user_id, reason)
+
+    def escalate_conversation(
+        self, conversation: Conversation, supervisor_id: str, reason: str
+    ) -> Conversation:
+        """Escalate conversation to supervisor."""
+        return self.lifecycle.escalate(conversation, supervisor_id, reason)
+
     def get_conversation_by_id(self, conv_id: str) -> Optional[Conversation]:
         """Get conversation by ID."""
         return self.conversation_repo.find_by_id(conv_id, id_column="conv_id")

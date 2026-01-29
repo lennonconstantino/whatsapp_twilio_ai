@@ -15,8 +15,8 @@ from src.modules.conversation.dtos.conversation_dto import \
 from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.modules.conversation.enums.conversation_status import \
     ConversationStatus
-from src.modules.conversation.services.conversation_service import \
-    ConversationService
+from src.modules.conversation.v2.services.conversation_service import \
+    ConversationServiceV2 as ConversationService
 
 logger = get_logger(__name__)
 
@@ -79,7 +79,7 @@ class EscalationRequest(BaseModel):
 @inject
 async def create_conversation(
     conversation_data: ConversationCreateDTO,
-    service: ConversationService = Depends(Provide[Container.conversation_service]),
+    service: ConversationService = Depends(Provide[Container.conversation_service_v2]),
 ):
     """
     Create or get an active conversation.
@@ -107,7 +107,7 @@ async def create_conversation(
 @inject
 async def get_conversation(
     conv_id: str,
-    service: ConversationService = Depends(Provide[Container.conversation_service]),
+    service: ConversationService = Depends(Provide[Container.conversation_service_v2]),
 ):
     """Get a conversation by ID."""
     conversation = service.get_conversation_by_id(conv_id)
@@ -122,7 +122,7 @@ async def get_conversation(
 async def list_conversations(
     owner_id: str = Query(..., description="Owner ID"),
     limit: int = Query(100, ge=1, le=1000),
-    service: ConversationService = Depends(Provide[Container.conversation_service]),
+    service: ConversationService = Depends(Provide[Container.conversation_service_v2]),
 ):
     """List active conversations for an owner."""
     conversations = service.get_active_conversations(owner_id, limit)
@@ -139,7 +139,7 @@ async def get_conversation_messages(
     conv_id: str,
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    service: ConversationService = Depends(Provide[Container.conversation_service]),
+    service: ConversationService = Depends(Provide[Container.conversation_service_v2]),
 ):
     """Get messages from a conversation."""
     # Verify conversation exists
@@ -157,7 +157,7 @@ async def get_conversation_messages(
 async def add_message(
     conv_id: str,
     message_data: MessageCreateDTO,
-    service: ConversationService = Depends(Provide[Container.conversation_service]),
+    service: ConversationService = Depends(Provide[Container.conversation_service_v2]),
 ):
     """Add a message to a conversation."""
     # Verify conversation exists
@@ -182,7 +182,7 @@ async def close_conversation(
     conv_id: str,
     status: ConversationStatus,
     reason: Optional[str] = None,
-    service: ConversationService = Depends(Provide[Container.conversation_service]),
+    service: ConversationService = Depends(Provide[Container.conversation_service_v2]),
 ):
     """Close a conversation."""
     conversation = service.get_conversation_by_id(conv_id)
@@ -251,7 +251,7 @@ async def transfer_conversation(
 async def escalate_conversation(
     conv_id: str,
     escalation_data: EscalationRequest,
-    service: ConversationService = Depends(Provide[Container.conversation_service]),
+    service: ConversationService = Depends(Provide[Container.conversation_service_v2]),
 ):
     """
     Escalate conversation to supervisor.

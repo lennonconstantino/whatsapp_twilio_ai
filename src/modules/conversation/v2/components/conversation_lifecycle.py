@@ -160,7 +160,181 @@ class ConversationLifecycle:
                 conv_id=conversation.conv_id,
             )
 
-    def process_expirations(self, limit: int = 100) -> int:
+    def transition_to_with_priority(
+        self,
+        conversation: Conversation,
+        status: ConversationStatus,
+        reason: str,
+        initiated_by: str,
+    ) -> Conversation:
+        """
+        Transition to a closed state respecting status priority.
+
+        Priority Order (Highest to Lowest):
+        1. FAILED
+        2. USER_CLOSED
+        3. SUPPORT_CLOSED
+        4. AGENT_CLOSED
+        5. EXPIRED / IDLE_TIMEOUT
+        """
+        current_status = ConversationStatus(conversation.status)
+
+        # If not closed yet, normal transition
+        if not current_status.is_closed():
+            return self.transition_to(conversation, status, reason, initiated_by)
+
+        # Define priorities (lower number = higher priority)
+        priorities = {
+            ConversationStatus.FAILED: 1,
+            ConversationStatus.USER_CLOSED: 2,
+            ConversationStatus.SUPPORT_CLOSED: 3,
+            ConversationStatus.AGENT_CLOSED: 4,
+            ConversationStatus.EXPIRED: 5,
+            ConversationStatus.IDLE_TIMEOUT: 5,
+        }
+
+        current_prio = priorities.get(current_status, 99)
+        new_prio = priorities.get(status, 99)
+
+        if new_prio < current_prio:
+            logger.info(
+                "Overriding closure status due to higher priority",
+                conv_id=conversation.conv_id,
+                old_status=current_status.value,
+                new_status=status.value,
+            )
+            # Force transition for override
+            return self._force_transition(conversation, status, reason, initiated_by)
+
+        logger.info(
+            "Ignoring transition request due to lower/equal priority",
+            conv_id=conversation.conv_id,
+            current_status=current_status.value,
+            ignored_status=status.value,
+        )
+        return conversation
+
+    def _force_transition(
+        self,
+        conversation: Conversation,
+        new_status: ConversationStatus,
+        reason: str,
+        initiated_by: str,
+    ) -> Conversation:
+        """Force a transition regardless of current state validity."""
+        update_data = {
+            "status": new_status.value,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "ended_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        updated_conv = self.repository.update(
+            conversation.conv_id,
+            update_data,
+            id_column="conv_id",
+            current_version=conversation.version,
+        )
+
+        if not updated_conv:
+            raise ConcurrencyError(
+                f"Failed to force transition {conversation.conv_id}",
+                current_version=conversation.version,
+            )
+
+        self._log_transition_history(
+            updated_conv,
+            ConversationStatus(conversation.status),
+            new_status,
+            reason,
+            initiated_by,
+        )
+        return updated_conv
+
+    def extend_expiration(
+        self, conversation: Conversation, additional_minutes: int
+    ) -> Conversation:
+        """Extend conversation expiration time."""
+        # Use repository method if available, or manual update
+        new_expires = datetime.now(timezone.utc) + timedelta(minutes=additional_minutes)
+
+        updated = self.repository.update(
+            conversation.conv_id,
+            {"expires_at": new_expires.isoformat()},
+            id_column="conv_id",
+            current_version=conversation.version,
+        )
+
+        if not updated:
+            raise ConcurrencyError(
+                "Failed to extend expiration", current_version=conversation.version
+            )
+
+        return updated
+
+    def transfer_owner(
+        self, conversation: Conversation, new_user_id: str, reason: str
+    ) -> Conversation:
+        """Transfer conversation to another user/agent."""
+        context = conversation.context or {}
+        context = context.copy()
+        context.setdefault("transfer_history", []).append(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "from_user_id": conversation.user_id,
+                "to_user_id": new_user_id,
+                "reason": reason,
+            }
+        )
+
+        updated = self.repository.update(
+            conversation.conv_id,
+            {
+                "user_id": new_user_id,
+                "context": context,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            },
+            id_column="conv_id",
+            current_version=conversation.version,
+        )
+
+        if not updated:
+            raise ConcurrencyError(
+                "Failed to transfer conversation", current_version=conversation.version
+            )
+        
+        return updated
+    
+    def escalate(
+        self, conversation: Conversation, supervisor_id: str, reason: str
+    ) -> Conversation:
+        """Escalate conversation."""
+        context = conversation.context or {}
+        context = context.copy()
+        context["escalated"] = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "supervisor_id": supervisor_id,
+            "reason": reason,
+            "status": "open",
+        }
+
+        updated = self.repository.update(
+            conversation.conv_id,
+            {
+                "status": ConversationStatus.PROGRESS.value,
+                "context": context,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            },
+            id_column="conv_id",
+            current_version=conversation.version,
+        )
+
+        if not updated:
+            raise ConcurrencyError(
+                "Failed to escalate conversation", current_version=conversation.version
+            )
+        
+        return updated
+
         """
         Process expired conversations.
         Returns count of processed items.
