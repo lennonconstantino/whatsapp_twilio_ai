@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, ANY
 from src.core.utils.exceptions import ConcurrencyError
 from src.modules.conversation.enums.conversation_status import ConversationStatus
 from src.modules.conversation.models.conversation import Conversation
-from src.modules.conversation.v2.components.conversation_lifecycle import ConversationLifecycle
+from src.modules.conversation.components.conversation_lifecycle import ConversationLifecycle
 
 class TestConversationLifecycle(unittest.TestCase):
     def setUp(self):
@@ -28,7 +28,7 @@ class TestConversationLifecycle(unittest.TestCase):
 
     def test_transition_valid(self):
         """Test valid transition."""
-        self.repo.update.return_value = self.mock_conv
+        self.repo.update_status.return_value = self.mock_conv
         
         self.lifecycle.transition_to(
             self.mock_conv,
@@ -37,34 +37,30 @@ class TestConversationLifecycle(unittest.TestCase):
             initiated_by="agent"
         )
         
-        self.repo.update.assert_called_with(
+        self.repo.update_status.assert_called_with(
             self.mock_conv.conv_id,
-            {
-                "status": ConversationStatus.PROGRESS.value,
-                "updated_at": ANY
-            },
-            id_column="conv_id",
-            current_version=1
+            ConversationStatus.PROGRESS,
+            initiated_by="agent",
+            reason="test",
+            ended_at=None,
+            expires_at=None
         )
 
     def test_transition_invalid(self):
         """Test invalid transition raises ValueError."""
-        # PENDING -> AGENT_CLOSED is invalid directly (must go to PROGRESS first usually, or maybe allowed?)
-        # Let's check VALID_TRANSITIONS in code.
-        # PENDING -> [PROGRESS, EXPIRED, SUPPORT_CLOSED, USER_CLOSED, FAILED]
-        # AGENT_CLOSED is NOT in PENDING transitions.
+        # PENDING -> IDLE_TIMEOUT is invalid (only valid from PROGRESS)
         
         with self.assertRaises(ValueError):
             self.lifecycle.transition_to(
                 self.mock_conv,
-                ConversationStatus.AGENT_CLOSED,
+                ConversationStatus.IDLE_TIMEOUT,
                 reason="invalid",
-                initiated_by="agent"
+                initiated_by="system"
             )
 
     def test_transition_concurrency_error(self):
         """Test concurrency error propagation."""
-        self.repo.update.return_value = None # Simulate optimistic lock failure
+        self.repo.update_status.return_value = None # Simulate optimistic lock failure
         
         with self.assertRaises(ConcurrencyError):
             self.lifecycle.transition_to(
@@ -78,7 +74,7 @@ class TestConversationLifecycle(unittest.TestCase):
         """Test priority override (Lower -> Higher Priority)."""
         # Current: USER_CLOSED (Prio 2)
         self.mock_conv.status = ConversationStatus.USER_CLOSED.value
-        self.repo.update.return_value = self.mock_conv
+        self.repo.update_status.return_value = self.mock_conv
         
         # Try: FAILED (Prio 1)
         self.lifecycle.transition_to_with_priority(
@@ -88,9 +84,10 @@ class TestConversationLifecycle(unittest.TestCase):
             initiated_by="system"
         )
         
-        self.repo.update.assert_called()
-        args = self.repo.update.call_args[0]
-        self.assertEqual(args[1]["status"], ConversationStatus.FAILED.value)
+        self.repo.update_status.assert_called()
+        args, kwargs = self.repo.update_status.call_args
+        self.assertEqual(args[1], ConversationStatus.FAILED)
+        self.assertTrue(kwargs.get("force"))
 
     def test_transition_priority_ignore(self):
         """Test priority ignore (Higher -> Lower Priority)."""
@@ -105,7 +102,7 @@ class TestConversationLifecycle(unittest.TestCase):
             initiated_by="agent"
         )
         
-        self.repo.update.assert_not_called()
+        self.repo.update_status.assert_not_called()
 
     def test_extend_expiration(self):
         """Test extend expiration."""

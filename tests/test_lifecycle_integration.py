@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timezone
-from unittest.mock import ANY, MagicMock
+from unittest.mock import ANY, MagicMock, Mock
 
 from dotenv import load_dotenv
 
@@ -28,11 +28,25 @@ def test_complete_conversation_lifecycle():
     msg_repo = MagicMock()
     closure = MagicMock()  # Mock closure detector logic
 
+    # Real components for integration test
+    from src.modules.conversation.components.conversation_finder import ConversationFinder
+    from src.modules.conversation.components.conversation_lifecycle import ConversationLifecycle
+    
+    finder = ConversationFinder(repo)
+    lifecycle = ConversationLifecycle(repo)
+
     # Configure ClosureDetector mock defaults
     closure.should_close_conversation.return_value = (False, None, None)
     closure.detect_cancellation_in_pending.return_value = False
+    closure.detect_intent.return_value = Mock(should_close=False)
 
-    service = ConversationService(repo, msg_repo, closure)
+    service = ConversationService(
+        conversation_repo=repo,
+        message_repo=msg_repo,
+        finder=finder,
+        lifecycle=lifecycle,
+        closer=closure
+    )
 
     owner_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
     conv_id = "01ARZ3NDEKTSV4RRFFQ69G5FAW"
@@ -128,6 +142,7 @@ def test_complete_conversation_lifecycle():
         initiated_by="agent",
         reason="agent_acceptance",
         expires_at=ANY,
+        ended_at=None,
     )
 
     conv = service.get_conversation_by_id(conv.conv_id)
@@ -137,8 +152,8 @@ def test_complete_conversation_lifecycle():
 
     # --- Step 4: Process Idle Conversations (PROGRESS -> IDLE_TIMEOUT) ---
 
-    # Mock find_idle_conversations to return our conversation
-    repo.find_idle_conversations.return_value = [progress_conv]
+    # Mock find_idle_candidates to return our conversation
+    repo.find_idle_candidates.return_value = [progress_conv]
 
     # Mock update_status for idle timeout
     idle_conv = create_conv_mock(ConversationStatus.IDLE_TIMEOUT)
@@ -153,9 +168,10 @@ def test_complete_conversation_lifecycle():
     repo.update_status.assert_called_with(
         conv.conv_id,
         ConversationStatus.IDLE_TIMEOUT,
-        reason="idle_timeout",
+        reason="inactivity_timeout",
         ended_at=ANY,
         initiated_by="system",
+        expires_at=None,
     )
 
     # Update our local view
@@ -188,7 +204,9 @@ def test_complete_conversation_lifecycle():
         conv.conv_id,
         ConversationStatus.PROGRESS,
         initiated_by="user",
-        reason="reactivation_from_idle",
+        reason="user_reactivation",
+        ended_at=None,
+        expires_at=None,
     )
 
     conv = service.get_conversation_by_id(conv.conv_id)
@@ -209,8 +227,9 @@ def test_complete_conversation_lifecycle():
         conv.conv_id,
         ConversationStatus.AGENT_CLOSED,
         ended_at=ANY,
-        initiated_by=None,  # Default args for close_conversation
-        reason=None,
+        initiated_by="system",
+        reason="closed_by_service",
+        expires_at=None,
     )
 
     conv = service.get_conversation_by_id(conv.conv_id)

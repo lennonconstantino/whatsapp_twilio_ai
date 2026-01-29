@@ -12,7 +12,7 @@ from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.modules.conversation.enums.message_direction import MessageDirection
 from src.modules.conversation.enums.message_owner import MessageOwner
 from src.modules.conversation.enums.message_type import MessageType
-from src.modules.conversation.v2.services.conversation_service import ConversationServiceV2
+from src.modules.conversation.services.conversation_service import ConversationService
 from src.modules.conversation.models.conversation import Conversation
 from src.modules.conversation.models.message import Message
 
@@ -25,7 +25,7 @@ class TwilioWebhookMessageHandler:
 
     def __init__(
         self,
-        conversation_service: ConversationServiceV2,
+        conversation_service: ConversationService,
         twilio_service: TwilioService,
     ):
         self.conversation_service = conversation_service

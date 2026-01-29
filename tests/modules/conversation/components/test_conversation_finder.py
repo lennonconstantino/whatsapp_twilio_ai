@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, ANY
 
 from src.modules.conversation.enums.conversation_status import ConversationStatus
 from src.modules.conversation.models.conversation import Conversation
-from src.modules.conversation.v2.components.conversation_finder import ConversationFinder
+from src.modules.conversation.components.conversation_finder import ConversationFinder
 
 class TestConversationFinder(unittest.TestCase):
     def setUp(self):

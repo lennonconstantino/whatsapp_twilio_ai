@@ -11,8 +11,8 @@ from src.core.utils import get_logger
 from src.modules.conversation.enums.conversation_status import \
     ConversationStatus
 from src.modules.conversation.models.conversation import Conversation
-from src.modules.conversation.v2.repositories.conversation_repository import \
-    ConversationRepositoryV2
+from src.modules.conversation.repositories.conversation_repository import \
+    ConversationRepository
 
 logger = get_logger(__name__)
 
@@ -23,7 +23,7 @@ class ConversationFinder:
     Encapsulates session key calculation and history lookup.
     """
 
-    def __init__(self, repository: ConversationRepositoryV2):
+    def __init__(self, repository: ConversationRepository):
         self.repository = repository
 
     def calculate_session_key(self, number1: str, number2: str) -> str:
@@ -112,7 +112,6 @@ class ConversationFinder:
             "from_number": from_number,
             "to_number": to_number,
             "channel": channel,
-            "session_key": session_key,
             "status": ConversationStatus.PENDING.value,
             "started_at": now.isoformat(),
             "expires_at": expires_at.isoformat(),

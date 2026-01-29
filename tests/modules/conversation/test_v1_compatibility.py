@@ -13,10 +13,10 @@ from src.modules.conversation.enums.message_owner import MessageOwner
 from src.modules.conversation.enums.message_type import MessageType
 from src.modules.conversation.models.conversation import Conversation
 from src.modules.conversation.models.message import Message
-from src.modules.conversation.v2.services.conversation_service import ConversationServiceV2
-from src.modules.conversation.v2.components.conversation_finder import ConversationFinder
-from src.modules.conversation.v2.components.conversation_lifecycle import ConversationLifecycle
-from src.modules.conversation.v2.components.conversation_closer import ConversationCloser
+from src.modules.conversation.services.conversation_service import ConversationService
+from src.modules.conversation.components.conversation_finder import ConversationFinder
+from src.modules.conversation.components.conversation_lifecycle import ConversationLifecycle
+from src.modules.conversation.components.conversation_closer import ConversationCloser
 
 class TestV1Compatibility(unittest.TestCase):
     def setUp(self):
@@ -30,7 +30,7 @@ class TestV1Compatibility(unittest.TestCase):
         self.closer = ConversationCloser(closure_keywords=["encerrar"])
         
         # Service under test
-        self.service = ConversationServiceV2(
+        self.service = ConversationService(
             self.mock_repo,
             self.mock_message_repo,
             self.finder,
@@ -128,10 +128,10 @@ class TestV1Compatibility(unittest.TestCase):
         self.service.add_message(self.mock_conv, message_dto)
         
         # Verify
-        self.mock_repo.update.assert_called()
-        call_args = self.mock_repo.update.call_args
+        self.mock_repo.update_status.assert_called()
+        call_args = self.mock_repo.update_status.call_args
         self.assertEqual(call_args[0][0], self.mock_conv.conv_id)
-        self.assertEqual(call_args[0][1]["status"], ConversationStatus.PROGRESS.value)
+        self.assertEqual(call_args[0][1], ConversationStatus.PROGRESS)
         # V2 stores history in separate table, not context
         # self.assertIn("transition_history", call_args[0][1]["context"])
 
@@ -139,7 +139,7 @@ class TestV1Compatibility(unittest.TestCase):
         """V1 Compat: Test that agent message transitions PENDING to PROGRESS."""
         # Setup
         self.mock_conv.status = ConversationStatus.PENDING.value
-        self.mock_repo.update.return_value = self.mock_conv
+        self.mock_repo.update_status.return_value = self.mock_conv
         
         message_dto = MessageCreateDTO(
             conv_id=self.mock_conv.conv_id,
@@ -167,14 +167,14 @@ class TestV1Compatibility(unittest.TestCase):
         self.service.add_message(self.mock_conv, message_dto)
         
         # Verify
-        self.mock_repo.update.assert_called()
-        call_args = self.mock_repo.update.call_args
-        self.assertEqual(call_args[0][1]["status"], ConversationStatus.PROGRESS.value)
+        self.mock_repo.update_status.assert_called()
+        call_args = self.mock_repo.update_status.call_args
+        self.assertEqual(call_args[0][1], ConversationStatus.PROGRESS)
 
     def test_close_conversation_success(self):
         """V1 Compat: Test successful conversation closure."""
         # Setup
-        self.mock_repo.update.return_value = self.mock_conv
+        self.mock_repo.update_status.return_value = self.mock_conv
         
         # Execute
         self.service.close_conversation(
@@ -185,16 +185,16 @@ class TestV1Compatibility(unittest.TestCase):
         )
         
         # Verify
-        self.mock_repo.update.assert_called()
-        call_args = self.mock_repo.update.call_args
-        self.assertEqual(call_args[0][1]["status"], ConversationStatus.AGENT_CLOSED.value)
+        self.mock_repo.update_status.assert_called()
+        call_args = self.mock_repo.update_status.call_args
+        self.assertEqual(call_args[0][1], ConversationStatus.AGENT_CLOSED)
         # V2 stores history in separate table
         # self.assertEqual(call_args[0][1]["context"]["last_status_change"]["reason"], "done")
 
     def test_auto_close_detection(self):
         """V1 Compat: Test auto-closing when intent detected."""
         # Setup
-        self.mock_repo.update.return_value = self.mock_conv
+        self.mock_repo.update_status.return_value = self.mock_conv
         
         message_dto = MessageCreateDTO(
             conv_id=self.mock_conv.conv_id,
@@ -224,10 +224,10 @@ class TestV1Compatibility(unittest.TestCase):
         self.service.add_message(self.mock_conv, message_dto)
         
         # Verify
-        update_calls = self.mock_repo.update.call_args_list
+        update_calls = self.mock_repo.update_status.call_args_list
         found_closure = False
         for call in update_calls:
-            if call[0][1].get("status") == ConversationStatus.USER_CLOSED.value:
+            if call[0][1] == ConversationStatus.USER_CLOSED:
                 found_closure = True
                 break
         

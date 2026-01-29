@@ -31,14 +31,18 @@ def test_priority_closure():
 
     # Mock Repository
     mock_repo = MagicMock()
+    
+    # Real Lifecycle to test priority logic
+    from src.modules.conversation.components.conversation_lifecycle import ConversationLifecycle
+    lifecycle = ConversationLifecycle(mock_repo)
 
     # Mock Service
-    # We mock message_repo and closure_detector as they are not needed
-    # for this test
     service = ConversationService(
         conversation_repo=mock_repo,
         message_repo=MagicMock(),
-        closure_detector=MagicMock(),
+        finder=MagicMock(),
+        lifecycle=lifecycle,
+        closer=MagicMock(),
     )
 
     # Helper to create conv
@@ -59,14 +63,17 @@ def test_priority_closure():
     conv = create_conv(ConversationStatus.PENDING)
     mock_repo.update_status.return_value = create_conv(ConversationStatus.AGENT_CLOSED)
 
-    service.close_conversation_with_priority(conv, ConversationStatus.AGENT_CLOSED)
+    service.close_conversation_with_priority(
+        conv, ConversationStatus.AGENT_CLOSED, initiated_by="agent", reason="done"
+    )
 
     mock_repo.update_status.assert_called_with(
         conv.conv_id,
         ConversationStatus.AGENT_CLOSED,
+        initiated_by="agent",
+        reason="done",
         ended_at=ANY,
-        initiated_by=None,
-        reason=None,
+        expires_at=None,
     )
 
     # 2. Priority Override (EXPIRED -> FAILED)
@@ -76,7 +83,7 @@ def test_priority_closure():
     mock_repo.reset_mock()
 
     service.close_conversation_with_priority(
-        conv_expired, ConversationStatus.FAILED, reason="Critical Error"
+        conv_expired, ConversationStatus.FAILED, initiated_by="system", reason="Critical Error"
     )
 
     # Verify force=True was used
@@ -84,7 +91,7 @@ def test_priority_closure():
         conv_expired.conv_id,
         ConversationStatus.FAILED,
         ended_at=ANY,
-        initiated_by=None,
+        initiated_by="system",
         reason="Critical Error",
         force=True,
     )
@@ -96,7 +103,7 @@ def test_priority_closure():
     mock_repo.reset_mock()
 
     result = service.close_conversation_with_priority(
-        conv_user_closed, ConversationStatus.EXPIRED
+        conv_user_closed, ConversationStatus.EXPIRED, initiated_by="system", reason="expired"
     )
 
     # Should NOT call update_status

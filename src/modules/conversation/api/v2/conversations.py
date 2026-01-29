@@ -15,8 +15,8 @@ from src.modules.conversation.dtos.conversation_dto import \
 from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.modules.conversation.enums.conversation_status import \
     ConversationStatus
-from src.modules.conversation.v2.services.conversation_service import \
-    ConversationServiceV2
+from src.modules.conversation.services.conversation_service import \
+    ConversationService
 
 logger = get_logger(__name__)
 
@@ -67,8 +67,8 @@ class ConversationListResponse(BaseModel):
 @inject
 async def create_conversation(
     conversation_data: ConversationCreateDTO,
-    service: ConversationServiceV2 = Depends(
-        Provide[Container.conversation_service_v2]
+    service: ConversationService = Depends(
+        Provide[Container.conversation_service]
     ),
 ):
     """
@@ -94,8 +94,8 @@ async def create_conversation(
 @inject
 async def get_conversation(
     conv_id: str,
-    service: ConversationServiceV2 = Depends(
-        Provide[Container.conversation_service_v2]
+    service: ConversationService = Depends(
+        Provide[Container.conversation_service]
     ),
 ):
     """Get a conversation by ID (V2)."""
@@ -111,8 +111,8 @@ async def get_conversation(
 async def list_conversations(
     owner_id: str = Query(..., description="Owner ID"),
     limit: int = Query(100, ge=1, le=1000),
-    service: ConversationServiceV2 = Depends(
-        Provide[Container.conversation_service_v2]
+    service: ConversationService = Depends(
+        Provide[Container.conversation_service]
     ),
 ):
     """List active conversations for an owner (V2)."""
@@ -130,8 +130,8 @@ async def get_conversation_messages(
     conv_id: str,
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    service: ConversationServiceV2 = Depends(
-        Provide[Container.conversation_service_v2]
+    service: ConversationService = Depends(
+        Provide[Container.conversation_service]
     ),
 ):
     """Get messages from a conversation (V2)."""
@@ -150,8 +150,8 @@ async def get_conversation_messages(
 async def add_message(
     conv_id: str,
     message_data: MessageCreateDTO,
-    service: ConversationServiceV2 = Depends(
-        Provide[Container.conversation_service_v2]
+    service: ConversationService = Depends(
+        Provide[Container.conversation_service]
     ),
 ):
     """Add a message to a conversation (V2)."""
@@ -177,8 +177,8 @@ async def close_conversation(
     conv_id: str,
     status: ConversationStatus,
     reason: str = Query(..., description="Reason for closure"),
-    service: ConversationServiceV2 = Depends(
-        Provide[Container.conversation_service_v2]
+    service: ConversationService = Depends(
+        Provide[Container.conversation_service]
     ),
 ):
     """Close a conversation (V2)."""

@@ -29,23 +29,17 @@ from src.modules.channels.twilio.services.webhook.owner_resolver import TwilioWe
 from src.modules.channels.twilio.services.webhook.message_handler import TwilioWebhookMessageHandler
 from src.modules.channels.twilio.services.webhook.audio_processor import TwilioWebhookAudioProcessor
 from src.modules.channels.twilio.services.webhook.ai_processor import TwilioWebhookAIProcessor
-from src.modules.conversation.components.closure_detector import \
-    ClosureDetector
 from src.modules.conversation.repositories.conversation_repository import \
     ConversationRepository
-from src.modules.conversation.v2.repositories.conversation_repository import \
-    ConversationRepositoryV2
 from src.modules.conversation.repositories.message_repository import \
     MessageRepository
 from src.modules.conversation.services.conversation_service import \
     ConversationService
-from src.modules.conversation.v2.services.conversation_service import \
-    ConversationServiceV2
-from src.modules.conversation.v2.components.conversation_finder import \
+from src.modules.conversation.components.conversation_finder import \
     ConversationFinder
-from src.modules.conversation.v2.components.conversation_lifecycle import \
+from src.modules.conversation.components.conversation_lifecycle import \
     ConversationLifecycle
-from src.modules.conversation.v2.components.conversation_closer import \
+from src.modules.conversation.components.conversation_closer import \
     ConversationCloser
 from src.modules.identity.repositories.feature_repository import \
     FeatureRepository
@@ -119,17 +113,11 @@ class Container(containers.DeclarativeContainer):
         ConversationRepository, client=db_session
     )
 
-    conversation_repository_v2 = providers.Factory(
-        ConversationRepositoryV2, client=db_session
-    )
-
     message_repository = providers.Factory(MessageRepository, client=db_session)
 
     ai_result_repository = providers.Factory(AIResultRepository, client=db_session)
 
     # Services
-    closure_detector = providers.Factory(ClosureDetector)
-
     owner_service = providers.Factory(OwnerService, repository=owner_repository)
 
     user_service = providers.Factory(UserService, repository=user_repository)
@@ -161,27 +149,20 @@ class Container(containers.DeclarativeContainer):
         TwilioAccountService, twilio_account_repo=twilio_account_repository
     )
 
-    conversation_service = providers.Factory(
-        ConversationService,
-        conversation_repo=conversation_repository,
-        message_repo=message_repository,
-        closure_detector=closure_detector,
-    )
-
     # Conversation V2 Components
     conversation_finder = providers.Factory(
-        ConversationFinder, repository=conversation_repository_v2
+        ConversationFinder, repository=conversation_repository
     )
 
     conversation_lifecycle = providers.Factory(
-        ConversationLifecycle, repository=conversation_repository_v2
+        ConversationLifecycle, repository=conversation_repository
     )
 
     conversation_closer = providers.Factory(ConversationCloser)
 
-    conversation_service_v2 = providers.Factory(
-        ConversationServiceV2,
-        conversation_repo=conversation_repository_v2,
+    conversation_service = providers.Factory(
+        ConversationService,
+        conversation_repo=conversation_repository,
         message_repo=message_repository,
         finder=conversation_finder,
         lifecycle=conversation_lifecycle,
@@ -231,7 +212,7 @@ class Container(containers.DeclarativeContainer):
     twilio_webhook_message_handler = providers.Factory(
         TwilioWebhookMessageHandler,
         twilio_service=twilio_service,
-        conversation_service=conversation_service_v2,
+        conversation_service=conversation_service,
     )
 
     twilio_webhook_audio_processor = providers.Factory(

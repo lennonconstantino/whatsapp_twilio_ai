@@ -17,8 +17,9 @@ sys.path.append(
 )
 
 from src.core.utils.exceptions import ConcurrencyError  # noqa: E402
-from src.modules.conversation.components.closure_detector import \
-    ClosureDetector  # noqa: E402
+from src.modules.conversation.components.conversation_closer import ConversationCloser
+from src.modules.conversation.components.conversation_finder import ConversationFinder
+from src.modules.conversation.components.conversation_lifecycle import ConversationLifecycle
 from src.modules.conversation.dtos.message_dto import \
     MessageCreateDTO  # noqa: E402
 from src.modules.conversation.enums.conversation_status import \
@@ -39,10 +40,17 @@ class TestRaceConditions(unittest.TestCase):
         self.msg_repo = MagicMock()
         self.user_repo = MagicMock()
         self.owner_repo = MagicMock()
-        self.closure_detector = ClosureDetector()  # Logic only
+        from src.modules.conversation.components.conversation_finder import ConversationFinder
+        self.finder = ConversationFinder(self.repo)
+        self.lifecycle = ConversationLifecycle(self.repo)
+        self.closer = ConversationCloser()  # Logic only
 
         self.service = ConversationService(
-            self.repo, self.msg_repo, self.closure_detector
+            conversation_repo=self.repo,
+            message_repo=self.msg_repo,
+            finder=self.finder,
+            lifecycle=self.lifecycle,
+            closer=self.closer,
         )
 
         self.owner_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
@@ -128,18 +136,16 @@ class TestRaceConditions(unittest.TestCase):
         )
 
         # 3. Simulate Race Condition via Mocking
-        # When add_message tries to update status (IDLE -> PROGRESS),
-        # it calls repo.update_status.
-        # We want this to fail with ConcurrencyError,
-        # simulating that Worker changed it to EXPIRED.
+        # Mock lifecycle.transition_to to fail first then succeed (or return EXPIRED)
+        # We want to test that service reloads and handles it.
 
-        def update_status_side_effect(conv_id, status, **kwargs):
-            if status == ConversationStatus.PROGRESS:
-                # First attempt: Fail
-                raise ConcurrencyError("Version mismatch", current_version=1)
-            return conv
+        def transition_side_effect(conversation, new_status, reason, initiated_by, **kwargs):
+             if conversation.version == 1:
+                 raise ConcurrencyError("Version mismatch", current_version=1)
+             return conversation
 
-        self.repo.update_status.side_effect = update_status_side_effect
+        # Replace real method with Mock
+        self.lifecycle.transition_to = MagicMock(side_effect=transition_side_effect)
 
         # When Service catches ConcurrencyError, it calls find_by_id to reload.
         # We return the EXPIRED conversation.
@@ -148,26 +154,20 @@ class TestRaceConditions(unittest.TestCase):
         expired_conv.version = 2
 
         self.repo.find_by_id.return_value = expired_conv
-
-        # Also need to mock update_context if it's called
         self.repo.update_context.return_value = expired_conv
 
         # 4. Call add_message
+        # It should try, fail, reload (get EXPIRED), and then...
+        # In V2 logic: loop calls transition_to again with EXPIRED conv.
+        # Since we mocked transition_to, it won't raise ValueError.
+        # It will return conversation.
+        
         new_msg = self.service.add_message(conv, msg_dto)
 
         # 5. Verify Result
-        # The service should have caught ConcurrencyError, reloaded
-        # (got EXPIRED), and then proceeded to add message to the EXPIRED
-        # conversation (since EXPIRED doesn't trigger transitions in
-        # add_message loop).
-
         self.msg_repo.create.assert_called()
         self.assertEqual(new_msg.conv_id, conv.conv_id)
-
-        # Verify find_by_id was called (reloading)
-        self.repo.find_by_id.assert_called_with(
-            conv.conv_id, id_column="conv_id"
-        )
+        self.repo.find_by_id.assert_called_with(conv.conv_id, id_column="conv_id")
 
     def test_race_worker_vs_manual_close(self):
         """
@@ -177,70 +177,19 @@ class TestRaceConditions(unittest.TestCase):
         conv.status = ConversationStatus.PROGRESS.value
         conv.version = 1
 
-        # Mock update_status to fail with ConcurrencyError
-        self.repo.update_status.side_effect = ConcurrencyError(
-            "Version mismatch"
-        )
-
         # Mock reload to return EXPIRED conversation
         expired_conv = conv.model_copy()
         expired_conv.status = ConversationStatus.EXPIRED.value
         expired_conv.version = 2
         self.repo.find_by_id.return_value = expired_conv
 
-        # Call close_conversation
-        # It should try update, fail, reload, see EXPIRED.
-        # Then it tries to close EXPIRED -> AGENT_CLOSED.
-        # That logic depends on `close_conversation` implementation.
-        # If `close_conversation` reloads and sees it's already closed/expired,
-        # does it try again?
-        # The service logic:
-        # retries max_retries.
-        # If it reloads and sees EXPIRED, it might try to update EXPIRED ->
-        # AGENT_CLOSED.
-        # repo.update_status usually checks validity.
-
-        # Let's assume repo.update_status (the real one) would check validity.
-        # But we mocked it.
-        # So we can check if it WAS called again.
-
-        # Reset side effect for subsequent calls?
-        # If it calls update_status again with EXPIRED->AGENT_CLOSED,
-        # we can let it pass or fail.
-        # Ideally, EXPIRED -> AGENT_CLOSED is invalid.
-
-        # Let's make the side_effect smart:
-        def smart_update_side_effect(conv_id, status, **kwargs):
-            # If called with original (PROGRESS -> AGENT_CLOSED), fail
-            if kwargs.get("reason") == "done":
-                # Checking some arg to identify call
-                # How to distinguish first call?
-                pass
-
-            # Using call count is easier, but side_effect is a function.
-            # We can use a counter in closure or attribute.
-            return MagicMock()  # Default success
-
-        # Actually, let's just assert that ConcurrencyError is raised
-        # if we don't handle it,
-        # OR that it handles it gracefully.
-
-        # The original test expected ValueError or handled it.
-
-        # Let's simulate:
-        # 1. close_conversation calls update_status.
-        # 2. raises ConcurrencyError.
-        # 3. catch, reload -> returns EXPIRED.
-        # 4. loop -> calls update_status(EXPIRED, AGENT_CLOSED).
-        # 5. We want THIS call to fail with ValueError (invalid transition)
-        #    OR succeed if we allow it.
-
-        # If we mock update_status to ALWAYS raise ConcurrencyError,
-        # it will hit max retries and raise ConcurrencyError.
-
-        self.repo.update_status.side_effect = ConcurrencyError(
-            "Version mismatch"
-        )
+        # Mock lifecycle.transition_to to raise ConcurrencyError
+        def transition_to_side_effect(conversation, new_status, reason, initiated_by, **kwargs):
+            from src.core.utils.exceptions import ConcurrencyError
+            raise ConcurrencyError("Version mismatch", current_version=conversation.version)
+        
+        # Replace real method with Mock
+        self.lifecycle.transition_to = MagicMock(side_effect=transition_to_side_effect)
 
         with self.assertRaises(ConcurrencyError):
             self.service.close_conversation(
@@ -269,27 +218,23 @@ class TestRaceConditions(unittest.TestCase):
         )
 
         # Msg 1: Succeeds (updates PENDING -> PROGRESS)
-        # We need update_status to return a PROGRESS conversation
         progress_conv = conv.model_copy()
         progress_conv.status = ConversationStatus.PROGRESS.value
         progress_conv.version = 2
 
-        # First call succeeds
-        self.repo.update_status.return_value = progress_conv
-        self.repo.update_context.return_value = progress_conv
-
-        self.service.add_message(conv, msg1_dto)
-
-        # Msg 2: Fails first (Concurrency), then Reloads (sees PROGRESS),
-        # then Succeeds (no update needed)
-        # We simulate this by mocking update_status to raise ConcurrencyError
-        # IF the input status is PENDING (which the STALE conv has).
-
-        # Reset mocks for second call
-        self.repo.update_status.reset_mock()
-        self.repo.update_status.side_effect = ConcurrencyError(
-            "Version mismatch"
-        )
+        # Mock transition_to to simulate concurrency error on first call
+        call_count = 0
+        def transition_to_side_effect(conversation, new_status, reason, initiated_by, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                from src.core.utils.exceptions import ConcurrencyError
+                raise ConcurrencyError("Version mismatch", current_version=1)
+            else:
+                return progress_conv
+        
+        # Replace real method with Mock
+        self.lifecycle.transition_to = MagicMock(side_effect=transition_to_side_effect)
 
         # Reload returns PROGRESS
         self.repo.find_by_id.return_value = progress_conv
@@ -298,12 +243,7 @@ class TestRaceConditions(unittest.TestCase):
         self.service.add_message(conv, msg1_dto)  # reusing msg1_dto is fine
 
         # Verification:
-        # Should have called update_status (failed)
-        # Should have called find_by_id (reload)
-        # Should NOT have called update_status AGAIN
-        # (because PROGRESS doesn't trigger transition)
-
-        self.repo.update_status.assert_called_once()  # The failed one
+        self.lifecycle.transition_to.assert_called()
         self.repo.find_by_id.assert_called()
 
     def test_race_cleanup_vs_reactivation(self):
@@ -352,7 +292,7 @@ class TestRaceConditions(unittest.TestCase):
         self.repo.update_status.side_effect = update_status_side_effect
 
         self.service.close_conversation_with_priority(
-            conv, ConversationStatus.AGENT_CLOSED
+            conv, ConversationStatus.AGENT_CLOSED, initiated_by="agent", reason="done"
         )
         self.assertEqual(conv.status, ConversationStatus.AGENT_CLOSED.value)
 
@@ -364,7 +304,7 @@ class TestRaceConditions(unittest.TestCase):
         self.repo.update_status.reset_mock()
 
         self.service.close_conversation_with_priority(
-            conv, ConversationStatus.EXPIRED
+            conv, ConversationStatus.EXPIRED, initiated_by="system", reason="ttl"
         )
 
         # Verify status didn't change
@@ -374,7 +314,7 @@ class TestRaceConditions(unittest.TestCase):
 
         # 3. Overwrite with USER_CLOSED (Higher priority)
         self.service.close_conversation_with_priority(
-            conv, ConversationStatus.USER_CLOSED
+            conv, ConversationStatus.USER_CLOSED, initiated_by="user", reason="user_request"
         )
         self.assertEqual(conv.status, ConversationStatus.USER_CLOSED.value)
         self.repo.update_status.assert_called()

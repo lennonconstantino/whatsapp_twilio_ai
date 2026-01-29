@@ -1,3 +1,32 @@
+
+# ConversationRepo Session Key
+```python
+# TODO
+class ConversationRepository(SupabaseRepository[Conversation]):
+    """
+    Repository for Conversation entity operations.
+    Focused purely on data access, without business logic leakage.
+    """
+
+    def __init__(self, client: Client):
+        """Initialize conversation repository."""
+        super().__init__(
+            client,
+            "conversations",
+            Conversation,
+            validates_ulid=True,
+            exclude_on_create=["session_key"], # understand better
+        )
+
+    def create(self, data: Dict[str, Any]) -> Optional[Conversation]:
+        """
+        Create a new conversation.
+        """
+        data.pop("session_key", None) # understand better
+```
+
+## ver tambem
+```python
 """
 Supabase implementation of the Repository Pattern.
 Provides CRUD operations using Supabase client.
@@ -401,3 +430,5 @@ class SupabaseRepository(Generic[T]):
                 f"Error executing dynamic query in {self.table_name}", error=str(e)
             )
             raise
+
+```

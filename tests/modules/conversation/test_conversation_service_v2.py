@@ -26,10 +26,10 @@ from src.modules.conversation.enums.conversation_status import \
     ConversationStatus
 from src.modules.conversation.enums.message_owner import MessageOwner
 from src.modules.conversation.models.conversation import Conversation
-from src.modules.conversation.v2.components.conversation_closer import \
+from src.modules.conversation.components.conversation_closer import \
     ClosureResult
-from src.modules.conversation.v2.services.conversation_service import \
-    ConversationServiceV2
+from src.modules.conversation.services.conversation_service import \
+    ConversationService
 
 
 class TestConversationServiceV2(unittest.TestCase):
@@ -40,7 +40,7 @@ class TestConversationServiceV2(unittest.TestCase):
         self.lifecycle = Mock()
         self.closer = Mock()
 
-        self.service = ConversationServiceV2(
+        self.service = ConversationService(
             self.repo, self.message_repo, self.finder, self.lifecycle, self.closer
         )
 
@@ -149,8 +149,9 @@ class TestConversationServiceV2(unittest.TestCase):
         self.lifecycle.transition_to.assert_called_with(
             self.mock_conv,
             ConversationStatus.USER_CLOSED,
-            reason="user_intent_detected",
-            initiated_by="user",
+            "user_intent_detected",
+            "user",
+            expires_at=None,
         )
 
     def test_add_message_agent_acceptance(self):
@@ -178,8 +179,8 @@ class TestConversationServiceV2(unittest.TestCase):
         self.lifecycle.transition_to.assert_called_with(
             self.mock_conv,
             ConversationStatus.PROGRESS,
-            reason="agent_acceptance",
-            initiated_by="agent",
+            "agent_acceptance",
+            "agent",
             expires_at=ANY,
         )
 
@@ -208,8 +209,9 @@ class TestConversationServiceV2(unittest.TestCase):
         self.lifecycle.transition_to.assert_called_with(
             self.mock_conv,
             ConversationStatus.PROGRESS,
-            reason="user_reactivation",
-            initiated_by="user",
+            "user_reactivation",
+            "user",
+            expires_at=None,
         )
 
 

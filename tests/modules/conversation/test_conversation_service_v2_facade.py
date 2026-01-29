@@ -4,7 +4,7 @@ Integration tests for Conversation Service V2 (Facade).
 import unittest
 from unittest.mock import MagicMock, ANY
 
-from src.modules.conversation.v2.services.conversation_service import ConversationServiceV2
+from src.modules.conversation.services.conversation_service import ConversationService
 from src.modules.conversation.enums.conversation_status import ConversationStatus
 from src.modules.conversation.models.conversation import Conversation
 
@@ -16,7 +16,7 @@ class TestConversationServiceV2Facade(unittest.TestCase):
         self.lifecycle = MagicMock()
         self.closer = MagicMock()
         
-        self.service = ConversationServiceV2(
+        self.service = ConversationService(
             self.repo,
             self.message_repo,
             self.finder,

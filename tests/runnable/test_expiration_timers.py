@@ -13,8 +13,9 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "../.env.test"), override=Tr
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 from src.core.config import settings
-from src.modules.conversation.components.closure_detector import \
-    ClosureDetector
+from src.modules.conversation.components.conversation_closer import ConversationCloser
+from src.modules.conversation.components.conversation_finder import ConversationFinder
+from src.modules.conversation.components.conversation_lifecycle import ConversationLifecycle
 from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.modules.conversation.enums.conversation_status import \
     ConversationStatus
@@ -29,11 +30,18 @@ class TestExpirationTimers(unittest.TestCase):
         # Mock repositories
         self.repo = MagicMock()
         self.msg_repo = MagicMock()
-        self.closure_detector = ClosureDetector()  # Logic only, no DB
+        from src.modules.conversation.components.conversation_finder import ConversationFinder
+        self.finder = ConversationFinder(self.repo)
+        self.lifecycle = ConversationLifecycle(self.repo)
+        self.closer = ConversationCloser()  # Logic only, no DB
 
         # Initialize service with mocks
         self.service = ConversationService(
-            self.repo, self.msg_repo, self.closure_detector
+            conversation_repo=self.repo,
+            message_repo=self.msg_repo,
+            finder=self.finder,
+            lifecycle=self.lifecycle,
+            closer=self.closer,
         )
 
         # Setup common mock objects
@@ -125,13 +133,12 @@ class TestExpirationTimers(unittest.TestCase):
 
         # Mock update_status to return updated conversation
         def update_status_side_effect(
-            conv_id, status, initiated_by, reason, expires_at=None, **kwargs
+            conv_id, status, **kwargs
         ):
             pending_conv.status = status.value if hasattr(status, "value") else status
-            if expires_at:
-                pending_conv.expires_at = expires_at
+            if "expires_at" in kwargs and kwargs["expires_at"]:
+                pending_conv.expires_at = kwargs["expires_at"]
             return pending_conv
-
         self.repo.update_status.side_effect = update_status_side_effect
         # Mock context update too
         self.repo.update_context.return_value = pending_conv

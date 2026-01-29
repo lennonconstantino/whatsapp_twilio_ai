@@ -209,7 +209,7 @@ class TestConversationRepository:
         }  # Fixed status
 
         # Mock finding expired
-        mock_client.table.return_value.select.return_value.in_.return_value.lt.return_value.execute.return_value.data = [
+        mock_client.table.return_value.select.return_value.in_.return_value.lt.return_value.limit.return_value.execute.return_value.data = [
             expired_conv
         ]
 
@@ -234,7 +234,11 @@ class TestConversationRepository:
 
                 # Should have attempted to update status to EXPIRED
                 mock_update_status.assert_called_with(
-                    expired_conv["conv_id"], ConversationStatus.EXPIRED, ended_at=ANY
+                    expired_conv["conv_id"],
+                    ConversationStatus.EXPIRED,
+                    ended_at=ANY,
+                    initiated_by="system",
+                    reason="ttl_expired",
                 )
 
     def test_close_by_message_policy(
@@ -251,7 +255,12 @@ class TestConversationRepository:
                 mock_find.return_value = conv
 
                 # Mock update needed inside update_context
+                # Path with two eq (version check)
                 mock_client.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value.data = [
+                    mock_conversation_data
+                ]
+                # Path with single eq (no version check)
+                mock_client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = [
                     mock_conversation_data
                 ]
 
@@ -500,7 +509,12 @@ class TestConversationRepository:
             mock_find.return_value = Conversation(**mock_conversation_data)
 
             # Update returns empty
+            # Path with two eq (version check)
             mock_client.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value.data = (
+                []
+            )
+            # Path with single eq (no version check)
+            mock_client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = (
                 []
             )
 

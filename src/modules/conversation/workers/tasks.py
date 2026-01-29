@@ -1,7 +1,7 @@
 from typing import Any, Dict
 
 from src.core.utils import get_logger
-from src.modules.conversation.v2.components.conversation_lifecycle import \
+from src.modules.conversation.components.conversation_lifecycle import \
     ConversationLifecycle
 
 logger = get_logger(__name__)

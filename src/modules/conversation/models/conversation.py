@@ -29,7 +29,7 @@ class Conversation(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     version: int = 1  # Optimistic Locking
 
-    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True, extra="ignore")
 
     @field_validator("conv_id")
     @classmethod

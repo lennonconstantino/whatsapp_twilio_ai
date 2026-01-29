@@ -9,7 +9,7 @@ from src.modules.conversation.enums.message_owner import MessageOwner
 from src.modules.conversation.enums.message_type import MessageType
 from src.modules.conversation.models.conversation import Conversation
 from src.modules.conversation.models.message import Message
-from src.modules.conversation.v2.components.conversation_closer import ConversationCloser
+from src.modules.conversation.components.conversation_closer import ConversationCloser
 
 class TestConversationCloser(unittest.TestCase):
     def setUp(self):

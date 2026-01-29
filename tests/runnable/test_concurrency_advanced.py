@@ -1,7 +1,6 @@
 import os
 import sys
 from datetime import datetime, timezone
-from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,8 +14,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")
 
 from src.core.utils import get_logger
 from src.core.utils.exceptions import ConcurrencyError
-from src.modules.conversation.components.closure_detector import \
-    ClosureDetector
+from src.modules.conversation.components.conversation_closer import ConversationCloser
+from src.modules.conversation.components.conversation_finder import ConversationFinder
+from src.modules.conversation.components.conversation_lifecycle import ConversationLifecycle
 from src.modules.conversation.enums.conversation_status import \
     ConversationStatus
 from src.modules.conversation.models.conversation import Conversation
@@ -39,10 +39,21 @@ class TestConcurrencyAdvanced:
         self.msg_repo = MagicMock()
         self.owner_repo = MagicMock()
         self.user_repo = MagicMock()
-        self.closure_detector = ClosureDetector()  # Logic only
+        
+        # Real components
+        from src.modules.conversation.components.conversation_finder import ConversationFinder
+        from src.modules.conversation.components.conversation_lifecycle import ConversationLifecycle
+        
+        self.finder = ConversationFinder(self.repo)
+        self.lifecycle = ConversationLifecycle(self.repo)
+        self.closer = ConversationCloser()  # Logic only
 
         self.service = ConversationService(
-            self.repo, self.msg_repo, self.closure_detector
+            conversation_repo=self.repo,
+            message_repo=self.msg_repo,
+            finder=self.finder,
+            lifecycle=self.lifecycle,
+            closer=self.closer,
         )
 
         self.owner_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"

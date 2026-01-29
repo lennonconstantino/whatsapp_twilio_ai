@@ -11,8 +11,8 @@ from src.core.utils.exceptions import ConcurrencyError
 from src.modules.conversation.enums.conversation_status import \
     ConversationStatus
 from src.modules.conversation.models.conversation import Conversation
-from src.modules.conversation.v2.repositories.conversation_repository import \
-    ConversationRepositoryV2
+from src.modules.conversation.repositories.conversation_repository import \
+    ConversationRepository
 
 logger = get_logger(__name__)
 
@@ -30,6 +30,7 @@ class ConversationLifecycle:
             ConversationStatus.EXPIRED,
             ConversationStatus.SUPPORT_CLOSED,
             ConversationStatus.USER_CLOSED,
+            ConversationStatus.AGENT_CLOSED,
             ConversationStatus.FAILED,
         ],
         ConversationStatus.PROGRESS: [
@@ -55,7 +56,7 @@ class ConversationLifecycle:
         ConversationStatus.FAILED: [],
     }
 
-    def __init__(self, repository: ConversationRepositoryV2):
+    def __init__(self, repository: ConversationRepository):
         self.repository = repository
 
     def _is_valid_transition(
@@ -95,25 +96,13 @@ class ConversationLifecycle:
             reason=reason,
         )
 
-        update_data = {
-            "status": new_status.value,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-        # If entering a terminal state, set ended_at
-        if new_status in ConversationStatus.closed_statuses():
-            update_data["ended_at"] = datetime.now(timezone.utc).isoformat()
-
-        # Update expires_at if provided (e.g., when moving to PROGRESS)
-        if expires_at:
-            update_data["expires_at"] = expires_at.isoformat()
-
-        # Perform update with Optimistic Locking
-        updated_conv = self.repository.update(
+        updated_conv = self.repository.update_status(
             conversation.conv_id,
-            update_data,
-            id_column="conv_id",
-            current_version=conversation.version,
+            new_status,
+            initiated_by=initiated_by,
+            reason=reason,
+            ended_at=datetime.now(timezone.utc) if new_status in ConversationStatus.closed_statuses() else None,
+            expires_at=expires_at,
         )
 
         if not updated_conv:
@@ -222,17 +211,13 @@ class ConversationLifecycle:
         initiated_by: str,
     ) -> Conversation:
         """Force a transition regardless of current state validity."""
-        update_data = {
-            "status": new_status.value,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-            "ended_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-        updated_conv = self.repository.update(
+        updated_conv = self.repository.update_status(
             conversation.conv_id,
-            update_data,
-            id_column="conv_id",
-            current_version=conversation.version,
+            new_status,
+            initiated_by=initiated_by,
+            reason=reason,
+            ended_at=datetime.now(timezone.utc),
+            force=True,
         )
 
         if not updated_conv:
@@ -335,6 +320,7 @@ class ConversationLifecycle:
         
         return updated
 
+    def process_expirations(self, limit: int = 100) -> int:
         """
         Process expired conversations.
         Returns count of processed items.
