@@ -329,6 +329,68 @@ class ConversationService:
         """Escalate conversation to supervisor."""
         return self.lifecycle.escalate(conversation, supervisor_id, reason)
 
+    def request_handoff(
+        self, conversation: Conversation, reason: str = "user_request"
+    ) -> Conversation:
+        """
+        Transition conversation to HUMAN_HANDOFF state.
+        This stops automatic bot responses.
+        """
+        return self.lifecycle.transition_to(
+            conversation,
+            ConversationStatus.HUMAN_HANDOFF,
+            reason=reason,
+            initiated_by="system",  # Or user/agent depending on caller
+        )
+
+    def assign_agent(
+        self, conversation: Conversation, agent_id: str
+    ) -> Conversation:
+        """
+        Assign an agent to a conversation in handoff.
+        Updates agent_id and sets handoff_at timestamp.
+        """
+        # Logic to update agent_id is currently in lifecycle.transfer_owner or needs custom update
+        # For MVP, we use repository update directly or a new lifecycle method.
+        # Let's update directly via repository for now as lifecycle.transfer_owner changes user_id (which is end-user usually?)
+        # Wait, user_id in Conversation is the END USER. owner_id is the CLIENT (Tenant).
+        # agent_id is new.
+        
+        data = {
+            "agent_id": agent_id,
+            "handoff_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        updated = self.conversation_repo.update(
+            conversation.conv_id,
+            data,
+            id_column="conv_id",
+            current_version=conversation.version
+        )
+        
+        if not updated:
+             raise Exception("Failed to assign agent due to concurrency")
+             
+        return updated
+
+    def release_to_bot(
+        self, conversation: Conversation, reason: str = "agent_release"
+    ) -> Conversation:
+        """
+        Return conversation control to the bot (HUMAN_HANDOFF -> PROGRESS).
+        Clears agent_id (optional, depends on business rule).
+        """
+        # We might want to keep agent_id for history, or clear it.
+        # For now, just transition state.
+        return self.lifecycle.transition_to(
+            conversation,
+            ConversationStatus.PROGRESS,
+            reason=reason,
+            initiated_by="agent"
+        )
+
+
     def get_conversation_by_id(self, conv_id: str) -> Optional[Conversation]:
         """Get conversation by ID."""
         return self.conversation_repo.find_by_id(conv_id, id_column="conv_id")

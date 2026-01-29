@@ -25,6 +25,8 @@ class Conversation(BaseModel):
     expires_at: Optional[datetime] = None
     channel: Optional[str] = "whatsapp"
     phone_number: Optional[str] = None
+    agent_id: Optional[str] = None
+    handoff_at: Optional[datetime] = None
     context: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     version: int = 1  # Optimistic Locking

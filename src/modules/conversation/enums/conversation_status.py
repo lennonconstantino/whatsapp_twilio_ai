@@ -31,6 +31,7 @@ class ConversationStatus(Enum):
 
     PENDING = "pending"
     PROGRESS = "progress"
+    HUMAN_HANDOFF = "human_handoff"
     IDLE_TIMEOUT = "idle_timeout"
     AGENT_CLOSED = "agent_closed"
     SUPPORT_CLOSED = "support_closed"
@@ -45,7 +46,7 @@ class ConversationStatus(Enum):
 
         Active conversations can receive messages and transition to other states.
         """
-        return [cls.PENDING, cls.PROGRESS]
+        return [cls.PENDING, cls.PROGRESS, cls.HUMAN_HANDOFF]
 
     @classmethod
     def paused_statuses(cls):

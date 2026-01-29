@@ -323,6 +323,7 @@ class ConversationRepository(SupabaseRepository[Conversation]):
             valid_next = {
                 ConversationStatus.PENDING: [
                     ConversationStatus.PROGRESS,
+                    ConversationStatus.HUMAN_HANDOFF,
                     ConversationStatus.EXPIRED,
                     ConversationStatus.SUPPORT_CLOSED,
                     ConversationStatus.USER_CLOSED,
@@ -330,6 +331,7 @@ class ConversationRepository(SupabaseRepository[Conversation]):
                     ConversationStatus.FAILED,
                 ],
                 ConversationStatus.PROGRESS: [
+                    ConversationStatus.HUMAN_HANDOFF,
                     ConversationStatus.AGENT_CLOSED,
                     ConversationStatus.SUPPORT_CLOSED,
                     ConversationStatus.USER_CLOSED,
@@ -337,8 +339,16 @@ class ConversationRepository(SupabaseRepository[Conversation]):
                     ConversationStatus.EXPIRED,
                     ConversationStatus.FAILED,
                 ],
+                ConversationStatus.HUMAN_HANDOFF: [
+                    ConversationStatus.PROGRESS,
+                    ConversationStatus.AGENT_CLOSED,
+                    ConversationStatus.SUPPORT_CLOSED,
+                    ConversationStatus.USER_CLOSED,
+                    ConversationStatus.FAILED,
+                ],
                 ConversationStatus.IDLE_TIMEOUT: [
                     ConversationStatus.PROGRESS,
+                    ConversationStatus.HUMAN_HANDOFF,
                     ConversationStatus.EXPIRED,
                     ConversationStatus.AGENT_CLOSED,
                     ConversationStatus.USER_CLOSED,

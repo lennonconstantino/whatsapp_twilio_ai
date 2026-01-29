@@ -27,6 +27,7 @@ class ConversationLifecycle:
     VALID_TRANSITIONS = {
         ConversationStatus.PENDING: [
             ConversationStatus.PROGRESS,
+            ConversationStatus.HUMAN_HANDOFF,
             ConversationStatus.EXPIRED,
             ConversationStatus.SUPPORT_CLOSED,
             ConversationStatus.USER_CLOSED,
@@ -34,6 +35,7 @@ class ConversationLifecycle:
             ConversationStatus.FAILED,
         ],
         ConversationStatus.PROGRESS: [
+            ConversationStatus.HUMAN_HANDOFF,
             ConversationStatus.AGENT_CLOSED,
             ConversationStatus.SUPPORT_CLOSED,
             ConversationStatus.USER_CLOSED,
@@ -41,8 +43,16 @@ class ConversationLifecycle:
             ConversationStatus.EXPIRED,
             ConversationStatus.FAILED,
         ],
+        ConversationStatus.HUMAN_HANDOFF: [
+            ConversationStatus.PROGRESS,  # Return to bot
+            ConversationStatus.AGENT_CLOSED,
+            ConversationStatus.SUPPORT_CLOSED,
+            ConversationStatus.USER_CLOSED,
+            ConversationStatus.FAILED,
+        ],
         ConversationStatus.IDLE_TIMEOUT: [
             ConversationStatus.PROGRESS,
+            ConversationStatus.HUMAN_HANDOFF,
             ConversationStatus.EXPIRED,
             ConversationStatus.AGENT_CLOSED,
             ConversationStatus.USER_CLOSED,
