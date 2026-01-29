@@ -1,5 +1,6 @@
 
 import uuid
+
 from src.core.utils.exceptions import DuplicateError
 from src.core.queue.service import QueueService
 from src.core.utils import get_logger
@@ -10,6 +11,8 @@ from src.modules.channels.twilio.services.webhook.audio_processor import TwilioW
 from src.modules.channels.twilio.services.webhook.message_handler import TwilioWebhookMessageHandler
 from src.modules.channels.twilio.services.webhook.owner_resolver import TwilioWebhookOwnerResolver
 from src.modules.conversation.enums.message_type import MessageType
+from src.modules.conversation.enums.conversation_status import ConversationStatus
+
 
 logger = get_logger(__name__)
 
@@ -137,6 +140,14 @@ class TwilioWebhookService:
             owner_id, payload
         )
 
+        # Check for Human Handoff
+        is_handoff = conversation.status == ConversationStatus.HUMAN_HANDOFF.value
+        if is_handoff:
+            logger.info(
+                "Conversation is in HUMAN_HANDOFF mode. Skipping AI processing.",
+                conv_id=conversation.conv_id
+            )
+
         # 2. Persist Inbound Message (User)
         try:
             message = await self.message_handler.persist_inbound_message(
@@ -156,9 +167,19 @@ class TwilioWebhookService:
             conv_id=conversation.conv_id,
             msg_id=message.msg_id if message else None,
             correlation_id=correlation_id,
+            handoff_active=is_handoff
         )
 
-        # 3. Schedule Processing
+        # 3. Schedule Processing (Only if NOT in Handoff)
+        if is_handoff:
+            # TODO: Emit WebSocket event for Agent Dashboard (Realtime Notification)
+            return TwilioWebhookResponseDTO(
+                success=True,
+                message="Message received (Handoff Active)",
+                conv_id=conversation.conv_id,
+                msg_id=message.msg_id if message else None,
+            )
+
         if message_type == MessageType.AUDIO and payload.media_url:
             # Async Transcription
             await self.audio_processor.enqueue_transcription_task(
