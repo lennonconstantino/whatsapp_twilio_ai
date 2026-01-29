@@ -59,6 +59,8 @@ from src.modules.identity.services.subscription_service import \
 from src.modules.identity.services.user_service import UserService
 
 
+from src.modules.ai.memory.repositories.redis_memory_repository import RedisMemoryRepository
+
 class Container(containers.DeclarativeContainer):
     """
     Dependency Injection Container.
@@ -91,6 +93,13 @@ class Container(containers.DeclarativeContainer):
 
     # Core Services
     queue_service = providers.Singleton(QueueService)
+    
+    # Memory Services (AI)
+    redis_memory_repository = providers.Singleton(
+        RedisMemoryRepository,
+        redis_url=settings.queue.redis_url, # Reusing redis config or we should add a new one. Using queue redis for now.
+        ttl_seconds=3600
+    )
 
     # Repositories
     owner_repository = providers.Factory(OwnerRepository, client=db_session)
@@ -200,6 +209,7 @@ class Container(containers.DeclarativeContainer):
             finance_agent=finance_agent.provider,
             relationships=relationships_agent.provider,
         ),
+        memory_service=redis_memory_repository
     )
 
     # Twilio Webhook Components

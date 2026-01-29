@@ -17,6 +17,7 @@ from src.modules.ai.engines.lchain.feature.finance.tools.add import (
     add_customer_tool, add_expense_tool, add_revenue_tool)
 from src.modules.ai.engines.lchain.feature.finance.tools.query import \
     query_data_tool
+from src.modules.ai.memory.interfaces.memory_interface import MemoryInterface
 
 query_task_agent = TaskAgent(
     name="query_agent",
@@ -53,7 +54,7 @@ add_customer_agent = TaskAgent(
 )
 
 
-def create_finance_agent(ai_log_thought_service: AILogThoughtService) -> RoutingAgent:
+def create_finance_agent(ai_log_thought_service: AILogThoughtService, memory_service: MemoryInterface = None) -> RoutingAgent:
     return RoutingAgent(
         task_agents=[
             query_task_agent,
@@ -64,4 +65,7 @@ def create_finance_agent(ai_log_thought_service: AILogThoughtService) -> Routing
         system_message=ROUTING_SYSTEM_MESSAGE,
         prompt_extra=PROMPT_EXTRA,
         ai_log_thought_service=ai_log_thought_service,
+        # TODO: RoutingAgent does not yet accept memory_service in constructor, 
+        # but we need to propagate it to TaskAgents or handle it in RoutingAgent.run()
+        # For now, we update RoutingAgent constructor to accept it.
     )

@@ -17,6 +17,7 @@ from src.modules.ai.engines.lchain.feature.relationships.tools.add import (
     add_person_tool, log_interaction_tool, schedule_reminder_tool)
 from src.modules.ai.engines.lchain.feature.relationships.tools.query import (
     query_people_tool, query_interactions_tool, upcoming_reminders_tool)
+from src.modules.ai.memory.interfaces.memory_interface import MemoryInterface
 
 
 query_relationships_agent = TaskAgent(
@@ -59,7 +60,7 @@ schedule_reminder_agent = TaskAgent(
 )
 
 
-def create_relationships_agent(ai_log_thought_service: AILogThoughtService) -> RoutingAgent:
+def create_relationships_agent(ai_log_thought_service: AILogThoughtService, memory_service: MemoryInterface = None) -> RoutingAgent:
     return RoutingAgent(
         task_agents=[
             query_relationships_agent,
