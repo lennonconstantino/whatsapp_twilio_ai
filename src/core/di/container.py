@@ -60,6 +60,7 @@ from src.modules.identity.services.user_service import UserService
 
 
 from src.modules.ai.memory.repositories.redis_memory_repository import RedisMemoryRepository
+from src.modules.ai.memory.services.hybrid_memory_service import HybridMemoryService
 
 class Container(containers.DeclarativeContainer):
     """
@@ -209,7 +210,7 @@ class Container(containers.DeclarativeContainer):
             finance_agent=finance_agent.provider,
             relationships=relationships_agent.provider,
         ),
-        memory_service=redis_memory_repository
+        memory_service=hybrid_memory_service
     )
 
     # Twilio Webhook Components

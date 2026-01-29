@@ -131,6 +131,7 @@ sequenceDiagram
 
 ## 5. Próximos Passos (To-Do)
 
-1.  [ ] Criar pacote `src/modules/ai/memory`.
-2.  [ ] Implementar `RedisMemoryService`.
-3.  [ ] Criar Teste de Integração: Salvar msg no `MessageRepository` -> Ler via `MemoryService` (com hit no Redis na 2ª vez).
+1.  [x] Criar pacote `src/modules/ai/memory`.
+2.  [x] Implementar `HybridMemoryService` (L1 + L2 Read-Through).
+3.  [x] Refatorar `Agent` e `Webhook` para passar `session_id`.
+4.  [ ] Criar Teste de Integração: Salvar msg no `MessageRepository` -> Ler via `MemoryService` (com hit no Redis na 2ª vez).

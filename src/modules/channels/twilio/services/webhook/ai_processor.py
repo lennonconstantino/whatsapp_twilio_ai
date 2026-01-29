@@ -96,6 +96,7 @@ class TwilioWebhookAIProcessor:
                 "owner_id": owner_id,
                 "correlation_id": correlation_id,
                 "msg_id": msg_id,
+                "session_id": conversation_id,
                 "user": user.model_dump() if user else None,
                 "channel": "whatsapp",
                 "feature": feature.name if feature else None,

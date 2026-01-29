@@ -9,6 +9,7 @@ class AgentContext(BaseModel):
     feature: Optional[str] = None  # Feature Name associated with the agent execution
     feature_id: Optional[int] = None  # Feature ID associated with the agent execution MANDATORY
     msg_id: Optional[str] = None  # Message ID (ULID) associated with the input
+    session_id: Optional[str] = None  # Session ID (Conversation ID)
     user_input: str
     channel: str
     user: Optional[Dict[str, Any]] = None  # User information

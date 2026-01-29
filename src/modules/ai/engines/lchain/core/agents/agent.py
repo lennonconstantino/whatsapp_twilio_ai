@@ -88,9 +88,28 @@ class Agent:
             phone=phone,
         )
 
+        # Retrieve Memory
+        memory_messages = []
+        if self.memory_service:
+            session_id = (
+                self.agent_context.get("session_id")
+                if isinstance(self.agent_context, dict)
+                else getattr(self.agent_context, "session_id", None)
+            )
+            
+            if session_id:
+                try:
+                    # Fetch recent history (e.g. last 10 messages)
+                    memory_messages = self.memory_service.get_context(session_id, limit=10)
+                    if memory_messages:
+                        logger.info(f"Loaded {len(memory_messages)} messages from memory", event_type="agent_memory")
+                except Exception as e:
+                    logger.warning(f"Failed to load memory for session {session_id}: {e}", event_type="agent_memory_error")
+
         self.step_history = [
             {"role": "system", "content": system_message},
             *self.examples,
+            *memory_messages,
             {"role": "user", "content": body},
         ]
 
