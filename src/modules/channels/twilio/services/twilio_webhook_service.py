@@ -67,11 +67,11 @@ class TwilioWebhookService:
 
         # 2. Route based on flow (Local Sender vs Normal Inbound)
         if payload.local_sender:
-            return await self._process_local_sender(owner_id, payload)
+            return await self._process_outbound_message(owner_id, payload)
         else:
             return await self._process_inbound_message(owner_id, payload)
 
-    async def _process_local_sender(
+    async def _process_outbound_message(
         self, owner_id: str, payload: TwilioWhatsAppPayload
     ) -> TwilioWebhookResponseDTO:
         """

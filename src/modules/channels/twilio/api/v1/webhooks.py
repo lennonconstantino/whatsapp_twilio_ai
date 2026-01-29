@@ -45,3 +45,31 @@ async def handle_inbound_message(
         logger.error("Error processing inbound message", error=str(e))
         # Don't raise HTTPException to avoid Twilio retries
         return TwilioWebhookResponseDTO(success=False, message=f"Error: {str(e)}")
+
+
+@router.post("/outbound", response_model=TwilioWebhookResponseDTO)
+@inject
+async def handle_outbound_message(
+    payload: TwilioWhatsAppPayload = Depends(parse_twilio_payload),
+    service: TwilioWebhookService = Depends(Provide[Container.twilio_webhook_service]),
+    _: None = Depends(validate_twilio_request),
+):
+    """
+    Handle outbound messages from Twilio.
+
+    This endpoint receives webhooks when a message is sent to a Twilio number.
+    It processes the message asynchronously (AI response) to avoid Twilio timeouts.
+    """
+    logger.info(
+        "Received outbound message",
+        from_number=payload.from_number,
+        to_number=payload.to_number,
+        message_sid=payload.message_sid,
+    )
+
+    try:
+        return await service.process_webhook(payload)
+    except Exception as e:
+        logger.error("Error processing outbound message", error=str(e))
+        # Don't raise HTTPException to avoid Twilio retries
+        return TwilioWebhookResponseDTO(success=False, message=f"Error: {str(e)}")
