@@ -120,9 +120,9 @@ sequenceDiagram
     *   [x] Criar endpoints para o Painel do Atendente (Listar filas, Assumir, Enviar msg).
     *   [ ] (Opcional MVP) Implementar Polling ou WebSocket simples para notificação.
 5.  **Infraestrutura de Saída (Outbound)**
-    *   [ ] Criar `TwilioOutboundWorker` em `src/modules/channels/twilio/workers/outbound_worker.py`.
-    *   [ ] Atualizar `MessageHandler` para enfileirar mensagens em vez de enviar diretamente.
-    *   [ ] Registrar Worker no `QueueService`.
+    *   [x] Criar `TwilioOutboundWorker` em `src/modules/channels/twilio/workers/outbound_worker.py`.
+    *   [x] Atualizar `MessageHandler` para enfileirar mensagens em vez de enviar diretamente.
+    *   [x] Registrar Worker no `QueueService`.
 
 ---
 **Nota:** Este documento deve ser salvo em `plan/v4/research/research_compliance_handoff_17.md`.
