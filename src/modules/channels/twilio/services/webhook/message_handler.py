@@ -4,7 +4,6 @@ from typing import Optional
 from starlette.concurrency import run_in_threadpool
 
 from src.core.utils import get_logger
-from src.core.utils.exceptions import DuplicateError
 from src.core.queue.service import QueueService
 from src.modules.channels.twilio.dtos import TwilioWebhookResponseDTO
 from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
@@ -205,42 +204,23 @@ class TwilioWebhookMessageHandler:
         is_error: bool = False,
     ):
         """
-        Helper to send message via Twilio and persist it.
+        Helper to persist response and enqueue sending task.
         """
         try:
-            # Send via Twilio
-            response = await run_in_threadpool(
-                self.twilio_service.send_message,
-                owner_id=owner_id,
-                from_number=sender_number,
-                to_number=recipient_number,
-                body=body,
-            )
-
-            if not response:
-                logger.error(
-                    "Failed to send response via Twilio", correlation_id=correlation_id
-                )
-                return
-
-            # Persist Outbound Message
+            # 1. Persist Outbound Message FIRST (Status: Pending)
             message_data = MessageCreateDTO(
                 conv_id=conversation_id,
                 owner_id=owner_id,
                 from_number=sender_number,
                 to_number=recipient_number,
-                body=body,  # Use original body
+                body=body,
                 direction=MessageDirection.OUTBOUND,
                 message_owner=MessageOwner.SYSTEM,
                 message_type=MessageType.TEXT,
-                content=body,  # Use original body
+                content=body,
                 correlation_id=correlation_id,
                 metadata={
-                    "message_sid": response.sid,
-                    "status": response.status,
-                    "num_media": response.num_media,
-                    "media_url": None,
-                    "media_type": None,
+                    "status": "queued",
                     "auto_response": True,
                     "is_error_fallback": is_error,
                 },
@@ -258,13 +238,32 @@ class TwilioWebhookMessageHandler:
             message = await run_in_threadpool(
                 self.conversation_service.add_message, conversation, message_data
             )
+
+            if not message:
+                logger.error("Failed to persist outbound message", correlation_id=correlation_id)
+                return
+
+            # 2. Enqueue Sending Task
+            await self.queue_service.enqueue(
+                task_name="send_whatsapp_message",
+                payload={
+                    "owner_id": owner_id,
+                    "msg_id": message.msg_id,
+                    "from_number": sender_number,
+                    "to_number": recipient_number,
+                    "body": body,
+                    "correlation_id": correlation_id,
+                },
+                owner_id=owner_id,
+                correlation_id=correlation_id
+            )
             
+            # 3. Enqueue Embedding (Optimistic)
             await self._enqueue_embedding(message)
 
         except Exception as e:
-            # If even sending the response fails, we just log it as critical
             logger.error(
-                "Critical error sending response",
+                "Critical error handling outbound response",
                 error=str(e),
                 correlation_id=correlation_id,
             )

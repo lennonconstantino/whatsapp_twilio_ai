@@ -109,16 +109,20 @@ sequenceDiagram
 ### 2.4. Roteiro de Implementação (Roadmap)
 
 1.  **Refatoração (Limpeza)**
-    *   [ ] Mover scripts de `twilio/workers/` para `scripts/`.
+    *   [x] Mover scripts de `twilio/workers/` para `scripts/`.
 2.  **Core (Conversation)**
-    *   [ ] Atualizar `ConversationStatus` com `HUMAN_HANDOFF`.
-    *   [ ] Adicionar campos na tabela `conversations` (migration).
-    *   [ ] Implementar métodos de transição de estado no `ConversationService`.
+    *   [x] Atualizar `ConversationStatus` com `HUMAN_HANDOFF`.
+    *   [x] Adicionar campos na tabela `conversations` (migration).
+    *   [x] Implementar métodos de transição de estado no `ConversationService`.
 3.  **Integração (Twilio)**
-    *   [ ] Alterar `TwilioWebhookService` para respeitar o estado `HUMAN_HANDOFF`.
+    *   [x] Alterar `TwilioWebhookService` para respeitar o estado `HUMAN_HANDOFF`.
 4.  **API e Realtime**
-    *   [ ] Criar endpoints para o Painel do Atendente (Listar filas, Assumir, Enviar msg).
+    *   [x] Criar endpoints para o Painel do Atendente (Listar filas, Assumir, Enviar msg).
     *   [ ] (Opcional MVP) Implementar Polling ou WebSocket simples para notificação.
+5.  **Infraestrutura de Saída (Outbound)**
+    *   [ ] Criar `TwilioOutboundWorker` em `src/modules/channels/twilio/workers/outbound_worker.py`.
+    *   [ ] Atualizar `MessageHandler` para enfileirar mensagens em vez de enviar diretamente.
+    *   [ ] Registrar Worker no `QueueService`.
 
 ---
 **Nota:** Este documento deve ser salvo em `plan/v4/research/research_compliance_handoff_17.md`.
