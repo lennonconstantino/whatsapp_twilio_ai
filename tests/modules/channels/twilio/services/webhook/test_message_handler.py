@@ -12,9 +12,12 @@ from src.modules.conversation.enums.message_owner import MessageOwner
 
 @pytest.fixture
 def mock_services():
+    queue_service = MagicMock()
+    queue_service.enqueue = AsyncMock()
     return {
         "conversation_service": MagicMock(),
         "twilio_service": MagicMock(),
+        "queue_service": queue_service,
     }
 
 @pytest.fixture
@@ -22,6 +25,7 @@ def handler(mock_services):
     return TwilioWebhookMessageHandler(
         conversation_service=mock_services["conversation_service"],
         twilio_service=mock_services["twilio_service"],
+        queue_service=mock_services["queue_service"],
     )
 
 @pytest.fixture

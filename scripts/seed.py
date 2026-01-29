@@ -291,7 +291,7 @@ def seed_sample_conversations(
         "metadata": {},
     }
 
-    existing = conversation_repo.find_active_conversation(
+    existing = conversation_repo.find_by_session_key(
         conv_data["owner_id"], conv_data["from_number"], conv_data["to_number"]
     )
 
