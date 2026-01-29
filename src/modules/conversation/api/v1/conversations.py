@@ -12,6 +12,11 @@ from src.core.di.container import Container
 from src.core.utils import get_logger
 from src.modules.conversation.dtos.conversation_dto import \
     ConversationCreateDTO
+from src.modules.conversation.dtos.handoff_dto import (
+    HandoffAssignDTO,
+    HandoffReleaseDTO,
+    HandoffRequestDTO,
+)
 from src.modules.conversation.dtos.message_dto import MessageCreateDTO
 from src.modules.conversation.enums.conversation_status import \
     ConversationStatus
@@ -269,4 +274,102 @@ async def escalate_conversation(
         return ConversationResponse.model_validate(escalated)
     except Exception as e:
         logger.error("Error escalating conversation", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{conv_id}/handoff/request", response_model=ConversationResponse)
+@inject
+async def request_handoff(
+    conv_id: str,
+    data: HandoffRequestDTO,
+    service: ConversationService = Depends(Provide[Container.conversation_service]),
+):
+    """
+    Request human handoff (System or User initiated).
+    Transitions state to HUMAN_HANDOFF.
+    """
+    conversation = service.get_conversation_by_id(conv_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    try:
+        updated = service.request_handoff(conversation, reason=data.reason)
+        return ConversationResponse.model_validate(updated)
+    except Exception as e:
+        logger.error("Error requesting handoff", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{conv_id}/handoff/assign", response_model=ConversationResponse)
+@inject
+async def assign_agent(
+    conv_id: str,
+    data: HandoffAssignDTO,
+    service: ConversationService = Depends(Provide[Container.conversation_service]),
+):
+    """
+    Assign an agent to the conversation.
+    Updates agent_id and handoff_at.
+    """
+    conversation = service.get_conversation_by_id(conv_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    try:
+        updated = service.assign_agent(conversation, agent_id=data.agent_id)
+        return ConversationResponse.model_validate(updated)
+    except Exception as e:
+        logger.error("Error assigning agent", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{conv_id}/handoff/release", response_model=ConversationResponse)
+@inject
+async def release_to_bot(
+    conv_id: str,
+    data: HandoffReleaseDTO,
+    service: ConversationService = Depends(Provide[Container.conversation_service]),
+):
+    """
+    Release conversation back to bot control.
+    Transitions state from HUMAN_HANDOFF to PROGRESS.
+    """
+    conversation = service.get_conversation_by_id(conv_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    try:
+        updated = service.release_to_bot(conversation, reason=data.reason)
+        return ConversationResponse.model_validate(updated)
+    except Exception as e:
+        logger.error("Error releasing to bot", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/handoff/queue", response_model=ConversationListResponse)
+@inject
+async def list_handoff_queue(
+    owner_id: str = Query(..., description="Owner ID"),
+    agent_id: Optional[str] = Query(None, description="Filter by Agent ID"),
+    limit: int = Query(100, ge=1, le=1000),
+    service: ConversationService = Depends(Provide[Container.conversation_service]),
+):
+    """
+    List conversations currently in HUMAN_HANDOFF status.
+    If agent_id is provided, filters by assigned agent.
+    """
+    # NOTE: This requires a new method in ConversationService/Repository to filter by status/agent
+    # For MVP, we might fetch active and filter in memory or add specific repo method.
+    # Adding specific repo method is better.
+    
+    # Assuming service.get_handoff_conversations exists or using generic list with filter
+    # Let's add a specialized method to Service first.
+    try:
+        conversations = service.get_handoff_conversations(owner_id, agent_id, limit)
+        return ConversationListResponse(
+            conversations=[ConversationResponse.model_validate(c) for c in conversations],
+            total=len(conversations),
+        )
+    except Exception as e:
+        logger.error("Error listing handoff queue", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))

@@ -401,6 +401,20 @@ class ConversationService:
         """Get active conversations for an owner."""
         return self.conversation_repo.find_active_by_owner(owner_id, limit)
 
+    def get_handoff_conversations(
+        self, owner_id: str, agent_id: Optional[str] = None, limit: int = 100
+    ) -> List[Conversation]:
+        """
+        Get conversations in HUMAN_HANDOFF status.
+        Optional filter by agent_id.
+        """
+        return self.conversation_repo.find_by_status(
+            owner_id=owner_id,
+            status=ConversationStatus.HUMAN_HANDOFF,
+            agent_id=agent_id,
+            limit=limit
+        )
+
     def get_conversation_messages(
         self, conv_id: str, limit: int = 100, offset: int = 0
     ) -> List[Message]:
