@@ -1,8 +1,8 @@
 from typing import Any, Dict
 
 from src.core.utils import get_logger
-from src.modules.conversation.services.conversation_service import \
-    ConversationService
+from src.modules.conversation.v2.components.conversation_lifecycle import \
+    ConversationLifecycle
 
 logger = get_logger(__name__)
 
@@ -12,8 +12,8 @@ class ConversationTasks:
     Handlers for conversation background tasks.
     """
 
-    def __init__(self, conversation_service: ConversationService):
-        self.conversation_service = conversation_service
+    def __init__(self, lifecycle: ConversationLifecycle):
+        self.lifecycle = lifecycle
 
     async def process_idle_conversations(self, payload: Dict[str, Any]):
         """Handler for processing idle conversations."""
@@ -22,7 +22,7 @@ class ConversationTasks:
 
         logger.info("Starting idle conversation processing task", limit=limit)
         try:
-            count = self.conversation_service.process_idle_conversations(
+            count = self.lifecycle.process_idle_timeouts(
                 idle_minutes=idle_minutes, limit=limit
             )
             logger.info("Completed idle conversation processing task", count=count)
@@ -36,7 +36,7 @@ class ConversationTasks:
 
         logger.info("Starting expired conversation processing task", limit=limit)
         try:
-            count = self.conversation_service.process_expired_conversations(limit=limit)
+            count = self.lifecycle.process_expirations(limit=limit)
             logger.info("Completed expired conversation processing task", count=count)
         except Exception as e:
             logger.error(f"Error in expired conversation task: {e}")

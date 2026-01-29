@@ -31,10 +31,10 @@ async def main():
     webhook_service = container.twilio_webhook_service()
 
     # Register Conversation tasks
-    conversation_service = container.conversation_service()
+    conversation_lifecycle = container.conversation_lifecycle()
     from src.modules.conversation.workers.tasks import ConversationTasks
 
-    conversation_tasks = ConversationTasks(conversation_service)
+    conversation_tasks = ConversationTasks(conversation_lifecycle)
 
     queue_service.register_handler(
         "process_idle_conversations", conversation_tasks.process_idle_conversations

@@ -231,7 +231,7 @@ class Container(containers.DeclarativeContainer):
     twilio_webhook_message_handler = providers.Factory(
         TwilioWebhookMessageHandler,
         twilio_service=twilio_service,
-        conversation_service=conversation_service,
+        conversation_service=conversation_service_v2,
     )
 
     twilio_webhook_audio_processor = providers.Factory(
