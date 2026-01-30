@@ -112,8 +112,24 @@ class TwilioWebhookAIProcessor:
                             user_dump["profile_name"] = extracted_name
 
             additional_context = ""
-            if user_dump and user_dump.get("profile_name"):
-                additional_context = f"User Profile:\n- profile_name: {user_dump['profile_name']}\n"
+            if user_dump:
+                profile_parts = []
+                # Expose user_id to context so agents can use tools that require it
+                if user_dump.get("user_id"):
+                    profile_parts.append(f"- user_id: {user_dump['user_id']}")
+
+                if user_dump.get("profile_name"):
+                    profile_parts.append(f"- profile_name: {user_dump['profile_name']}")
+                
+                if user_dump.get("preferences"):
+                    try:
+                        prefs_str = json.dumps(user_dump['preferences'], ensure_ascii=False)
+                        profile_parts.append(f"- preferences: {prefs_str}")
+                    except Exception:
+                        pass
+
+                if profile_parts:
+                    additional_context = "User Profile:\n" + "\n".join(profile_parts) + "\n"
 
             agent_context = {
                 "owner_id": owner_id,

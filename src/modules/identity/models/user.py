@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -41,6 +41,7 @@ class UserUpdate(BaseModel):
     role: Optional[UserRole] = None
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
+    preferences: Optional[Dict[str, Any]] = None
     active: Optional[bool] = None
 
 

@@ -18,6 +18,7 @@ from src.modules.ai.engines.lchain.feature.finance.tools.add import (
 from src.modules.ai.engines.lchain.feature.finance.tools.query import \
     query_data_tool
 from src.modules.ai.memory.interfaces.memory_interface import MemoryInterface
+from src.modules.ai.engines.lchain.core.agents.identity_agent import identity_management_agent
 
 query_task_agent = TaskAgent(
     name="query_agent",
@@ -61,6 +62,7 @@ def create_finance_agent(ai_log_thought_service: AILogThoughtService, memory_ser
             add_expense_agent,
             add_revenue_agent,
             add_customer_agent,
+            identity_management_agent,
         ],
         system_message=ROUTING_SYSTEM_MESSAGE,
         prompt_extra=PROMPT_EXTRA,

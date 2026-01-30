@@ -103,6 +103,9 @@ class HybridMemoryService(MemoryInterface):
                 retrieval_filter: Dict[str, Any] = {}
                 if owner_id:
                     retrieval_filter["owner_id"] = owner_id
+                else:
+                    logger.warning("Memory retrieval L3 without owner_id! This might cause cross-tenant leakage if not handled by Row Level Security.")
+
                 if user_id:
                     retrieval_filter["user_id"] = user_id
 

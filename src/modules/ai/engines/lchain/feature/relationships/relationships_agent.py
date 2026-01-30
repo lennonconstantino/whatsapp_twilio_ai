@@ -67,6 +67,7 @@ def create_relationships_agent(ai_log_thought_service: AILogThoughtService, memo
             add_person_agent,
             log_interaction_agent,
             schedule_reminder_agent,
+            identity_management_agent,
         ],
         system_message=ROUTING_SYSTEM_MESSAGE,
         prompt_extra=PROMPT_EXTRA,
