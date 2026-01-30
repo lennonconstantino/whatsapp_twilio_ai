@@ -19,7 +19,15 @@
             "module": "src.core.queue.worker",
             "console": "integratedTerminal",
             "envFile": "${workspaceFolder}/.env"
-        },        
+        },
+        {
+            "name": "Python: Scheduler Module",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.modules.conversation.workers.scheduler",
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env"
+        },             
         {
             "name": "Python: Sender Local",
             "type": "debugpy",

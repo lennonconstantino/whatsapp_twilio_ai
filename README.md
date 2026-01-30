@@ -2,27 +2,29 @@
 
 > Plataforma Enterprise de Automação de Conversas com IA via WhatsApp Business e Twilio.
 
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![Version](https://img.shields.io/badge/version-v3.0-blue) ![Python](https://img.shields.io/badge/python-3.12%2B-blue) ![License](https://img.shields.io/badge/license-Proprietary-red)
+![Build Status](https://img.shields.io/badge/build-passing-brightgreen) ![Version](https://img.shields.io/badge/version-v4.0-blue) ![Python](https://img.shields.io/badge/python-3.12%2B-blue) ![License](https://img.shields.io/badge/license-Proprietary-red)
 
 ## 📖 Sobre o Projeto
 
-**WhatsApp Twilio AI** é uma plataforma robusta e escalável (SaaS Multi-tenant) projetada para automatizar interações complexas no WhatsApp Business. Utilizando **Inteligência Artificial (LLMs)** e uma arquitetura orientada a eventos, o sistema gerencia conversas, mantém contexto e executa ações de negócio de forma autônoma.
+**WhatsApp Twilio AI** é uma plataforma robusta e escalável (SaaS Multi-tenant) projetada para automatizar interações complexas no WhatsApp Business. Utilizando **Inteligência Artificial (LLMs)** e uma arquitetura orientada a eventos (Modular Monolith), o sistema gerencia conversas, mantém contexto e executa ações de negócio de forma autônoma.
 
 ### Principais Funcionalidades
-- 🤖 **Agentes de IA Inteligentes**: Integração com OpenAI/LangChain para compreensão de linguagem natural.
+- 🤖 **Agentes de IA Inteligentes**: Integração com OpenAI/LangChain, com seleção dinâmica de agentes e memória híbrida (Redis + Vector Store).
 - 🏢 **Multi-Tenant**: Suporte isolado para múltiplas organizações e contas Twilio.
-- ⚡ **Alta Performance**: Processamento assíncrono distribuído com filas (Agnóstico: BullMQ, SQS, SQLite).
+- ⚡ **Alta Performance**: Processamento assíncrono distribuído com filas (QueueService unificado) e Webhooks de resposta imediata.
+- 🗣️ **Human Handoff**: Mecanismo para transbordo de atendimento para humanos quando a IA não resolve.
+- 🔒 **Segurança e Conformidade**: Gestão segura de mídia e downloads isolados.
 - 🔄 **Resiliência**: Mecanismos de Fallback, Idempotência e Recuperação de Falhas.
 - 📊 **Gestão de Ciclo de Vida**: Máquina de estados completa para gerenciar conversas (Timeout, Expiração, Encerramento).
 
 ## 🚀 Tecnologias Utilizadas
 
-- **Core**: Python 3.12+, FastAPI, Pydantic (Strict Typing).
-- **Arquitetura**: Dependency Injection, Clean Architecture, Repository Pattern.
-- **Banco de Dados**: PostgreSQL (via Supabase).
-- **Integrações**: Twilio API, OpenAI API, LangChain.
-- **Mensageria/Filas**: Abstração `QueueService` (Suporte a Redis/BullMQ, AWS SQS e SQLite).
-- **DevOps**: Docker, Makefile.
+- **Core**: Python 3.12+, FastAPI, Pydantic (Strict Typing), Dependency Injection (Container).
+- **Arquitetura**: Modular Monolith, Clean Architecture, Repository Pattern.
+- **Banco de Dados**: PostgreSQL (via Supabase/PostgREST).
+- **Integrações**: Twilio API (Inbound/Outbound), OpenAI API, LangChain.
+- **Mensageria/Filas**: BullMQ (Redis) via QueueService unificado.
+- **DevOps**: Docker, Makefile, Scripts de verificação de ambiente.
 
 ## 📋 Pré-requisitos
 
@@ -64,6 +66,12 @@ Para executar este projeto localmente, você precisará de:
    ```
    > **Nota**: Preencha chaves críticas como `SUPABASE_URL`, `SUPABASE_KEY`, `TWILIO_ACCOUNT_SID`, `OPENAI_API_KEY`.
 
+5. **Verifique o Ambiente**
+   Execute o script de verificação para garantir que tudo está configurado corretamente:
+   ```bash
+   make check-env
+   ```
+
 ## ⚡ Como Usar
 
 ### Comandos Úteis (Makefile)
@@ -75,13 +83,17 @@ O projeto inclui um `Makefile` para facilitar operações comuns:
   make run
   ```
   O servidor estará disponível em `http://localhost:8000`.
-  > **Nota**: Este comando agora verifica se o worker está rodando. Se não estiver, ele falhará com instruções claras.
+  > **Nota**: Este comando agora verifica se o worker está rodando.
 
-- **Iniciar os Workers e Scheduler (Obrigatório)**:
-  Para processamento de mensagens e tarefas em background (timeouts, expiração), execute em terminais separados:
+- **Iniciar Infraestrutura de Background (Obrigatório)**:
+  Para o funcionamento correto do sistema, você deve rodar os workers e o scheduler em terminais separados:
+
+  **Terminal 1 (Worker de Filas):**
   ```bash
   make run-worker
   ```
+
+  **Terminal 2 (Scheduler de Tarefas):**
   ```bash
   make run-scheduler
   ```
@@ -115,14 +127,8 @@ O projeto inclui um `Makefile` para facilitar operações comuns:
    ```
    Copie a URL gerada (ex: `https://abcd-123.ngrok-free.app`).
 
-2. **Inicie o Servidor, Workers e Scheduler**:
-   ```bash
-   make run-worker
-   # Em outro terminal:
-   make run-scheduler
-   # Em outro terminal:
-   make run
-   ```
+2. **Inicie os Serviços**:
+   Certifique-se de ter 3 terminais rodando: `make run-worker`, `make run-scheduler` e `make run`.
 
 3. **Configure o Twilio**:
    No Console do Twilio, defina a URL do webhook para:
@@ -133,19 +139,19 @@ O projeto inclui um `Makefile` para facilitar operações comuns:
 
 ## 📚 Documentação Adicional
 
-A documentação técnica detalhada encontra-se na pasta `docs/v3/`:
+A documentação técnica detalhada encontra-se na pasta `docs/v4/`:
 
-- 📐 **[Arquitetura do Sistema](docs/v3/architecture.md)**
+- 📐 **[Arquitetura do Sistema](docs/v4/architecture.md)**
   Detalhes sobre padrões de design, fluxo de dados e decisões arquiteturais.
 
-- 🔧 **[Últimas Correções](docs/v3/last_corrections.md)**
-  Histórico recente de refatorações, correções de segurança e melhorias de performance.
+- 📝 **[Resumo do Projeto](docs/v4/project_summary.md)**
+  Visão geral executiva, análise de conformidade e status de maturidade do projeto.
+
+- 🔧 **[Últimas Correções](docs/v4/last_corrections.md)**
+  Histórico recente de refatorações (v4.0), correções de segurança e melhorias de performance.
 
 - 📊 **[Diagramas](docs/v3/diagrams.md)**
   Representações visuais da arquitetura, ciclo de vida e fluxos (Mermaid).
-
-- 📝 **[Resumo do Projeto](docs/v3/project_summary.md)**
-  Visão geral executiva e status de maturidade do projeto.
 
 ## 📂 Estrutura de Pastas
 
