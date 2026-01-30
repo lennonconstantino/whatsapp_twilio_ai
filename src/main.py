@@ -10,6 +10,7 @@ load_dotenv()
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.openapi.docs import get_redoc_html
 from fastapi.middleware.cors import CORSMiddleware
 
 from .core.config import settings
@@ -41,12 +42,17 @@ async def lifespan(app: FastAPI):
 
 
 # Create FastAPI app
+is_production = settings.api.environment == "production"
+
 app = FastAPI(
     title="Owner API",
     description="Multi-tenant conversation management system with Twilio integration",
     version="4.0.0",
     lifespan=lifespan,
     debug=settings.api.debug,
+    docs_url=None if is_production else "/docs",
+    redoc_url=None,  # Disable default Redoc to use custom CDN
+    openapi_url=None if is_production else "/openapi.json",
 )
 
 # Attach container to app
@@ -77,6 +83,17 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "service": "owner-api"}
+
+
+if not is_production:
+    @app.get("/redoc", include_in_schema=False)
+    async def redoc_html():
+        """Redoc documentation."""
+        return get_redoc_html(
+            openapi_url=app.openapi_url,
+            title=app.title + " - ReDoc",
+            redoc_js_url="https://unpkg.com/redoc@latest/bundles/redoc.standalone.js",
+        )
 
 
 if __name__ == "__main__":

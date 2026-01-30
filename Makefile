@@ -15,6 +15,9 @@ help:
 	@echo "  make migrate          - Migrate Database"
 	@echo "  make seed             - Seed the database"
 
+check-env:
+	@python scripts/check_env.py
+
 install:
 	pip install -r requirements.txt
 
