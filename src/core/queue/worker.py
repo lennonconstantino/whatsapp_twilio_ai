@@ -36,7 +36,8 @@ async def main():
     conversation_tasks = ConversationTasks(conversation_lifecycle)
 
     queue_service.register_handler(
-        "process_idle_conversations", conversation_tasks.process_idle_conversations
+        "process_idle_conversations", 
+        conversation_tasks.process_idle_conversations
     )
     queue_service.register_handler(
         "process_expired_conversations",
@@ -50,7 +51,8 @@ async def main():
     embedding_tasks = EmbeddingTasks(vector_repo)
 
     queue_service.register_handler(
-        "generate_embedding", embedding_tasks.generate_embedding
+        "generate_embedding", 
+        embedding_tasks.generate_embedding
     )
 
     # Register Twilio Outbound tasks
@@ -62,7 +64,8 @@ async def main():
     outbound_worker = TwilioOutboundWorker(twilio_service, message_repo)
     
     queue_service.register_handler(
-        "send_whatsapp_message", outbound_worker.handle_send_message_task
+        "send_whatsapp_message", 
+        outbound_worker.handle_send_message_task
     )
 
     logger.info("Services initialized. Starting worker...")

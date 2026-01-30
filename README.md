@@ -8,6 +8,10 @@
 
 **WhatsApp Twilio AI** é uma plataforma robusta e escalável (SaaS Multi-tenant) projetada para automatizar interações complexas no WhatsApp Business. Utilizando **Inteligência Artificial (LLMs)** e uma arquitetura orientada a eventos (Modular Monolith), o sistema gerencia conversas, mantém contexto e executa ações de negócio de forma autônoma.
 
+## 🏗️ Arquitetura do Sistema
+
+![Arquitetura do Sistema](docs/image/README/arquitetura.png)
+
 ### Principais Funcionalidades
 - 🤖 **Agentes de IA Inteligentes**: Integração com OpenAI/LangChain, com seleção dinâmica de agentes e memória híbrida (Redis + Vector Store).
 - 🏢 **Multi-Tenant**: Suporte isolado para múltiplas organizações e contas Twilio.
