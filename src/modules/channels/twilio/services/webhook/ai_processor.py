@@ -128,6 +128,30 @@ class TwilioWebhookAIProcessor:
                 "additional_context": additional_context,
             }
 
+            if user and payload.body and str(payload.body).strip():
+                try:
+                    await self.queue_service.enqueue(
+                        task_name="generate_embedding",
+                        payload={
+                            "content": payload.body,
+                            "metadata": {
+                                "msg_id": msg_id,
+                                "conv_id": conversation_id,
+                                "owner_id": owner_id,
+                                "user_id": user.user_id,
+                                "role": "user",
+                            },
+                        },
+                        owner_id=owner_id,
+                        correlation_id=correlation_id,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to enqueue inbound embedding task",
+                        error=str(e),
+                        correlation_id=correlation_id,
+                    )
+
             # 3. Run Agent (Synchronous Blocking Call)
             if user:
                 # Agent is now created via Factory based on feature
@@ -157,6 +181,7 @@ class TwilioWebhookAIProcessor:
                 recipient_number=payload.from_number,
                 body=response_text,
                 correlation_id=correlation_id,
+                user_id=user.user_id if user else None,
             )
 
             logger.info("AI response processed and sent", correlation_id=correlation_id)

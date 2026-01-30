@@ -11,6 +11,8 @@ from src.modules.ai.engines.lchain.core.models.agent_context import \
     AgentContext
 from src.modules.ai.infrastructure.llm import LLM, models
 
+from src.core.config.settings import settings
+
 logger = get_logger(__name__)
 
 NOTES = """Important Notes:
@@ -101,7 +103,13 @@ class RoutingAgent:
             if session_id:
                 try:
                     # Synchronous call for now
-                    history = self.memory_service.get_context(session_id, limit=10, query=user_input)
+                    history = self.memory_service.get_context(
+                        session_id,
+                        limit=settings.memory.recent_messages_limit,
+                        query=user_input,
+                        owner_id=self.agent_context.owner_id,
+                        user_id=(self.agent_context.user or {}).get("user_id"),
+                    )
                     if history:
                         logger.info(
                             "Loaded messages from memory",

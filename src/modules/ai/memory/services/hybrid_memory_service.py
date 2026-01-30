@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional
 
+from src.core.config.settings import settings
 from src.core.utils.logging import get_logger
 from src.modules.ai.memory.interfaces.memory_interface import MemoryInterface
 from src.modules.ai.memory.repositories.redis_memory_repository import RedisMemoryRepository
@@ -26,7 +27,14 @@ class HybridMemoryService(MemoryInterface):
         self.message_repo = message_repo
         self.vector_repo = vector_repo
 
-    def get_context(self, session_id: str, limit: int = 10, query: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_context(
+        self,
+        session_id: str,
+        limit: int = 10,
+        query: Optional[str] = None,
+        owner_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Retrieves context with Read-Through strategy:
         1. Try L1 (Redis)
@@ -37,7 +45,12 @@ class HybridMemoryService(MemoryInterface):
         
         # 1. Try Redis
         try:
-            messages = self.redis_repo.get_context(session_id, limit)
+            messages = self.redis_repo.get_context(
+                session_id,
+                limit,
+                owner_id=owner_id,
+                user_id=user_id,
+            )
             if messages:
                 logger.debug(f"Cache HIT for session {session_id}")
                 context_messages = messages
@@ -87,20 +100,53 @@ class HybridMemoryService(MemoryInterface):
         # 4. Semantic Search (L3)
         if query and self.vector_repo:
             try:
-                # We could filter by owner_id if we had it, but for now search globally
-                # or rely on metadata filter if implemented later.
-                semantic_results = self.vector_repo.search_relevant(query, limit=3)
+                retrieval_filter: Dict[str, Any] = {}
+                if owner_id:
+                    retrieval_filter["owner_id"] = owner_id
+                if user_id:
+                    retrieval_filter["user_id"] = user_id
+
+                top_k = settings.memory.semantic_top_k
+                match_threshold = settings.memory.semantic_match_threshold
+
+                if settings.memory.enable_hybrid_retrieval:
+                    semantic_results = self.vector_repo.hybrid_search_relevant(
+                        query,
+                        limit=top_k,
+                        match_threshold=match_threshold,
+                        filter=retrieval_filter or None,
+                        weight_vector=settings.memory.hybrid_weight_vector,
+                        weight_text=settings.memory.hybrid_weight_text,
+                        rrf_k=settings.memory.hybrid_rrf_k,
+                        fts_language=settings.memory.fts_language,
+                    )
+                else:
+                    semantic_results = self.vector_repo.vector_search_relevant(
+                        query,
+                        limit=top_k,
+                        match_threshold=match_threshold,
+                        filter=retrieval_filter or None,
+                    )
                 
                 if semantic_results:
-                    # Format as System Message
-                    relevant_info = "\n".join([f"- {res['content']}" for res in semantic_results])
+                    recent_contents = {str(m.get("content", "")).strip() for m in context_messages if m.get("content")}
+                    deduped_results = []
+                    for res in semantic_results:
+                        content = str(res.get("content", "")).strip()
+                        if not content:
+                            continue
+                        if content in recent_contents:
+                            continue
+                        deduped_results.append(res)
+
+                    relevant_info = "\n".join([f"- {res['content']}" for res in deduped_results])
                     system_msg = {
                         "role": "system",
                         "content": f"Relevant Information from past conversations:\n{relevant_info}"
                     }
                     # Prepend to context
                     context_messages.insert(0, system_msg)
-                    logger.info(f"Added {len(semantic_results)} semantic results to context")
+                    logger.info(f"Added {len(deduped_results)} semantic results to context")
             except Exception as e:
                 logger.warning(f"Error in semantic search: {e}")
 

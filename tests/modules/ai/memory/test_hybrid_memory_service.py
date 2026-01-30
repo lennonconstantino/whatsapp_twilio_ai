@@ -22,7 +22,12 @@ class TestHybridMemoryService(unittest.TestCase):
 
         # Assert
         self.assertEqual(result, expected_messages)
-        self.redis_repo.get_context.assert_called_once_with(self.session_id, 10)
+        self.redis_repo.get_context.assert_called_once_with(
+            self.session_id,
+            10,
+            owner_id=None,
+            user_id=None,
+        )
         self.message_repo.find_recent_by_conversation.assert_not_called()
 
     def test_get_context_miss_redis_hit_db(self):

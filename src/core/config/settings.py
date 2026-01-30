@@ -205,6 +205,55 @@ class EmbeddingSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="EMBEDDING_")
 
 
+class MemorySettings(BaseSettings):
+    recent_messages_limit: int = Field(
+        default=10,
+        description="Quantidade de mensagens recentes (L1/L2) incluídas no contexto",
+    )
+    redis_max_messages: int = Field(
+        default=50,
+        description="Quantidade máxima de mensagens armazenadas por sessão no Redis (L1)",
+    )
+    redis_ttl_seconds: int = Field(
+        default=3600,
+        description="TTL de chaves de memória no Redis (L1), em segundos",
+    )
+    redis_reconnect_backoff_seconds: int = Field(
+        default=30,
+        description="Tempo mínimo entre tentativas de reconexão do Redis após falha",
+    )
+    semantic_top_k: int = Field(
+        default=3,
+        description="Quantidade de resultados semânticos (L3) inseridos no contexto",
+    )
+    semantic_match_threshold: float = Field(
+        default=0.0,
+        description="Threshold mínimo de similaridade (0-1) para busca vetorial (L3)",
+    )
+    enable_hybrid_retrieval: bool = Field(
+        default=True,
+        description="Habilita recuperação híbrida (FTS + vetor + RRF) no L3",
+    )
+    hybrid_weight_vector: float = Field(
+        default=1.5,
+        description="Peso do componente vetorial na fusão RRF",
+    )
+    hybrid_weight_text: float = Field(
+        default=1.0,
+        description="Peso do componente textual (FTS) na fusão RRF",
+    )
+    hybrid_rrf_k: int = Field(
+        default=60,
+        description="Constante K do RRF (estabiliza impacto dos ranks)",
+    )
+    fts_language: str = Field(
+        default="portuguese",
+        description="Config de linguagem do Postgres para FTS (ex: portuguese, simple)",
+    )
+
+    model_config = SettingsConfigDict(env_prefix="MEMORY_")
+
+
 class Settings(BaseSettings):
     """Main application settings."""
 
@@ -221,6 +270,7 @@ class Settings(BaseSettings):
     whisper: WhisperSettings = Field(default_factory=WhisperSettings)
     llm_model: LLMModelSettings = Field(default_factory=LLMModelSettings)
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
+    memory: MemorySettings = Field(default_factory=MemorySettings)
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"

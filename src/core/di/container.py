@@ -102,7 +102,9 @@ class Container(containers.DeclarativeContainer):
     redis_memory_repository = providers.Singleton(
         RedisMemoryRepository,
         redis_url=settings.queue.redis_url, # Reusing redis config or we should add a new one. Using queue redis for now.
-        ttl_seconds=3600
+        ttl_seconds=settings.memory.redis_ttl_seconds,
+        max_messages=settings.memory.redis_max_messages,
+        reconnect_backoff_seconds=settings.memory.redis_reconnect_backoff_seconds,
     )
 
     vector_memory_repository = providers.Factory(

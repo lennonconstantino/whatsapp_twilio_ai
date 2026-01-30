@@ -1,4 +1,5 @@
 import json
+import time
 from typing import Any, Dict, List, Optional
 
 import redis
@@ -16,7 +17,13 @@ class RedisMemoryRepository(MemoryInterface):
     Synchronous implementation to be compatible with current Agent architecture.
     """
 
-    def __init__(self, redis_url: str, ttl_seconds: int = 3600):
+    def __init__(
+        self,
+        redis_url: str,
+        ttl_seconds: int = 3600,
+        max_messages: int = 50,
+        reconnect_backoff_seconds: int = 30,
+    ):
         """
         Initialize Redis connection.
         
@@ -26,26 +33,59 @@ class RedisMemoryRepository(MemoryInterface):
         """
         self.redis_url = redis_url
         self.ttl_seconds = ttl_seconds
+        self.max_messages = max_messages
+        self.reconnect_backoff_seconds = reconnect_backoff_seconds
         self.redis = redis.from_url(redis_url, decode_responses=True)
         self._disabled = False
         self._disabled_reason: str | None = None
+        self._disabled_until: float | None = None
 
     def _disable(self, reason: str) -> None:
         if self._disabled:
             return
         self._disabled = True
         self._disabled_reason = reason
+        self._disabled_until = time.time() + float(self.reconnect_backoff_seconds)
         logger.warning(
             "Redis indisponível; desativando cache de memória (L1)",
             redis_url=self.redis_url,
             reason=reason,
         )
 
-    def get_context(self, session_id: str, limit: int = 10, query: Optional[str] = None) -> List[Dict[str, Any]]:
+    def _maybe_reenable(self) -> None:
+        if not self._disabled:
+            return
+        if self._disabled_until is not None and time.time() < self._disabled_until:
+            return
+        try:
+            self.redis = redis.from_url(self.redis_url, decode_responses=True)
+            self.redis.ping()
+            self._disabled = False
+            self._disabled_reason = None
+            self._disabled_until = None
+            logger.info("Redis reabilitado para cache de memória (L1)", redis_url=self.redis_url)
+        except Exception as e:
+            self._disabled_until = time.time() + float(self.reconnect_backoff_seconds)
+            logger.warning(
+                "Falha ao reabilitar Redis; mantendo cache de memória (L1) desativado",
+                redis_url=self.redis_url,
+                reason=str(e),
+            )
+
+    def get_context(
+        self,
+        session_id: str,
+        limit: int = 10,
+        query: Optional[str] = None,
+        owner_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """
         Retrieves the last N messages from Redis list.
         Ignores query (L1 Cache is purely chronological).
         """
+        if self._disabled:
+            self._maybe_reenable()
         if self._disabled:
             return []
 
@@ -76,6 +116,8 @@ class RedisMemoryRepository(MemoryInterface):
         Appends a message to the Redis list and refreshes TTL.
         """
         if self._disabled:
+            self._maybe_reenable()
+        if self._disabled:
             return
 
         key = self._get_key(session_id)
@@ -84,7 +126,7 @@ class RedisMemoryRepository(MemoryInterface):
             with self.redis.pipeline() as pipe:
                 pipe.rpush(key, json_msg)
                 # Keep only last 50 messages to avoid infinite growth if TTL is refreshed often
-                pipe.ltrim(key, -50, -1) 
+                pipe.ltrim(key, -self.max_messages, -1)
                 pipe.expire(key, self.ttl_seconds)
                 pipe.execute()
         except redis.exceptions.ConnectionError as e:

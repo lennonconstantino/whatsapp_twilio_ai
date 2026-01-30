@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from langchain_core.messages import (AIMessage, HumanMessage, SystemMessage,
                                      ToolMessage)
 
+from src.core.config.settings import settings
 from src.core.utils.logging import get_logger
 from src.modules.ai.ai_result.enums.ai_result_type import AIResultType
 from src.modules.ai.ai_result.services.ai_log_thought_service import \
@@ -99,9 +100,25 @@ class Agent:
             
             if session_id:
                 try:
-                    # Fetch recent history (e.g. last 10 messages)
-                    # Pass user input as query for semantic search (L3)
-                    memory_messages = self.memory_service.get_context(session_id, limit=10, query=body)
+                    agent_owner_id = (
+                        self.agent_context.get("owner_id")
+                        if isinstance(self.agent_context, dict)
+                        else getattr(self.agent_context, "owner_id", None)
+                    )
+                    agent_user_id = None
+                    if isinstance(self.agent_context, dict):
+                        agent_user_id = ((self.agent_context.get("user") or {}) or {}).get("user_id")
+                    else:
+                        ctx_user = getattr(self.agent_context, "user", None) or {}
+                        agent_user_id = ctx_user.get("user_id") if isinstance(ctx_user, dict) else None
+
+                    memory_messages = self.memory_service.get_context(
+                        session_id,
+                        limit=settings.memory.recent_messages_limit,
+                        query=body,
+                        owner_id=agent_owner_id,
+                        user_id=agent_user_id,
+                    )
                     if memory_messages:
                         logger.info(f"Loaded {len(memory_messages)} messages from memory", event_type="agent_memory")
                         

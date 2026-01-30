@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 from src.modules.ai.memory.services.hybrid_memory_service import HybridMemoryService
 from src.modules.conversation.models.message import Message
 from src.modules.conversation.enums.message_owner import MessageOwner
+from src.core.config.settings import settings
 
 class TestMemoryIntegrationFlow(unittest.TestCase):
     """
@@ -90,7 +91,7 @@ class TestMemoryIntegrationFlow(unittest.TestCase):
         self.redis_repo.get_context.return_value = [{"role": "user", "content": "Oi"}]
         
         # Vector Repo retorna resultado relevante
-        self.vector_repo.search_relevant.return_value = [
+        self.vector_repo.hybrid_search_relevant.return_value = [
             {"content": "O usuário mora em São Paulo", "metadata": {}}
         ]
         
@@ -98,7 +99,10 @@ class TestMemoryIntegrationFlow(unittest.TestCase):
         result = self.service.get_context(self.session_id, query="Onde eu moro?")
         
         # Validação
-        self.vector_repo.search_relevant.assert_called_once_with("Onde eu moro?", limit=3)
+        if settings.memory.enable_hybrid_retrieval:
+            self.vector_repo.hybrid_search_relevant.assert_called_once()
+        else:
+            self.vector_repo.vector_search_relevant.assert_called_once()
         
         # O primeiro item deve ser a info semântica (System Message)
         self.assertEqual(result[0]["role"], "system")

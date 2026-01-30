@@ -6,6 +6,7 @@ from src.modules.ai.memory.interfaces.memory_interface import MemoryInterface
 from src.modules.ai.infrastructure.llm import LLM
 from langchain_core.messages import AIMessage
 from src.modules.ai.ai_result.services.ai_log_thought_service import AILogThoughtService
+from src.core.config.settings import settings
 
 class TestRoutingAgentMemory:
     @pytest.fixture
@@ -56,5 +57,7 @@ class TestRoutingAgentMemory:
         
         # Check arguments: session_id, limit, query
         assert call_args[0][0] == session_id # positional: session_id
-        assert call_args[1]["limit"] == 10 # keyword: limit
+        assert call_args[1]["limit"] == settings.memory.recent_messages_limit # keyword: limit
         assert call_args[1]["query"] == user_input # keyword: query
+        assert call_args[1]["owner_id"] == "owner_1"
+        assert call_args[1]["user_id"] is None

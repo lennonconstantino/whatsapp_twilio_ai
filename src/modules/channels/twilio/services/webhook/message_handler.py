@@ -39,6 +39,10 @@ class TwilioWebhookMessageHandler:
             return
             
         try:
+            user_id = None
+            if isinstance(message.metadata, dict):
+                user_id = message.metadata.get("user_id")
+
             await self.queue_service.enqueue(
                 task_name="generate_embedding",
                 payload={
@@ -47,6 +51,7 @@ class TwilioWebhookMessageHandler:
                         "msg_id": message.msg_id,
                         "conv_id": message.conv_id,
                         "owner_id": message.owner_id,
+                        "user_id": user_id,
                         "role": "user" if message.message_owner == MessageOwner.USER else "assistant",
                         "timestamp": message.timestamp.isoformat() if message.timestamp else None
                     }
@@ -202,6 +207,7 @@ class TwilioWebhookMessageHandler:
         body: str,
         correlation_id: str,
         is_error: bool = False,
+        user_id: str | None = None,
     ):
         """
         Helper to persist response and enqueue sending task.
@@ -223,6 +229,7 @@ class TwilioWebhookMessageHandler:
                     "status": "queued",
                     "auto_response": True,
                     "is_error_fallback": is_error,
+                    "user_id": user_id,
                 },
             )
 
