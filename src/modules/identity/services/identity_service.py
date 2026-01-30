@@ -269,6 +269,15 @@ class IdentityService:
         """
         return self.user_service.get_user_by_phone(phone)
 
+    def update_user_profile_name(self, user_id: str, profile_name: str) -> Optional[User]:
+        cleaned = (profile_name or "").strip()
+        if not cleaned:
+            return None
+        return self.user_service.update_user(user_id, {"profile_name": cleaned})
+
+    def clear_user_profile_name(self, user_id: str) -> Optional[User]:
+        return self.user_service.update_user(user_id, {"profile_name": None})
+
     def get_feature_by_name(self, owner_id: str, name: str) -> Optional[Any]:
         """
         Get a specific feature by name and owner.

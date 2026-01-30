@@ -71,4 +71,5 @@ def create_relationships_agent(ai_log_thought_service: AILogThoughtService, memo
         system_message=ROUTING_SYSTEM_MESSAGE,
         prompt_extra=PROMPT_EXTRA,
         ai_log_thought_service=ai_log_thought_service,
+        memory_service=memory_service,
     )

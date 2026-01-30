@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Dict
 
 from src.core.utils.logging import get_logger
@@ -26,14 +27,31 @@ class TwilioOutboundWorker:
         """
         Process background task to send WhatsApp message.
         """
-        payload = task_payload["payload"]
-        owner_id = task_payload["owner_id"]
-        correlation_id = task_payload.get("correlation_id")
-        
+        nested_payload = task_payload.get("payload")
+        payload = nested_payload if isinstance(nested_payload, dict) else task_payload
+
+        owner_id = task_payload.get("owner_id") or payload.get("owner_id")
+        correlation_id = task_payload.get("correlation_id") or payload.get("correlation_id")
+
         msg_id = payload.get("msg_id")
-        from_number = payload["from_number"]
-        to_number = payload["to_number"]
-        body = payload["body"]
+        from_number = payload.get("from_number")
+        to_number = payload.get("to_number")
+        body = payload.get("body")
+
+        missing_fields = [
+            field_name
+            for field_name, value in {
+                "owner_id": owner_id,
+                "from_number": from_number,
+                "to_number": to_number,
+                "body": body,
+            }.items()
+            if not value
+        ]
+        if missing_fields:
+            raise ValueError(
+                f"send_whatsapp_message payload inválido; campos ausentes: {', '.join(missing_fields)}"
+            )
 
         logger.info(
             "Processing outbound message task",
@@ -43,7 +61,8 @@ class TwilioOutboundWorker:
 
         try:
             # 1. Send via Twilio API
-            response = await self.twilio_service.send_message(
+            response = await asyncio.to_thread(
+                self.twilio_service.send_message,
                 owner_id=owner_id,
                 from_number=from_number,
                 to_number=to_number,
@@ -52,20 +71,28 @@ class TwilioOutboundWorker:
 
             # 2. Update Message Status in DB (if persisted message exists)
             if msg_id and response:
-                update_data = {
-                    "metadata": {
+                existing_message = await asyncio.to_thread(
+                    self.message_repo.find_by_id, msg_id, id_column="msg_id"
+                )
+                existing_metadata = (
+                    dict(existing_message.metadata) if existing_message and existing_message.metadata else {}
+                )
+                existing_metadata.update(
+                    {
                         "message_sid": response.sid,
                         "status": response.status,
                         "num_media": response.num_media,
-                        "delivery_status": "sent"
+                        "delivery_status": "sent",
                     }
-                }
-                # Note: This is a simplistic update. In a real scenario, we might merge metadata.
-                # For now, we assume the initial metadata was minimal.
-                # Ideally, we should fetch, merge and update.
-                
-                # We can also update status if we had a MessageStatus enum field.
-                
+                )
+
+                await asyncio.to_thread(
+                    self.message_repo.update,
+                    id_value=msg_id,
+                    data={"metadata": existing_metadata},
+                    id_column="msg_id",
+                )
+
                 logger.info(
                     "Outbound message sent successfully",
                     sid=response.sid,

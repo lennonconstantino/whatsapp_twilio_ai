@@ -65,7 +65,5 @@ def create_finance_agent(ai_log_thought_service: AILogThoughtService, memory_ser
         system_message=ROUTING_SYSTEM_MESSAGE,
         prompt_extra=PROMPT_EXTRA,
         ai_log_thought_service=ai_log_thought_service,
-        # TODO: RoutingAgent does not yet accept memory_service in constructor, 
-        # but we need to propagate it to TaskAgents or handle it in RoutingAgent.run()
-        # For now, we update RoutingAgent constructor to accept it.
+        memory_service=memory_service,
     )

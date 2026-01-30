@@ -28,6 +28,24 @@ class TestVectorMemoryRepository(unittest.TestCase):
 
     @patch("src.modules.ai.memory.repositories.vector_memory_repository.SupabaseVectorStore")
     @patch("src.modules.ai.memory.repositories.vector_memory_repository.OpenAIEmbeddings")
+    def test_search_relevant_disables_on_missing_rpc(self, mock_embeddings, mock_vector_store_cls):
+        mock_client = MagicMock()
+        mock_vector_store = mock_vector_store_cls.return_value
+        mock_vector_store.similarity_search.side_effect = Exception(
+            "{'code': 'PGRST202', 'message': 'Could not find the function public.match_message_embeddings(query_embedding) in the schema cache'}"
+        )
+
+        repo = VectorMemoryRepository(mock_client)
+
+        first = repo.search_relevant("query")
+        second = repo.search_relevant("query")
+
+        self.assertEqual(first, [])
+        self.assertEqual(second, [])
+        self.assertEqual(mock_vector_store.similarity_search.call_count, 1)
+
+    @patch("src.modules.ai.memory.repositories.vector_memory_repository.SupabaseVectorStore")
+    @patch("src.modules.ai.memory.repositories.vector_memory_repository.OpenAIEmbeddings")
     def test_add_texts(self, mock_embeddings, mock_vector_store_cls):
         # Arrange
         mock_client = MagicMock()

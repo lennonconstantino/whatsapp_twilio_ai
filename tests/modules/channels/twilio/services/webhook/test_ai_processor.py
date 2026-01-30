@@ -117,6 +117,109 @@ async def test_handle_ai_response_success(processor, mock_services, payload, own
         # is_error might be default False, so check if it's NOT True if missing
         assert call_kwargs.get("is_error", False) is False
 
+
+@pytest.mark.asyncio
+async def test_handle_ai_response_persists_profile_name_and_injects_context(processor, mock_services, owner_id, conv_id, msg_id):
+    named_payload = TwilioWhatsAppPayload(
+        MessageSid="SM123",
+        Body="Meu nome é Lennon, e eu gosto de Café",
+        From="whatsapp:+1234567890",
+        To="whatsapp:+0987654321",
+        AccountSid="AC123",
+        NumMedia=0,
+        NumSegments=1,
+        SmsStatus="received",
+        ApiVersion="2010-04-01",
+    )
+
+    mock_user = MagicMock()
+    mock_user.user_id = "user_1"
+    mock_user.model_dump.return_value = {"user_id": "user_1", "profile_name": None}
+
+    mock_feature = MagicMock()
+    mock_feature.name = "finance"
+    mock_feature.feature_id = 123
+
+    mock_agent = MagicMock()
+    mock_agent.run = MagicMock()
+    mock_services["agent_factory"].get_agent.return_value = mock_agent
+
+    with patch(
+        "src.modules.channels.twilio.services.webhook.ai_processor.run_in_threadpool",
+        new_callable=AsyncMock,
+    ) as mock_run:
+        mock_run.side_effect = [
+            mock_user,
+            mock_feature,
+            mock_user,
+            "AI Response Text",
+        ]
+
+        await processor.handle_ai_response(
+            owner_id=owner_id,
+            conversation_id=conv_id,
+            msg_id=msg_id,
+            payload=named_payload,
+            correlation_id="corr_1",
+        )
+
+        assert mock_run.call_args_list[2].args[0] == mock_services["identity_service"].update_user_profile_name
+        assert mock_run.call_args_list[2].args[1] == "user_1"
+        assert mock_run.call_args_list[2].args[2] == "Lennon"
+
+        agent_call = mock_run.call_args_list[3]
+        assert agent_call.args[0] == mock_agent.run
+        assert "profile_name: Lennon" in agent_call.kwargs.get("additional_context", "")
+
+
+@pytest.mark.asyncio
+async def test_handle_ai_response_forgets_profile_name(processor, mock_services, owner_id, conv_id, msg_id):
+    forget_payload = TwilioWhatsAppPayload(
+        MessageSid="SM123",
+        Body="Esquece meu nome",
+        From="whatsapp:+1234567890",
+        To="whatsapp:+0987654321",
+        AccountSid="AC123",
+        NumMedia=0,
+        NumSegments=1,
+        SmsStatus="received",
+        ApiVersion="2010-04-01",
+    )
+
+    mock_user = MagicMock()
+    mock_user.user_id = "user_1"
+    mock_user.model_dump.return_value = {"user_id": "user_1", "profile_name": "Lennon"}
+
+    mock_feature = MagicMock()
+    mock_feature.name = "finance"
+    mock_feature.feature_id = 123
+
+    mock_agent = MagicMock()
+    mock_agent.run = MagicMock()
+    mock_services["agent_factory"].get_agent.return_value = mock_agent
+
+    with patch(
+        "src.modules.channels.twilio.services.webhook.ai_processor.run_in_threadpool",
+        new_callable=AsyncMock,
+    ) as mock_run:
+        mock_run.side_effect = [
+            mock_user,
+            mock_feature,
+            mock_user,
+            "AI Response Text",
+        ]
+
+        await processor.handle_ai_response(
+            owner_id=owner_id,
+            conversation_id=conv_id,
+            msg_id=msg_id,
+            payload=forget_payload,
+            correlation_id="corr_1",
+        )
+
+        assert mock_run.call_args_list[2].args[0] == mock_services["identity_service"].clear_user_profile_name
+        assert mock_run.call_args_list[2].args[1] == "user_1"
+
 @pytest.mark.asyncio
 async def test_handle_ai_response_user_not_found(processor, mock_services, payload, owner_id, conv_id, msg_id):
     with patch(

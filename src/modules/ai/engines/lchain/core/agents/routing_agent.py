@@ -66,12 +66,24 @@ class RoutingAgent:
         # Merge context data from self.agent_context and kwargs
         ctx_data = {**current_agent_context, **kwargs}
 
+        # Resolve Session ID Logic
+        user_phone = "unknown"
+        user_data = ctx_data.get("user") or {}
+        if user_data:
+             user_phone = user_data.get("phone", "unknown")
+        
+        session_id = ctx_data.get("conversation_id") or ctx_data.get("session_id")
+        if not session_id:
+            owner_id = ctx_data.get("owner_id")
+            session_id = f"{owner_id}:{user_phone}" if owner_id else None
+
         self.agent_context = AgentContext(
             owner_id=ctx_data.get("owner_id"),
             correlation_id=ctx_data.get("correlation_id"),
             feature=ctx_data.get("feature"),
             feature_id=ctx_data.get("feature_id"),  # Required to populate the ai_result table.
             msg_id=ctx_data.get("msg_id"),
+            session_id=session_id,
             user_input=user_input,
             user=ctx_data.get("user"),
             channel=ctx_data.get("channel"),
@@ -85,42 +97,28 @@ class RoutingAgent:
         # INTEGRATION: Load memory from MemoryService if available and not present
         # ------------------------------------------------------------------
         if self.memory_service and not self.agent_context.memory:
-            # We use a simple session_id for now.
-            # Ideally, session_id should be unique per conversation.
-            # In Twilio context, we can use user phone or conversation_id if available.
-            # But AgentContext doesn't strictly enforce conversation_id field yet.
-            # We'll use owner_id + user_phone as session key fallback if needed.
-            
-            user_phone = "unknown"
-            if self.agent_context.user:
-                 user_phone = self.agent_context.user.get("phone", "unknown")
-            
-            # Construct a session key. 
-            # Strategy: If conversation_id is passed in kwargs/context, use it.
-            # Otherwise use owner_id:user_phone
-            
-            session_id = ctx_data.get("conversation_id")
-            if not session_id:
-                session_id = f"{self.agent_context.owner_id}:{user_phone}"
-            
-            try:
-                # Synchronous call for now (RedisMemoryRepository is sync-compatible via blocking calls if needed, 
-                # but our implementation uses standard redis client which blocks)
-                # Wait, our RedisMemoryRepository implementation is synchronous?
-                # Let's check... Yes, we implemented it with 'redis' lib, not 'aioredis' (except the import name confusion in previous step).
-                # But wait, we imported 'redis' and used 'redis.from_url', which is sync.
-                
-                # So we can call it directly.
-                history = self.memory_service.get_context(session_id, limit=10)
-                if history:
-                    # Format history as text for the prompt
-                    # This is a simple concatenation. 
-                    # Ideally, we should inject this into message history list, but RoutingAgent uses a single prompt.
-                    # We will append it to memory_formatted string.
-                    history_text = "\n".join([f"{msg['role']}: {msg['content']}" for msg in history])
-                    self.agent_context.memory = history_text
-            except Exception as e:
-                logger.error(f"Failed to load memory context: {e}")
+            # Use the resolved session_id
+            if session_id:
+                try:
+                    # Synchronous call for now
+                    history = self.memory_service.get_context(session_id, limit=10, query=user_input)
+                    if history:
+                        logger.info(
+                            "Loaded messages from memory",
+                            event_type="routing_agent_memory_load",
+                            count=len(history),
+                        )
+                        # Format history as text for the prompt
+                        history_text = "\n".join([f"{msg['role']}: {msg['content']}" for msg in history])
+                        self.agent_context.memory = history_text
+                    else:
+                        logger.info(
+                            "No messages found in memory",
+                            event_type="routing_agent_memory_load",
+                            count=0,
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to load memory context: {e}")
 
         if self.agent_context.memory:
             memory_formatted = f"Memory Context:\n'''{self.agent_context.memory}'''"
@@ -191,24 +189,21 @@ class RoutingAgent:
         response = model_with_tools.invoke(messages)
 
         # ------------------------------------------------------------------
-        # INTEGRATION: Save User Input & AI Response to Memory
+        # INTEGRATION: Save User Input to Memory
         # ------------------------------------------------------------------
         if self.memory_service:
             try:
-                # Re-derive session_id
-                user_phone = "unknown"
-                if self.agent_context.user:
-                     user_phone = self.agent_context.user.get("phone", "unknown")
-                session_id = ctx_data.get("conversation_id")
-                if not session_id:
-                    session_id = f"{self.agent_context.owner_id}:{user_phone}"
+                # Use the session_id already resolved and stored in agent_context
+                session_id = self.agent_context.session_id
 
-                # Save User Input
-                self.memory_service.add_message(session_id, {"role": "user", "content": user_input})
-                
-                # Save AI Response (if content exists)
-                if response.content:
-                    self.memory_service.add_message(session_id, {"role": "assistant", "content": response.content})
+                if session_id:
+                    # Save User Input
+                    # We save it here to ensure the user's intent is captured regardless of routing success
+                    self.memory_service.add_message(session_id, {"role": "user", "content": user_input})
+                    logger.info("Persisted user input to memory", event_type="routing_agent_memory_persist")
+                else:
+                    logger.warning("Session ID missing, skipping memory persistence", event_type="routing_agent_memory_skip")
+
             except Exception as e:
                  logger.error(f"Failed to save memory context: {e}")
 
@@ -234,6 +229,21 @@ class RoutingAgent:
             logger.info(
                 "No tool calls found in response", event_type="routing_agent_no_tool_calls"
             )
+            
+            # INTEGRATION: Save Routing Agent's Text Response to Memory
+            # Since no tool was called, this is the final response (e.g. Small Talk)
+            if self.memory_service and response.content:
+                 try:
+                     # session_id is guaranteed to be set if we reached here (checked at start)
+                     if self.agent_context.session_id:
+                         self.memory_service.add_message(
+                             self.agent_context.session_id, 
+                             {"role": "assistant", "content": response.content}
+                         )
+                         logger.info("Persisted routing agent response to memory", event_type="routing_agent_memory_persist_response")
+                 except Exception as e:
+                     logger.error(f"Failed to save routing agent response: {e}")
+
             return response.content
 
         self.ai_log_thought_service.log_agent_thought(

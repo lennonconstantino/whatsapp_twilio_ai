@@ -18,6 +18,8 @@ class VectorMemoryRepository:
     def __init__(self, supabase_client: Client):
         self.client = supabase_client
         self.embeddings = self._init_embeddings()
+        self._disabled = False
+        self._disabled_reason: str | None = None
         
         # Initialize SupabaseVectorStore
         # Note: table_name and query_name must match the SQL migration
@@ -26,6 +28,16 @@ class VectorMemoryRepository:
             embedding=self.embeddings,
             table_name="message_embeddings",
             query_name="match_message_embeddings",
+        )
+
+    def _disable(self, reason: str) -> None:
+        if self._disabled:
+            return
+        self._disabled = True
+        self._disabled_reason = reason
+        logger.warning(
+            "Busca vetorial indisponível; desativando VectorMemoryRepository",
+            reason=reason,
         )
 
     def _init_embeddings(self):
@@ -46,10 +58,19 @@ class VectorMemoryRepository:
         """
         Search for relevant documents using semantic similarity.
         """
+        if self._disabled:
+            return []
+
         try:
             docs = self.vector_store.similarity_search(query, k=limit, filter=filter)
             return [{"content": d.page_content, "metadata": d.metadata} for d in docs]
         except Exception as e:
+            error_text = str(e)
+            if "PGRST202" in error_text or (
+                "match_message_embeddings" in error_text and "schema cache" in error_text
+            ):
+                self._disable(error_text)
+                return []
             logger.error(f"Error searching vector store: {e}")
             return []
 

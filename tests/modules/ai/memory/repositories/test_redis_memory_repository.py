@@ -3,6 +3,8 @@ import json
 import unittest
 from unittest.mock import MagicMock, patch
 
+import redis
+
 from src.modules.ai.memory.repositories.redis_memory_repository import \
     RedisMemoryRepository
 
@@ -104,3 +106,26 @@ class TestRedisMemoryRepository(unittest.TestCase):
         except Exception:
             self.fail("add_message raised Exception unexpectedly!")
 
+    def test_disables_after_connection_error_get_context(self):
+        self.mock_redis.lrange.side_effect = Exception("should be overwritten")
+        self.mock_redis.lrange.side_effect = redis.exceptions.ConnectionError(
+            "Connection refused"
+        )
+
+        result1 = self.repo.get_context(self.session_id)
+        result2 = self.repo.get_context(self.session_id)
+
+        self.assertEqual(result1, [])
+        self.assertEqual(result2, [])
+        self.assertEqual(self.mock_redis.lrange.call_count, 1)
+
+    def test_disables_after_connection_error_add_message(self):
+        message = {"role": "user", "content": "New message"}
+        self.mock_redis.pipeline.side_effect = redis.exceptions.ConnectionError(
+            "Connection refused"
+        )
+
+        self.repo.add_message(self.session_id, message)
+        self.repo.add_message(self.session_id, message)
+
+        self.assertEqual(self.mock_redis.pipeline.call_count, 1)

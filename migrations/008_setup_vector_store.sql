@@ -19,12 +19,13 @@ create table if not exists message_embeddings (
 -- Function: match_message_embeddings
 -- Args:
 --   query_embedding: The vector to search for
---   match_threshold: Minimum similarity score (0-1)
---   match_count: Max number of results
+--   match_threshold: Minimum similarity score (0-1) - default 0.5
+--   match_count: Max number of results - default 10
+--   filter: JSONB filter for metadata - default '{}'
 create or replace function match_message_embeddings (
   query_embedding vector(1536),
-  match_threshold float,
-  match_count int,
+  match_threshold float default 0.5,
+  match_count int default 10,
   filter jsonb default '{}'
 )
 returns table (

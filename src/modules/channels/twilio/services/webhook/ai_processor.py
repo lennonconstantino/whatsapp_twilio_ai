@@ -8,6 +8,7 @@ from src.core.queue.service import QueueService
 from src.modules.ai.engines.lchain.core.agents.agent_factory import AgentFactory
 from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
 from src.modules.identity.services.identity_service import IdentityService
+from src.modules.identity.utils.profile_memory import extract_profile_name, should_forget_profile
 from src.modules.channels.twilio.services.webhook.message_handler import TwilioWebhookMessageHandler
 
 logger = get_logger(__name__)
@@ -92,17 +93,39 @@ class TwilioWebhookAIProcessor:
             # 2. Resolve Feature (Dynamic based on user/owner config)
             feature = await run_in_threadpool(self.identity_service.get_active_feature, owner_id)
 
+            user_dump = user.model_dump() if user else None
+
+            if user and payload.body:
+                if should_forget_profile(payload.body):
+                    await run_in_threadpool(self.identity_service.clear_user_profile_name, user.user_id)
+                    if user_dump is not None:
+                        user_dump["profile_name"] = None
+                else:
+                    extracted_name = extract_profile_name(payload.body)
+                    if extracted_name and (user_dump or {}).get("profile_name") != extracted_name:
+                        await run_in_threadpool(
+                            self.identity_service.update_user_profile_name,
+                            user.user_id,
+                            extracted_name,
+                        )
+                        if user_dump is not None:
+                            user_dump["profile_name"] = extracted_name
+
+            additional_context = ""
+            if user_dump and user_dump.get("profile_name"):
+                additional_context = f"User Profile:\n- profile_name: {user_dump['profile_name']}\n"
+
             agent_context = {
                 "owner_id": owner_id,
                 "correlation_id": correlation_id,
                 "msg_id": msg_id,
                 "session_id": conversation_id,
-                "user": user.model_dump() if user else None,
+                "user": user_dump,
                 "channel": "whatsapp",
                 "feature": feature.name if feature else None,
                 "feature_id": feature.feature_id if feature else None,
                 "memory": None,
-                "additional_context": "",
+                "additional_context": additional_context,
             }
 
             # 3. Run Agent (Synchronous Blocking Call)

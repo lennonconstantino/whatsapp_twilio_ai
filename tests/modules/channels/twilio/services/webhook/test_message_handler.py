@@ -166,19 +166,19 @@ async def test_send_and_persist_response_success(handler, mock_services, owner_i
         "src.modules.channels.twilio.services.webhook.message_handler.run_in_threadpool",
         new_callable=AsyncMock,
     ) as mock_run:
-        # Mock send_message return
-        mock_twilio_resp = MagicMock()
-        mock_twilio_resp.sid = "SM_resp"
-        mock_twilio_resp.status = "sent"
-        
+        mock_message = MagicMock()
+        mock_message.msg_id = str(uuid.uuid4())
+        mock_message.conv_id = conv_id
+        mock_message.owner_id = owner_id
+        mock_message.body = "msg"
+        mock_message.message_owner = MessageOwner.SYSTEM
+
         # side_effect for multiple run_in_threadpool calls:
-        # 1. send_message
-        # 2. get_or_create_conversation (called inside send_and_persist_response before add_message)
-        # 3. add_message
+        # 1. get_or_create_conversation
+        # 2. add_message
         mock_run.side_effect = [
-            mock_twilio_resp, 
-            MagicMock(conv_id=conv_id), 
-            MagicMock()
+            MagicMock(conv_id=conv_id),
+            mock_message,
         ]
         
         await handler.send_and_persist_response(
@@ -190,7 +190,8 @@ async def test_send_and_persist_response_success(handler, mock_services, owner_i
             correlation_id="corr"
         )
         
-        assert mock_run.call_count == 3
+        assert mock_run.call_count == 2
+        assert mock_services["queue_service"].enqueue.call_count == 2
 
 @pytest.mark.asyncio
 async def test_send_and_persist_response_failure(handler, mock_services, owner_id, conv_id):
@@ -198,8 +199,8 @@ async def test_send_and_persist_response_failure(handler, mock_services, owner_i
         "src.modules.channels.twilio.services.webhook.message_handler.run_in_threadpool",
         new_callable=AsyncMock,
     ) as mock_run:
-        # Mock send_message return None (failure)
-        mock_run.return_value = None
+        # get_or_create_conversation ok, but add_message fails (None)
+        mock_run.side_effect = [MagicMock(conv_id=conv_id), None]
         
         await handler.send_and_persist_response(
             owner_id=owner_id,
@@ -210,5 +211,5 @@ async def test_send_and_persist_response_failure(handler, mock_services, owner_i
             correlation_id="corr"
         )
         
-        # Should call send_message but NOT add_message
-        assert mock_run.call_count == 1
+        assert mock_run.call_count == 2
+        mock_services["queue_service"].enqueue.assert_not_called()

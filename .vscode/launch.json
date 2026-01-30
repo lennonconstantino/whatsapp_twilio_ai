@@ -13,6 +13,14 @@
             "envFile": "${workspaceFolder}/.env"
         },
         {
+            "name": "Python: Workers Module",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "src.core.queue.worker",
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env"
+        },        
+        {
             "name": "Python: Sender Local",
             "type": "debugpy",
             "request": "launch",

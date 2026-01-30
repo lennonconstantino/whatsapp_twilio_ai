@@ -104,6 +104,15 @@ class Agent:
                     memory_messages = self.memory_service.get_context(session_id, limit=10, query=body)
                     if memory_messages:
                         logger.info(f"Loaded {len(memory_messages)} messages from memory", event_type="agent_memory")
+                        
+                        # Deduplicate: If last message in memory is the same as current user input, remove it
+                        # to avoid [User, User] sequence in step_history
+                        last_msg = memory_messages[-1]
+                        if (last_msg.get("role") == "user" and 
+                            str(last_msg.get("content")).strip() == str(body).strip()):
+                            memory_messages.pop()
+                            logger.info("Deduplicated user message from memory context", event_type="agent_memory_dedup")
+                            
                 except Exception as e:
                     logger.warning(f"Failed to load memory for session {session_id}: {e}", event_type="agent_memory_error")
 
@@ -158,6 +167,21 @@ class Agent:
             final_content = last_valid_content
 
         logger.info("Agent Final Result", event_type="agent_finish", result=final_content)
+        
+        # Persist Assistant Response to Memory (L1 Cache)
+        if self.memory_service and final_content and str(final_content).strip():
+            session_id = (
+                self.agent_context.get("session_id")
+                if isinstance(self.agent_context, dict)
+                else getattr(self.agent_context, "session_id", None)
+            )
+            if session_id:
+                try:
+                    self.memory_service.add_message(session_id, {"role": "assistant", "content": final_content})
+                    logger.info("Persisted assistant response to memory", event_type="agent_memory_persist")
+                except Exception as e:
+                    logger.warning(f"Failed to persist assistant response to memory: {e}", event_type="agent_memory_error")
+
         return final_content
 
     def run_step(self, messages: List[dict], tools):
