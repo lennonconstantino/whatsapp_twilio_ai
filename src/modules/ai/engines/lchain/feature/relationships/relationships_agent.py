@@ -18,6 +18,7 @@ from src.modules.ai.engines.lchain.feature.relationships.tools.add import (
 from src.modules.ai.engines.lchain.feature.relationships.tools.query import (
     query_people_tool, query_interactions_tool, upcoming_reminders_tool)
 from src.modules.ai.memory.interfaces.memory_interface import MemoryInterface
+from src.modules.ai.engines.lchain.core.agents.identity_agent import identity_management_agent
 
 
 query_relationships_agent = TaskAgent(
