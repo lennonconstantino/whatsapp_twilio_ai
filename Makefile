@@ -88,7 +88,10 @@ restart: stop run-worker run-scheduler run
 	@echo "✅ Application restarted."
 
 migrate:
+	@echo "\n--CORE--\n"
 	python -m scripts.migrate
+	@echo "\n--FEATURES--\n"
+	python -m scripts.migrate migrations/feature/
 
 seed:
 	@echo "Seeding database..."
