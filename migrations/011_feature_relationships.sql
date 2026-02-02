@@ -2,6 +2,10 @@
 -- Migração de Tabelas para Feature Relationships
 -- ==============================================
 
+-- ============================================================================
+-- DROP VIEWS
+-- ============================================================================
+
 -- ==============================================
 -- Tabela: person
 -- ==============================================
@@ -80,6 +84,11 @@ CREATE TRIGGER update_reminder_updated_at
     BEFORE UPDATE ON reminder
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+-- Habilitar RLS
+-- ALTER TABLE person ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE interaction ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE reminder ENABLE ROW LEVEL SECURITY;
 
 -- ==============================================
 -- Comentários nas tabelas

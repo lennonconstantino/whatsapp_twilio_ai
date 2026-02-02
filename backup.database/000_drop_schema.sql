@@ -25,6 +25,22 @@ DROP TABLE IF EXISTS features CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS owners CASCADE;
 
+DROP TABLE IF EXISTS message_embeddings CASCADE;
+
+-- ============================================================================
+-- 2. DROP TABLEs Features
+-- ============================================================================
+-- relationships
+DROP TABLE IF EXISTS person CASCADE;
+DROP TABLE IF EXISTS interaction CASCADE;
+DROP TABLE IF EXISTS reminder CASCADE;
+
+-- Finance
+DROP TABLE IF EXISTS revenue CASCADE;
+DROP TABLE IF EXISTS expense CASCADE;
+DROP TABLE IF EXISTS customer CASCADE;
+DROP TABLE IF EXISTS invoice CASCADE;
+
 -- ============================================================================
 -- 2. DROP FUNCTIONS
 -- ============================================================================

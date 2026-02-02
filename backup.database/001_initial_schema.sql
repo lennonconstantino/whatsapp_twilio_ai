@@ -322,9 +322,6 @@ CREATE UNIQUE INDEX idx_conversations_session_key_active
 ON conversations(owner_id, session_key)
 WHERE status IN ('pending', 'progress');
 
-CREATE INDEX idx_conversations_session_key 
-ON conversations(owner_id, session_key, status);
-
 CREATE INDEX idx_conversations_owner_id ON conversations(owner_id);
 CREATE INDEX idx_conversations_user_id ON conversations(user_id) WHERE user_id IS NOT NULL;
 CREATE INDEX idx_conversations_status ON conversations(status);

@@ -7,6 +7,12 @@
 -- Habilitar extensões úteis (opcional)
 -- CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- ============================================================================
+-- DROP VIEWS
+-- ============================================================================
+DROP VIEW IF EXISTS monthly_financial_summary CASCADE;
+DROP VIEW IF EXISTS invoice_details CASCADE;
+
 -- ==============================================
 -- Tabela: revenue
 -- ==============================================

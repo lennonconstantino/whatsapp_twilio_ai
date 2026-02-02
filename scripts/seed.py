@@ -357,6 +357,7 @@ def main():
     logger.info("Starting seed process...")
 
     try:
+        # Use service key for seeding to bypass RLS if available
         db_client = get_db()
 
         # Initialize repositories
