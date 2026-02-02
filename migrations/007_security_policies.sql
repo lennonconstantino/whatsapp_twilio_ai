@@ -121,6 +121,7 @@ DROP POLICY IF EXISTS "Users can view their org features" ON public.features;
 CREATE POLICY "Users can view their org features"
 ON public.features
 FOR SELECT
+TO authenticated
 USING (
     owner_id = get_current_owner_id()
 );
@@ -129,6 +130,7 @@ DROP POLICY IF EXISTS "Admins can manage features" ON public.features;
 CREATE POLICY "Admins can manage features"
 ON public.features
 FOR ALL
+TO authenticated
 USING (
     owner_id = get_current_owner_id()
     AND EXISTS (
@@ -262,6 +264,7 @@ DROP POLICY IF EXISTS "Users can view their Twilio accounts" ON public.twilio_ac
 CREATE POLICY "Users can view their Twilio accounts"
 ON public.twilio_accounts
 FOR SELECT
+TO authenticated
 USING (
     owner_id = get_current_owner_id()
 );
@@ -270,6 +273,7 @@ DROP POLICY IF EXISTS "Admins can manage Twilio accounts" ON public.twilio_accou
 CREATE POLICY "Admins can manage Twilio accounts"
 ON public.twilio_accounts
 FOR ALL
+TO authenticated
 USING (
     owner_id = get_current_owner_id()
     AND EXISTS (

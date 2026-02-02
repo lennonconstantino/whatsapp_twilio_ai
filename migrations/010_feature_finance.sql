@@ -32,13 +32,7 @@ CREATE INDEX IF NOT EXISTS idx_revenue_date ON revenue(date);
 CREATE INDEX IF NOT EXISTS idx_revenue_created_at ON revenue(created_at);
 
 -- Trigger para atualizar updated_at automaticamente
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- NOTA: A função update_updated_at_column() já foi criada em 002_create_core_functions.sql
 
 CREATE TRIGGER update_revenue_updated_at
     BEFORE UPDATE ON revenue
