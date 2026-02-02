@@ -17,7 +17,7 @@ END $$;
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION match_message_embeddings(
-    query_embedding vector(1536),
+    query_embedding extensions.vector(1536),
     match_threshold float DEFAULT 0.5,
     match_count int DEFAULT 10,
     filter jsonb DEFAULT '{}'
@@ -29,6 +29,7 @@ RETURNS TABLE (
     similarity float
 )
 LANGUAGE plpgsql
+SET search_path = public, extensions, temp
 AS $$
 BEGIN
     RETURN QUERY
@@ -65,6 +66,7 @@ RETURNS TABLE (
 )
 LANGUAGE sql
 STABLE
+SET search_path = public, extensions, temp
 AS $$
     SELECT
         me.id,
@@ -90,7 +92,7 @@ COMMENT ON FUNCTION search_message_embeddings_text IS 'Full-text search on messa
 
 CREATE OR REPLACE FUNCTION search_message_embeddings_hybrid_rrf(
     query_text text,
-    query_embedding vector(1536),
+    query_embedding extensions.vector(1536),
     match_count int,
     match_threshold double precision,
     filter jsonb DEFAULT '{}'::jsonb,
@@ -107,6 +109,7 @@ RETURNS TABLE (
 )
 LANGUAGE sql
 STABLE
+SET search_path = public, extensions, temp
 AS $$
     WITH v AS (
         SELECT

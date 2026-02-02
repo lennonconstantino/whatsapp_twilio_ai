@@ -12,13 +12,14 @@ BEGIN
 END $$;
 
 -- UUID generation (for compatibility and additional UUID features)
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA extensions;
 
 -- Vector extension for embeddings (OpenAI, etc.)
-CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS vector SCHEMA extensions;
 
 -- Trigram extension for fuzzy text search
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA extensions;
 
 DO $$
 BEGIN

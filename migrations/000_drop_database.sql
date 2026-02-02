@@ -43,9 +43,9 @@ DROP TABLE IF EXISTS owners CASCADE;
 -- ============================================================================
 -- 3. DROP FUNCTIONS
 -- ============================================================================
-DROP FUNCTION IF EXISTS search_message_embeddings_hybrid_rrf(text, vector, int, double precision, jsonb, double precision, double precision, int, text) CASCADE;
+DROP FUNCTION IF EXISTS search_message_embeddings_hybrid_rrf(text, extensions.vector, int, double precision, jsonb, double precision, double precision, int, text) CASCADE;
 DROP FUNCTION IF EXISTS search_message_embeddings_text(text, int, jsonb, text) CASCADE;
-DROP FUNCTION IF EXISTS match_message_embeddings(vector, float, int, jsonb) CASCADE;
+DROP FUNCTION IF EXISTS match_message_embeddings(extensions.vector, float, int, jsonb) CASCADE;
 DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE;
 DROP FUNCTION IF EXISTS generate_ulid() CASCADE;
 DROP FUNCTION IF EXISTS is_valid_ulid(TEXT) CASCADE;
@@ -82,7 +82,7 @@ DROP EXTENSION IF EXISTS pg_trgm CASCADE;
 -- ============================================================================
 -- 7. DROP SCHEMAS (optional - only if you created custom schemas)
 -- ============================================================================
--- DROP SCHEMA IF EXISTS extensions CASCADE;
+DROP SCHEMA IF EXISTS extensions CASCADE;
 
 -- Re-enable foreign key checks
 SET session_replication_role = 'origin';

@@ -414,7 +414,7 @@ CREATE TABLE IF NOT EXISTS message_embeddings (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     content text,
     metadata jsonb,
-    embedding vector(1536)
+    embedding extensions.vector(1536)
 );
 
 -- Full-Text Search index (portuguese)

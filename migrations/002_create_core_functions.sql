@@ -24,7 +24,9 @@ END $$;
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION generate_ulid() 
-RETURNS TEXT AS $$
+RETURNS TEXT
+SET search_path = public, extensions, temp
+AS $$
 DECLARE
     -- Crockford's Base32 alphabet (excludes I, L, O, U to avoid confusion)
     encoding   TEXT := '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
@@ -60,7 +62,9 @@ COMMENT ON FUNCTION generate_ulid() IS 'Generate ULID (Universally Unique Lexico
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION is_valid_ulid(ulid TEXT)
-RETURNS BOOLEAN AS $$
+RETURNS BOOLEAN
+SET search_path = public, extensions, temp
+AS $$
 DECLARE
     encoding TEXT := '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
     char TEXT;
@@ -89,7 +93,9 @@ COMMENT ON FUNCTION is_valid_ulid(TEXT) IS 'Validate ULID format (26 chars, Croc
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION ulid_to_timestamp(ulid TEXT)
-RETURNS TIMESTAMP WITH TIME ZONE AS $$
+RETURNS TIMESTAMP WITH TIME ZONE
+SET search_path = public, extensions, temp
+AS $$
 DECLARE
     encoding TEXT := '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
     timestamp_part TEXT;
@@ -121,7 +127,9 @@ COMMENT ON FUNCTION ulid_to_timestamp(TEXT) IS 'Extract timestamp from ULID';
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SET search_path = public, extensions, temp
+AS $$
 BEGIN
     NEW.updated_at = NOW();
     RETURN NEW;
@@ -135,7 +143,9 @@ COMMENT ON FUNCTION update_updated_at_column() IS 'Automatically update updated_
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION set_history_id_on_insert()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SET search_path = public, extensions, temp
+AS $$
 BEGIN
     IF NEW.history_id IS NULL THEN
         NEW.history_id := generate_ulid();
