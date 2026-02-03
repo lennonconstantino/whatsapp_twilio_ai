@@ -7,8 +7,8 @@ from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
 from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
 
-from src.core.database.interface import IRepository
 from src.core.utils import get_logger
+from src.core.database.postgres_session import PostgresDatabase
 
 logger = get_logger(__name__)
 
@@ -23,16 +23,16 @@ class PostgresRepository(Generic[T]):
     to Pydantic models without an ORM overhead.
     """
 
-    def __init__(self, connection, table_name: str, model_class: Type[T]):
+    def __init__(self, db: PostgresDatabase, table_name: str, model_class: Type[T]):
         """
         Initialize Postgres Raw repository.
 
         Args:
-            connection: psycopg2 connection object
+            db: PostgresDatabase instance (pool/connection manager)
             table_name: Name of the database table
             model_class: Pydantic model class (for return types)
         """
-        self.connection = connection
+        self.db = db
         self.table_name = table_name
         self.model_class = model_class
 
@@ -42,26 +42,37 @@ class PostgresRepository(Generic[T]):
         params: tuple = None,
         fetch_one: bool = False,
         fetch_all: bool = False,
+        commit: bool = False,
     ) -> Any:
         """Helper to execute queries with cursor management."""
-        cursor = self.connection.cursor(cursor_factory=RealDictCursor)
-        try:
-            cursor.execute(query, params)
+        with self.db.connection() as conn:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cursor.execute(query, params)
 
-            if fetch_one:
-                return cursor.fetchone()
-            if fetch_all:
-                return cursor.fetchall()
+                if fetch_one:
+                    result = cursor.fetchone()
+                    if commit:
+                        conn.commit()
+                    return result
+                if fetch_all:
+                    result = cursor.fetchall()
+                    if commit:
+                        conn.commit()
+                    return result
 
-            self.connection.commit()
-            return cursor.rowcount
+                if commit:
+                    conn.commit()
+                return cursor.rowcount
 
-        except Exception as e:
-            self.connection.rollback()
-            logger.error(f"Error executing query on {self.table_name}", error=str(e))
-            raise
-        finally:
-            cursor.close()
+            except Exception as e:
+                conn.rollback()
+                logger.error(
+                    f"Error executing query on {self.table_name}", error=str(e)
+                )
+                raise
+            finally:
+                cursor.close()
 
     def create(self, data: Dict[str, Any]) -> Optional[T]:
         """
@@ -76,10 +87,11 @@ class PostgresRepository(Generic[T]):
             sql.SQL(", ").join(sql.Placeholder() * len(columns)),
         )
 
-        result = self._execute_query(query, tuple(values), fetch_one=True)
+        result = self._execute_query(
+            query, tuple(values), fetch_one=True, commit=True
+        )
 
         if result:
-            self.connection.commit()
             return self.model_class(**result)
         return None
 
@@ -98,7 +110,11 @@ class PostgresRepository(Generic[T]):
         return None
 
     def update(
-        self, id_value: Union[int, str], data: Dict[str, Any], id_column: str = "id"
+        self,
+        id_value: Union[int, str],
+        data: Dict[str, Any],
+        id_column: str = "id",
+        current_version: Optional[int] = None,
     ) -> Optional[T]:
         """
         Update a record using raw UPDATE.
@@ -106,24 +122,30 @@ class PostgresRepository(Generic[T]):
         if not data:
             return self.find_by_id(id_value, id_column)
 
+        where_clause = sql.SQL("{} = %s").format(sql.Identifier(id_column))
         set_clauses = [
             sql.SQL("{} = {}").format(sql.Identifier(k), sql.Placeholder())
             for k in data.keys()
         ]
 
-        query = sql.SQL("UPDATE {} SET {} WHERE {} = %s RETURNING *").format(
+        if current_version is not None:
+            if "version" not in data:
+                data = {**data, "version": current_version + 1}
+            where_clause = where_clause + sql.SQL(" AND version = %s")
+
+        query = sql.SQL("UPDATE {} SET {} WHERE ").format(
             sql.Identifier(self.table_name),
             sql.SQL(", ").join(set_clauses),
-            sql.Identifier(id_column),
-        )
+        ) + where_clause + sql.SQL(" RETURNING *")
 
         # Params: values for SET + id_value for WHERE
         params = tuple(data.values()) + (id_value,)
+        if current_version is not None:
+            params = params + (current_version,)
 
-        result = self._execute_query(query, params, fetch_one=True)
+        result = self._execute_query(query, params, fetch_one=True, commit=True)
 
         if result:
-            self.connection.commit()
             return self.model_class(**result)
         return None
 
@@ -135,7 +157,7 @@ class PostgresRepository(Generic[T]):
             sql.Identifier(self.table_name), sql.Identifier(id_column)
         )
 
-        rowcount = self._execute_query(query, (id_value,))
+        rowcount = self._execute_query(query, (id_value,), commit=True)
         return rowcount > 0
 
     def find_by(self, filters: Dict[str, Any], limit: int = 100) -> List[T]:

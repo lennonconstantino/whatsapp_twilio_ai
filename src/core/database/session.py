@@ -42,12 +42,28 @@ class DatabaseConnection:
 
     def __init__(self):
         """Initialize database connection."""
-        if self._client is None:
-            self._connect()
+        pass
+
+    def _validate_supabase_settings(self) -> None:
+        missing: list[str] = []
+        if not settings.supabase.url:
+            missing.append("SUPABASE_URL")
+        if not settings.supabase.key:
+            missing.append("SUPABASE_KEY")
+        if missing:
+            raise RuntimeError(
+                "Supabase backend selecionado, mas variáveis ausentes: "
+                + ", ".join(missing)
+            )
 
     def _connect(self):
         """Establish connection to Supabase."""
+        if settings.database.backend != "supabase":
+            raise RuntimeError(
+                f"DatabaseConnection (Supabase) não pode ser usado quando DATABASE_BACKEND={settings.database.backend}"
+            )
         try:
+            self._validate_supabase_settings()
             options = ClientOptions(schema=settings.supabase.db_schema)
             self._client = create_client(
                 settings.supabase.url, settings.supabase.key, options=options

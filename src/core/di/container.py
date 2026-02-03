@@ -8,9 +8,11 @@ from src.core.config.settings import settings
 from src.modules.ai.services.transcription_service import TranscriptionService
 from src.modules.ai.engines.lchain.feature.relationships.relationships_agent import create_relationships_agent
 from src.core.database.session import DatabaseConnection
+from src.core.database.postgres_session import PostgresDatabase
 from src.core.queue.service import QueueService
 from src.modules.ai.ai_result.repositories.ai_result_repository import \
     AIResultRepository
+from src.modules.ai.ai_result.repositories.impl.postgres.ai_result_repository import PostgresAIResultRepository
 from src.modules.ai.ai_result.services.ai_log_thought_service import \
     AILogThoughtService
 from src.modules.ai.ai_result.services.ai_result_service import AIResultService
@@ -20,6 +22,7 @@ from src.modules.ai.engines.lchain.feature.finance.finance_agent import \
     create_finance_agent
 from src.modules.channels.twilio.repositories.account_repository import \
     TwilioAccountRepository
+from src.modules.channels.twilio.repositories.impl.postgres.account_repository import PostgresTwilioAccountRepository
 from src.modules.channels.twilio.services.twilio_account_service import \
     TwilioAccountService
 from src.modules.channels.twilio.services.twilio_service import TwilioService
@@ -31,8 +34,10 @@ from src.modules.channels.twilio.services.webhook.audio_processor import TwilioW
 from src.modules.channels.twilio.services.webhook.ai_processor import TwilioWebhookAIProcessor
 from src.modules.conversation.repositories.conversation_repository import \
     ConversationRepository
+from src.modules.conversation.repositories.impl.postgres.conversation_repository import PostgresConversationRepository
 from src.modules.conversation.repositories.message_repository import \
     MessageRepository
+from src.modules.conversation.repositories.impl.postgres.message_repository import PostgresMessageRepository
 from src.modules.conversation.services.conversation_service import \
     ConversationService
 from src.modules.conversation.components.conversation_finder import \
@@ -43,12 +48,17 @@ from src.modules.conversation.components.conversation_closer import \
     ConversationCloser
 from src.modules.identity.repositories.feature_repository import \
     FeatureRepository
+from src.modules.identity.repositories.impl.postgres.feature_repository import PostgresFeatureRepository
 # Repositories
 from src.modules.identity.repositories.owner_repository import OwnerRepository
+from src.modules.identity.repositories.impl.postgres.owner_repository import PostgresOwnerRepository
 from src.modules.identity.repositories.plan_repository import PlanRepository
+from src.modules.identity.repositories.impl.postgres.plan_repository import PostgresPlanRepository
 from src.modules.identity.repositories.subscription_repository import \
     SubscriptionRepository
+from src.modules.identity.repositories.impl.postgres.subscription_repository import PostgresSubscriptionRepository
 from src.modules.identity.repositories.user_repository import UserRepository
+from src.modules.identity.repositories.impl.postgres.user_repository import PostgresUserRepository
 from src.modules.identity.services.feature_service import FeatureService
 from src.modules.identity.services.identity_service import IdentityService
 # Services
@@ -61,6 +71,7 @@ from src.modules.identity.services.user_service import UserService
 
 from src.modules.ai.memory.repositories.redis_memory_repository import RedisMemoryRepository
 from src.modules.ai.memory.repositories.vector_memory_repository import VectorMemoryRepository
+from src.modules.ai.memory.repositories.impl.postgres.vector_memory_repository import PostgresVectorMemoryRepository
 from src.modules.ai.memory.services.hybrid_memory_service import HybridMemoryService
 
 class Container(containers.DeclarativeContainer):
@@ -89,11 +100,20 @@ class Container(containers.DeclarativeContainer):
     )
 
     # Database
-    db_connection = providers.Singleton(DatabaseConnection)
+    db_backend = providers.Object(settings.database.backend)
 
-    db_session = providers.Singleton(lambda db: db.session, db_connection)
-    
-    db_client = providers.Singleton(lambda db: db.client, db_connection)
+    supabase_connection = providers.Singleton(DatabaseConnection)
+
+    supabase_session = providers.Singleton(lambda db: db.session, supabase_connection)
+
+    supabase_client = providers.Singleton(lambda db: db.client, supabase_connection)
+
+    postgres_db = providers.Singleton(
+        PostgresDatabase,
+        dsn=settings.database.url,
+        minconn=settings.database.pool_min_conn,
+        maxconn=settings.database.pool_max_conn,
+    )
 
     # Core Services
     queue_service = providers.Singleton(QueueService)
@@ -107,35 +127,72 @@ class Container(containers.DeclarativeContainer):
         reconnect_backoff_seconds=settings.memory.redis_reconnect_backoff_seconds,
     )
 
-    vector_memory_repository = providers.Factory(
-        VectorMemoryRepository,
-        supabase_client=db_client
+    vector_memory_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(
+            VectorMemoryRepository,
+            supabase_client=supabase_client,
+        ),
+        postgres=providers.Factory(
+            PostgresVectorMemoryRepository,
+            db=postgres_db,
+        ),
     )
 
     # Repositories
-    owner_repository = providers.Factory(OwnerRepository, client=db_session)
-
-    user_repository = providers.Factory(UserRepository, client=db_session)
-
-    feature_repository = providers.Factory(FeatureRepository, client=db_session)
-
-    plan_repository = providers.Factory(PlanRepository, client=db_session)
-
-    subscription_repository = providers.Factory(
-        SubscriptionRepository, client=db_session
+    owner_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(OwnerRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresOwnerRepository, db=postgres_db),
     )
 
-    twilio_account_repository = providers.Factory(
-        TwilioAccountRepository, client=db_session
+    user_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(UserRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresUserRepository, db=postgres_db),
     )
 
-    conversation_repository = providers.Factory(
-        ConversationRepository, client=db_session
+    feature_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(FeatureRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresFeatureRepository, db=postgres_db),
     )
 
-    message_repository = providers.Factory(MessageRepository, client=db_session)
+    plan_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(PlanRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresPlanRepository, db=postgres_db),
+    )
 
-    ai_result_repository = providers.Factory(AIResultRepository, client=db_session)
+    subscription_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(SubscriptionRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresSubscriptionRepository, db=postgres_db),
+    )
+
+    twilio_account_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(TwilioAccountRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresTwilioAccountRepository, db=postgres_db),
+    )
+
+    conversation_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(ConversationRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresConversationRepository, db=postgres_db),
+    )
+
+    message_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(MessageRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresMessageRepository, db=postgres_db),
+    )
+
+    ai_result_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(AIResultRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresAIResultRepository, db=postgres_db),
+    )
 
     # Services
     owner_service = providers.Factory(OwnerService, repository=owner_repository)

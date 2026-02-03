@@ -51,9 +51,21 @@ class ConversationSettings(BaseSettings):
 class DatabaseSettings(BaseSettings):
     """Database connection settings."""
 
+    backend: str = Field(
+        default="supabase",
+        description="Database backend (supabase, postgres)",
+    )
     url: str = Field(
         default="postgresql://postgres:postgres@localhost:5432/owner_db",
         description="Database connection URL",
+    )
+    pool_min_conn: int = Field(
+        default=1,
+        description="Postgres pool minimum connections (used when backend=postgres)",
+    )
+    pool_max_conn: int = Field(
+        default=10,
+        description="Postgres pool maximum connections (used when backend=postgres)",
     )
 
     model_config = SettingsConfigDict(env_prefix="DATABASE_")
@@ -62,16 +74,16 @@ class DatabaseSettings(BaseSettings):
 class SupabaseSettings(BaseSettings):
     """Supabase connection settings."""
 
-    url: str = Field(..., description="Supabase project URL")
-    key: str = Field(..., description="Supabase anon key")
+    url: str | None = Field(default=None, description="Supabase project URL")
+    key: str | None = Field(default=None, description="Supabase anon key")
     service_key: str | None = Field(
         default=None, description="Supabase service role key"
     )
     db_schema: str = Field(
         default="public", description="Default database schema (e.g. public, app)"
     )
-    project_ref: str = Field(..., description="Supabase project reference")
-    access_token: str = Field(..., description="Supabase access token")
+    project_ref: str | None = Field(default=None, description="Supabase project reference")
+    access_token: str | None = Field(default=None, description="Supabase access token")
 
     model_config = SettingsConfigDict(env_prefix="SUPABASE_")
 

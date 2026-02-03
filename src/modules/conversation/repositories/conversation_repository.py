@@ -68,15 +68,16 @@ class ConversationRepository(SupabaseRepository[Conversation]):
                     "context": "creation",
                 },
             }
-            self.client.table("conversation_state_history").insert(
-                history_data
-            ).execute()
+            self.log_transition_history(history_data)
         except Exception as e:
             logger.error(
                 "Failed to write conversation state history on create",
                 conv_id=conversation.conv_id,
                 error=str(e),
             )
+
+    def log_transition_history(self, history_data: Dict[str, Any]) -> None:
+        self.client.table("conversation_state_history").insert(history_data).execute()
 
     def find_active_by_session_key(
         self, owner_id: str, session_key: str

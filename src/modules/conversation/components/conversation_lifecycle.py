@@ -149,9 +149,7 @@ class ConversationLifecycle:
                     "context": conversation.context,
                 },
             }
-            self.repository.client.table("conversation_state_history").insert(
-                history_data
-            ).execute()
+            self.repository.log_transition_history(history_data)
         except Exception as e:
             logger.error(
                 "Failed to log transition history",
