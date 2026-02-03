@@ -1,3 +1,6 @@
+from typing import Any, Dict, Optional, List
+import os
+from langchain_core.language_models import BaseChatModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_ollama import ChatOllama
@@ -7,11 +10,13 @@ from src.core.utils.logging import get_logger
 from src.core.config import settings
 
 from dotenv import load_dotenv
+
+# Load env variables if not already loaded
 _ = load_dotenv()
 
 logger = get_logger(__name__)
 
-
+# Provider mapping
 _PROVIDER_MAP = {
     "openai": ChatOpenAI,
     "google": ChatGoogleGenerativeAI,
@@ -19,12 +24,13 @@ _PROVIDER_MAP = {
     "ollama": ChatOllama,
 }
 
+# Static configuration for known models
 MODEL_CONFIGS = [
     {
         "provider": "ollama",
         "model_name": "gpt-oss:20b",
         "temperature": 0,
-        "validate_model_on_init": True,
+        "validate_model_on_init": False,
     },
     {
         "provider": "groq",
@@ -59,101 +65,181 @@ MODEL_CONFIGS = [
     },
 ]
 
+class LLMFactory:
+    """
+    Factory for creating and managing LLM instances with lazy loading.
+    """
 
-def _create_chat_model(
-    model_name: str, provider: str, temperature: float | None = None, **extra_params
-):
-    if provider not in _PROVIDER_MAP:
-        raise ValueError(
-            f"Provedor nao suportado: {provider}. Provedores suportados sao: {list(_PROVIDER_MAP.keys())}"
-        )
-
-    model_class = _PROVIDER_MAP[provider]
-    params = {"model": model_name}
-
-    if temperature is not None:
-        params["temperature"] = temperature
-
-    if provider == "google":
-        from langchain_google_genai import HarmBlockThreshold, HarmCategory
-
-        safety_settings = {
-            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-        }
-        params["safety_settings"] = safety_settings
-
-    # Para Groq, use model_kwargs para parâmetros não-padrão
-    if provider == "groq":
-        model_kwargs = {}
-        if "max_tokens" in extra_params:
-            params["max_tokens"] = extra_params["max_tokens"]  # max_tokens é aceito diretamente
-        if "top_p" in extra_params:
-            model_kwargs["top_p"] = extra_params["top_p"]  # top_p vai para model_kwargs
-        if model_kwargs:
-            params["model_kwargs"] = model_kwargs
-    
-    if provider == "ollama":
-        if "validate_model_on_init" in extra_params:
-            params["validate_model_on_init"] = extra_params["validate_model_on_init"]
+    def __init__(self):
+        self._instances: Dict[str, BaseChatModel] = {}
+        self._configs: Dict[str, Dict[str, Any]] = {}
         
-        # Check for explicit base_url or try to use environment variable via os
-        import os
-        base_url = extra_params.get("base_url") or os.getenv("OLLAMA_BASE_URL")
-        if base_url:
-            params["base_url"] = base_url
+        # Pre-populate configs from static list
+        for config in MODEL_CONFIGS:
+            key = f"{config['provider']}/{config['model_name']}"
+            self._configs[key] = config
 
-    return model_class(**params)
+    def get_model(self, key: str) -> BaseChatModel:
+        """
+        Get an LLM instance by key (provider/model_name).
+        Creates it if it doesn't exist.
+        """
+        if key in self._instances:
+            return self._instances[key]
 
-
-models = {}
-
-for config in MODEL_CONFIGS:
-    try:
-        # Gera o key_name dinamicamente
-        key_name = f"{config['provider']}/{config['model_name']}"
+        # Check if we have config for this key
+        config = self._configs.get(key)
         
-        # Extraia os parâmetros extras (tudo exceto provider, model_name e temperature)
+        if not config:
+            # Try to infer config from key if it follows provider/model format
+            try:
+                provider, model_name = key.split("/", 1)
+                logger.info(f"Implicit configuration for model: {key}")
+                config = {
+                    "provider": provider,
+                    "model_name": model_name,
+                    "temperature": 0
+                }
+            except ValueError:
+                raise ValueError(f"Invalid model key format or unknown model: {key}")
+
+        try:
+            instance = self._create_instance(config)
+            self._instances[key] = instance
+            logger.info(f"Lazy loaded LLM: {key}")
+            return instance
+        except Exception as e:
+            logger.error(f"Failed to lazy load LLM {key}: {e}")
+            raise e
+
+    def _create_instance(self, config: Dict[str, Any]) -> BaseChatModel:
+        """Internal method to create an LLM instance."""
+        provider = config.get("provider")
+        model_name = config.get("model_name")
+        temperature = config.get("temperature")
+        
+        # Extract extra params
         extra_params = {k: v for k, v in config.items() 
                        if k not in ["provider", "model_name", "temperature"]}
-        
-        # Cria o modelo SEM passar key_name para ele
-        models[key_name] = _create_chat_model(
-            model_name=config["model_name"],
-            provider=config["provider"],
-            temperature=config.get("temperature"),
-            **extra_params
-        )
-        
-        logger.info(f"Model initialized: {key_name}")
-        
-    except Exception as exc:
-        logger.warning(
-            "llm_init_warning",
-            message=f"Failed to initialize model {config['provider']}/{config['model_name']}",
-            error=str(exc),
-        )
 
+        if provider not in _PROVIDER_MAP:
+            raise ValueError(
+                f"Unsupported provider: {provider}. Supported: {list(_PROVIDER_MAP.keys())}"
+            )
+
+        model_class = _PROVIDER_MAP[provider]
+        params = {"model": model_name}
+
+        if temperature is not None:
+            params["temperature"] = temperature
+
+        if provider == "google":
+            from langchain_google_genai import HarmBlockThreshold, HarmCategory
+            safety_settings = {
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            }
+            params["safety_settings"] = safety_settings
+
+        # Groq specific
+        if provider == "groq":
+            model_kwargs = {}
+            if "max_tokens" in extra_params:
+                params["max_tokens"] = extra_params["max_tokens"]
+            if "top_p" in extra_params:
+                model_kwargs["top_p"] = extra_params["top_p"]
+            if model_kwargs:
+                params["model_kwargs"] = model_kwargs
+        
+        # Ollama specific
+        if provider == "ollama":
+            if "validate_model_on_init" in extra_params:
+                params["validate_model_on_init"] = extra_params["validate_model_on_init"]
+            
+            base_url = extra_params.get("base_url") or os.getenv("OLLAMA_BASE_URL")
+            if base_url:
+                params["base_url"] = base_url
+
+        return model_class(**params)
+
+    def check_health(self, key: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Performs a health check on the specified model or the default one.
+        Returns a dict with status and details.
+        """
+        target_key = key or LLM
+        result = {
+            "model": target_key,
+            "status": "unknown",
+            "latency_ms": 0,
+            "error": None
+        }
+        
+        import time
+        start_time = time.time()
+        
+        try:
+            model = self.get_model(target_key)
+            # Simple invocation to check connectivity
+            # We use invoke with a simple string to test basic connectivity
+            # For chat models, we send a simple message
+            from langchain_core.messages import HumanMessage
+            response = model.invoke([HumanMessage(content="ping")])
+            
+            result["status"] = "ok"
+            result["response_preview"] = str(response.content)[:50]
+            
+        except Exception as e:
+            result["status"] = "error"
+            result["error"] = str(e)
+            logger.warning(f"Health check failed for {target_key}: {e}")
+            
+        result["latency_ms"] = int((time.time() - start_time) * 1000)
+        return result
+
+# Singleton instance
+llm_factory = LLMFactory()
+
+# Default LLM Key
 LLM = f"{settings.llm_model.provider}/{settings.llm_model.model_name}"
 
-if LLM not in models:
-    logger.warning(
-        "llm_init_missing",
-        message=f"Default LLM {LLM} not found in pre-configured models. Attempting dynamic initialization.",
-    )
-    try:
-        models[LLM] = _create_chat_model(
-            model_name=settings.llm_model.model_name,
-            provider=settings.llm_model.provider,
-            temperature=0,
-        )
-        logger.info(f"Dynamically initialized default LLM: {LLM}")
-    except Exception as e:
-        logger.error(
-            "llm_init_critical_failure",
-            message=f"Failed to dynamically initialize default LLM {LLM}",
-            error=str(e),
-        )
+# Backward compatibility proxy for 'models' dict
+# This allows existing code using models[key] to work, 
+# but triggers lazy loading.
+class LazyModelDict(dict):
+    def __init__(self, factory: LLMFactory):
+        self._factory = factory
+    
+    def __getitem__(self, key):
+        return self._factory.get_model(key)
+    
+    def get(self, key, default=None):
+        try:
+            return self._factory.get_model(key)
+        except Exception:
+            return default
+            
+    def __contains__(self, key):
+        # We assume it exists if it's in configs or valid format
+        return True 
 
+    def keys(self):
+        return self._factory._configs.keys()
+
+    def values(self):
+        # Warning: This triggers instantiation of ALL configured models
+        return [self[k] for k in self.keys()]
+
+    def items(self):
+        # Warning: This triggers instantiation of ALL configured models
+        return [(k, self[k]) for k in self.keys()]
+    
+    def __iter__(self):
+        return iter(self.keys())
+    
+    def __len__(self):
+        return len(self._factory._configs)
+
+models = LazyModelDict(llm_factory)
