@@ -114,7 +114,6 @@ class Container(containers.DeclarativeContainer):
         modules=[
             "src.modules.channels.twilio.api.v1.webhooks",
             "src.modules.channels.twilio.api.dependencies",
-            "src.modules.conversation.api.v1.conversations",
             "src.modules.conversation.api.v2.conversations",
             "src.modules.identity.api.v1.owners",
             "src.modules.identity.api.v1.users",
