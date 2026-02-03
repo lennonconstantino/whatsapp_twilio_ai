@@ -108,6 +108,8 @@ class HybridMemoryService(MemoryInterface):
 
                 if user_id:
                     retrieval_filter["user_id"] = user_id
+                
+                logger.info(f"HybridMemoryService: executing semantic search query='{query}' filters={retrieval_filter}")
 
                 top_k = settings.memory.semantic_top_k
                 match_threshold = settings.memory.semantic_match_threshold
@@ -132,6 +134,7 @@ class HybridMemoryService(MemoryInterface):
                     )
                 
                 if semantic_results:
+                    logger.info(f"HybridMemoryService: found {len(semantic_results)} raw results")
                     recent_contents = {str(m.get("content", "")).strip() for m in context_messages if m.get("content")}
                     deduped_results = []
                     for res in semantic_results:

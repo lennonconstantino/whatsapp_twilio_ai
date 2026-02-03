@@ -11,7 +11,7 @@ SET search_path = app, extensions, public;
 DO $$
 BEGIN
     RAISE NOTICE '==============================================';
-    RAISE NOTICE 'Creating search functions...';
+    RAISE NOTICE 'Creating search functions in app schema...';
     RAISE NOTICE '==============================================';
 END $$;
 
@@ -19,7 +19,7 @@ END $$;
 -- VECTOR SEARCH FUNCTION FOR MESSAGE EMBEDDINGS
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION match_message_embeddings(
+CREATE OR REPLACE FUNCTION app.match_message_embeddings(
     query_embedding extensions.vector(1536),
     match_threshold float DEFAULT 0.5,
     match_count int DEFAULT 10,
@@ -37,25 +37,25 @@ AS $$
 BEGIN
     RETURN QUERY
     SELECT
-        message_embeddings.id,
-        message_embeddings.content,
-        message_embeddings.metadata,
-        1 - (message_embeddings.embedding <=> query_embedding) as similarity
-    FROM message_embeddings
-    WHERE 1 - (message_embeddings.embedding <=> query_embedding) > match_threshold
-    AND message_embeddings.metadata @> filter
-    ORDER BY message_embeddings.embedding <=> query_embedding
+        me.id,
+        me.content,
+        me.metadata,
+        1 - (me.embedding <=> query_embedding) as similarity
+    FROM app.message_embeddings me
+    WHERE 1 - (me.embedding <=> query_embedding) > match_threshold
+    AND me.metadata @> filter
+    ORDER BY me.embedding <=> query_embedding
     LIMIT match_count;
 END;
 $$;
 
-COMMENT ON FUNCTION match_message_embeddings IS 'Search message embeddings by vector similarity';
+COMMENT ON FUNCTION app.match_message_embeddings IS 'Search message embeddings by vector similarity';
 
 -- ============================================================================
 -- TEXT SEARCH FUNCTION FOR MESSAGE EMBEDDINGS
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION search_message_embeddings_text(
+CREATE OR REPLACE FUNCTION app.search_message_embeddings_text(
     query_text text,
     match_count int,
     filter jsonb DEFAULT '{}'::jsonb,
@@ -79,7 +79,7 @@ AS $$
             to_tsvector(fts_language::regconfig, coalesce(me.content, '')),
             plainto_tsquery(fts_language::regconfig, query_text)
         ) as score
-    FROM message_embeddings me
+    FROM app.message_embeddings me
     WHERE me.metadata @> filter
         AND to_tsvector(fts_language::regconfig, coalesce(me.content, ''))
             @@ plainto_tsquery(fts_language::regconfig, query_text)
@@ -87,13 +87,13 @@ AS $$
     LIMIT match_count
 $$;
 
-COMMENT ON FUNCTION search_message_embeddings_text IS 'Full-text search on message embeddings using PostgreSQL FTS';
+COMMENT ON FUNCTION app.search_message_embeddings_text IS 'Full-text search on message embeddings using PostgreSQL FTS';
 
 -- ============================================================================
 -- HYBRID SEARCH FUNCTION (RRF - Reciprocal Rank Fusion)
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION search_message_embeddings_hybrid_rrf(
+CREATE OR REPLACE FUNCTION app.search_message_embeddings_hybrid_rrf(
     query_text text,
     query_embedding extensions.vector(1536),
     match_count int,
@@ -121,7 +121,7 @@ BEGIN
             me.id, 
             1 - (me.embedding <=> query_embedding) as vec_sim,
             ROW_NUMBER() OVER (ORDER BY me.embedding <=> query_embedding) as rank_vec
-        FROM message_embeddings me
+        FROM app.message_embeddings me
         WHERE 1 - (me.embedding <=> query_embedding) > match_threshold
         AND me.metadata @> filter
         LIMIT match_count * 2
@@ -137,7 +137,7 @@ BEGIN
                 to_tsvector(fts_language::regconfig, coalesce(me.content, '')),
                 plainto_tsquery(fts_language::regconfig, query_text)
             ) DESC) as rank_text
-        FROM message_embeddings me
+        FROM app.message_embeddings me
         WHERE me.metadata @> filter
         AND to_tsvector(fts_language::regconfig, coalesce(me.content, ''))
             @@ plainto_tsquery(fts_language::regconfig, query_text)
@@ -162,20 +162,29 @@ BEGIN
         c.vec_sim as similarity,
         c.rrf_score as score
     FROM combined c
-    JOIN message_embeddings me ON c.id = me.id
+    JOIN app.message_embeddings me ON c.id = me.id
     ORDER BY c.rrf_score DESC
     LIMIT match_count;
 END;
 $$;
 
-COMMENT ON FUNCTION search_message_embeddings_hybrid_rrf IS 'Hybrid search using RRF (Reciprocal Rank Fusion) combining Vector and Text search';
+COMMENT ON FUNCTION app.search_message_embeddings_hybrid_rrf IS 'Hybrid search using RRF (Reciprocal Rank Fusion) combining Vector and Text search';
+
+-- ============================================================================
+-- GRANT PERMISSIONS
+-- ============================================================================
+
+GRANT USAGE ON SCHEMA app TO anon, authenticated, service_role;
+GRANT ALL ON FUNCTION app.match_message_embeddings TO anon, authenticated, service_role;
+GRANT ALL ON FUNCTION app.search_message_embeddings_text TO anon, authenticated, service_role;
+GRANT ALL ON FUNCTION app.search_message_embeddings_hybrid_rrf TO anon, authenticated, service_role;
 
 DO $$
 BEGIN
     RAISE NOTICE '==============================================';
-    RAISE NOTICE 'Search functions created successfully!';
-    RAISE NOTICE '✓ match_message_embeddings()';
-    RAISE NOTICE '✓ search_message_embeddings_text()';
-    RAISE NOTICE '✓ search_message_embeddings_hybrid_rrf()';
+    RAISE NOTICE 'Search functions created successfully in app schema!';
+    RAISE NOTICE '✓ app.match_message_embeddings()';
+    RAISE NOTICE '✓ app.search_message_embeddings_text()';
+    RAISE NOTICE '✓ app.search_message_embeddings_hybrid_rrf()';
     RAISE NOTICE '==============================================';
 END $$;

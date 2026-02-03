@@ -240,7 +240,7 @@ class MemorySettings(BaseSettings):
         description="Tempo mínimo entre tentativas de reconexão do Redis após falha",
     )
     semantic_top_k: int = Field(
-        default=3,
+        default=100,
         description="Quantidade de resultados semânticos (L3) inseridos no contexto",
     )
     semantic_match_threshold: float = Field(

@@ -70,9 +70,8 @@ class PostgresVectorMemoryRepository(VectorMemoryRepository):
                 values.append((text, json.dumps(metadata), self._vector_literal(embedding)))
 
             # Use execute_values for efficient bulk insert
-            # Assuming message_embeddings table exists in the search path (usually public)
             # Casting string literal to vector
-            insert_query = "INSERT INTO message_embeddings (content, metadata, embedding) VALUES %s RETURNING id"
+            insert_query = "INSERT INTO app.message_embeddings (content, metadata, embedding) VALUES %s RETURNING id"
             
             with self.db.connection() as conn:
                 cur = conn.cursor()
@@ -144,6 +143,70 @@ class PostgresVectorMemoryRepository(VectorMemoryRepository):
             logger.error(f"Error searching vector store (postgres): {e}")
             return []
 
+    def hybrid_search_relevant(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        match_threshold: float = 0.5,
+        filter: Optional[Dict[str, Any]] = None,
+        weight_vector: float = 1.5,
+        weight_text: float = 1.0,
+        rrf_k: int = 60,
+        fts_language: str = "portuguese",
+    ) -> List[Dict[str, Any]]:
+        if self._disabled:
+            return []
+
+        try:
+            query_embedding = self.embeddings.embed_query(query)
+            vec = self._vector_literal(query_embedding)
+            payload = json.dumps(filter or {})
+
+            sql_query = (
+                "SELECT content, metadata, similarity, score "
+                "FROM app.search_message_embeddings_hybrid_rrf("
+                "%s, %s::extensions.vector(1536), %s, %s, %s::jsonb, %s, %s, %s, %s)"
+            )
+
+            with self.db.connection() as conn:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                try:
+                    cur.execute(
+                        sql_query,
+                        (
+                            query,
+                            vec,
+                            int(limit),
+                            float(match_threshold),
+                            payload,
+                            float(weight_vector),
+                            float(weight_text),
+                            int(rrf_k),
+                            fts_language,
+                        ),
+                    )
+                    rows = cur.fetchall() or []
+                    return [
+                        {
+                            "content": r.get("content"),
+                            "metadata": r.get("metadata"),
+                            "score": r.get("score"),  # RRF score
+                            "similarity": r.get("similarity"),  # Vector similarity
+                        }
+                        for r in rows
+                        if r.get("content")
+                    ]
+                finally:
+                    cur.close()
+        except Exception as e:
+            error_text = str(e)
+            if "search_message_embeddings_hybrid_rrf" in error_text or "does not exist" in error_text:
+                self._disable(error_text)
+                return []
+            logger.error(f"Error in hybrid search (postgres): {e}")
+            return []
+
     def text_search_relevant(
         self,
         query: str,
@@ -154,5 +217,36 @@ class PostgresVectorMemoryRepository(VectorMemoryRepository):
     ) -> List[Dict[str, Any]]:
         if self._disabled:
             return []
-        # TODO: Implement text search if needed
-        return []
+        
+        try:
+            payload = json.dumps(filter or {})
+            lang = fts_language or "portuguese"
+
+            sql_query = (
+                "SELECT content, metadata, score "
+                "FROM app.search_message_embeddings_text(%s, %s, %s::jsonb, %s)"
+            )
+
+            with self.db.connection() as conn:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                try:
+                    cur.execute(sql_query, (query, int(limit), payload, lang))
+                    rows = cur.fetchall() or []
+                    return [
+                        {
+                            "content": r.get("content"),
+                            "metadata": r.get("metadata"),
+                            "score": r.get("score"),
+                        }
+                        for r in rows
+                        if r.get("content")
+                    ]
+                finally:
+                    cur.close()
+        except Exception as e:
+            error_text = str(e)
+            if "search_message_embeddings_text" in error_text or "does not exist" in error_text:
+                self._disable(error_text)
+                return []
+            logger.error(f"Error in text search (postgres): {e}")
+            return []

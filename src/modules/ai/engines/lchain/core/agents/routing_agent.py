@@ -103,6 +103,14 @@ class RoutingAgent:
             if session_id:
                 try:
                     # Synchronous call for now
+                    logger.info(
+                        f"Attempting memory retrieval for session {session_id}",
+                        extra={
+                            "query": user_input,
+                            "owner_id": self.agent_context.owner_id,
+                            "user_id": (self.agent_context.user or {}).get("user_id"),
+                        },
+                    )
                     history = self.memory_service.get_context(
                         session_id,
                         limit=settings.memory.recent_messages_limit,

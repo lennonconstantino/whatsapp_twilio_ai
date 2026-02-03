@@ -26,6 +26,37 @@ class VectorMemoryRepository(ABC):
         pass
 
     @abstractmethod
+    def hybrid_search_relevant(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        match_threshold: float = 0.5,
+        filter: Optional[Dict[str, Any]] = None,
+        weight_vector: float = 1.5,
+        weight_text: float = 1.0,
+        rrf_k: int = 60,
+        fts_language: str = "portuguese",
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for relevant documents using Hybrid Search (Vector + FTS) with RRF fusion.
+
+        Args:
+            query: The search query string.
+            limit: Maximum number of results to return.
+            match_threshold: Minimum similarity score threshold for vector search.
+            filter: Optional metadata filter.
+            weight_vector: Weight for vector search rank in RRF.
+            weight_text: Weight for text search rank in RRF.
+            rrf_k: RRF constant K.
+            fts_language: Language for FTS (Full Text Search).
+
+        Returns:
+            List of documents with content, metadata, similarity and score.
+        """
+        pass
+
+    @abstractmethod
     def vector_search_relevant(
         self,
         query: str,

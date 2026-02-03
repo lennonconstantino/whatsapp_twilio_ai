@@ -120,3 +120,52 @@ class SupabaseVectorMemoryRepository(VectorMemoryRepository):
             if "PGRST202" in error_text or ("schema cache" in error_text):
                 self._disable(error_text)
             return []
+
+    def hybrid_search_relevant(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        match_threshold: float = 0.5,
+        filter: Optional[Dict[str, Any]] = None,
+        weight_vector: float = 1.5,
+        weight_text: float = 1.0,
+        rrf_k: int = 60,
+        fts_language: str = "portuguese",
+    ) -> List[Dict[str, Any]]:
+        if self._disabled:
+            return []
+
+        try:
+            query_embedding = self.embeddings.embed_query(query)
+            params = {
+                "query_text": query,
+                "query_embedding": query_embedding,
+                "match_count": int(limit),
+                "match_threshold": float(match_threshold),
+                "filter": filter or {},
+                "weight_vec": float(weight_vector),
+                "weight_text": float(weight_text),
+                "rrf_k": int(rrf_k),
+                "fts_language": fts_language,
+            }
+            # RPC call to search_message_embeddings_hybrid_rrf
+            # Using schema("app") to target the function in the app schema
+            result = self.client.schema("app").rpc("search_message_embeddings_hybrid_rrf", params).execute()
+            data = result.data or []
+            return [
+                {
+                    "content": row.get("content"),
+                    "metadata": row.get("metadata"),
+                    "score": row.get("score"),  # RRF score
+                    "similarity": row.get("similarity"),  # Vector similarity
+                }
+                for row in data
+                if row.get("content")
+            ]
+        except Exception as e:
+            error_text = str(e)
+            if "PGRST202" in error_text or ("schema cache" in error_text):
+                self._disable(error_text)
+            logger.error(f"Error in hybrid search (Supabase): {e}")
+            return []
