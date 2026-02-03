@@ -143,14 +143,19 @@ class Agent:
         step_result = None
         i = 0
         last_valid_content = None
+        assistant_responses = []
 
         while i < self.max_steps:
             step_result = self.run_step(self.step_history, langchain_tools)
 
             if step_result.content and str(step_result.content).strip():
                 last_valid_content = step_result.content
+                if step_result.event == "assistant":
+                    assistant_responses.append(str(step_result.content))
 
             if step_result.event == "finish":
+                if step_result.content and str(step_result.content).strip():
+                    assistant_responses.append(str(step_result.content))
                 break
             elif step_result.event == "error":
                 logger.error(
@@ -176,7 +181,11 @@ class Agent:
 
             i += 1
 
-        final_content = step_result.content
+        if assistant_responses:
+            final_content = "\n".join(assistant_responses)
+        else:
+            final_content = step_result.content
+
         if (not final_content or not str(final_content).strip()) and last_valid_content:
             logger.warning(
                 "Using last valid content as final result", event_type="agent_fallback"
