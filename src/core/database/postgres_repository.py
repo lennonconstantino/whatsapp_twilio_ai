@@ -48,6 +48,19 @@ class PostgresRepository(Generic[T]):
         with self.db.connection() as conn:
             cursor = conn.cursor(cursor_factory=RealDictCursor)
             try:
+                # Debug logging to investigate "not all arguments converted" error
+                if params and len(params) > 0:
+                    param_count = len(params)
+                    # Rough count of placeholders in query string representation for debugging
+                    query_str = str(query)
+                    placeholder_count = query_str.count("%s")
+                    logger.info(
+                        f"Executing query on {self.table_name}", 
+                        param_count=param_count, 
+                        placeholder_approx=placeholder_count,
+                        params_preview=str(params)[:200]
+                    )
+
                 cursor.execute(query, params)
 
                 if fetch_one:
@@ -123,15 +136,16 @@ class PostgresRepository(Generic[T]):
             return self.find_by_id(id_value, id_column)
 
         where_clause = sql.SQL("{} = %s").format(sql.Identifier(id_column))
-        set_clauses = [
-            sql.SQL("{} = {}").format(sql.Identifier(k), sql.Placeholder())
-            for k in data.keys()
-        ]
 
         if current_version is not None:
             if "version" not in data:
                 data = {**data, "version": current_version + 1}
             where_clause = where_clause + sql.SQL(" AND version = %s")
+
+        set_clauses = [
+            sql.SQL("{} = {}").format(sql.Identifier(k), sql.Placeholder())
+            for k in data.keys()
+        ]
 
         query = sql.SQL("UPDATE {} SET {} WHERE ").format(
             sql.Identifier(self.table_name),

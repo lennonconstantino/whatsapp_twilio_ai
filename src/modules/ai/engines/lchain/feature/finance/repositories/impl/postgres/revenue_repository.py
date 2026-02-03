@@ -10,12 +10,15 @@ from src.modules.ai.engines.lchain.feature.finance.models.models import (
     RevenueCreate,
     RevenueUpdate,
 )
+from src.modules.ai.engines.lchain.feature.finance.repositories.revenue_repository import (
+    RevenueRepository,
+)
 from src.modules.ai.engines.lchain.feature.finance.repositories.interfaces import (
     IRevenueRepository,
 )
 
 
-class PostgresRevenueRepository(PostgresRepository[Revenue], IRevenueRepository):
+class PostgresRevenueRepository(PostgresRepository[Revenue], RevenueRepository):
     """Repository for Revenue operations via Postgres."""
 
     def __init__(self, db: PostgresDatabase):

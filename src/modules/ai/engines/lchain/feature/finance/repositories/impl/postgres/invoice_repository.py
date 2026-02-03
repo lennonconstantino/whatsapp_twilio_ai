@@ -10,12 +10,15 @@ from src.modules.ai.engines.lchain.feature.finance.models.models import (
     InvoiceCreate,
     InvoiceUpdate,
 )
+from src.modules.ai.engines.lchain.feature.finance.repositories.invoice_repository import (
+    InvoiceRepository,
+)
 from src.modules.ai.engines.lchain.feature.finance.repositories.interfaces import (
     IInvoiceRepository,
 )
 
 
-class PostgresInvoiceRepository(PostgresRepository[Invoice], IInvoiceRepository):
+class PostgresInvoiceRepository(PostgresRepository[Invoice], InvoiceRepository):
     """Repository for Invoice operations via Postgres."""
 
     def __init__(self, db: PostgresDatabase):
@@ -58,3 +61,32 @@ class PostgresInvoiceRepository(PostgresRepository[Invoice], IInvoiceRepository)
         )
         
         return [self.model_class(**item) for item in results]
+
+    def get_with_customer(self, invoice_id: int) -> Optional[dict]:
+        """Find invoice with customer data (JOIN)."""
+        query = sql.SQL(
+            """
+            SELECT i.*, 
+                   row_to_json(c.*) as customer
+            FROM {} i
+            LEFT JOIN customer c ON i.customer_id = c.id
+            WHERE i.id = %s
+            """
+        ).format(sql.Identifier(self.table_name))
+        
+        return self._execute_query(query, (invoice_id,), fetch_one=True)
+
+    def get_all_with_customers(self, limit: int = 100, offset: int = 0) -> List[dict]:
+        """List all invoices with customer data."""
+        query = sql.SQL(
+            """
+            SELECT i.*, 
+                   row_to_json(c.*) as customer
+            FROM {} i
+            LEFT JOIN customer c ON i.customer_id = c.id
+            ORDER BY i.issue_date DESC
+            LIMIT %s OFFSET %s
+            """
+        ).format(sql.Identifier(self.table_name))
+        
+        return self._execute_query(query, (limit, offset), fetch_all=True)

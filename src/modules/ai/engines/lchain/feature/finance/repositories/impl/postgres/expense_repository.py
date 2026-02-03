@@ -10,12 +10,15 @@ from src.modules.ai.engines.lchain.feature.finance.models.models import (
     ExpenseCreate,
     ExpenseUpdate,
 )
+from src.modules.ai.engines.lchain.feature.finance.repositories.expense_repository import (
+    ExpenseRepository,
+)
 from src.modules.ai.engines.lchain.feature.finance.repositories.interfaces import (
     IExpenseRepository,
 )
 
 
-class PostgresExpenseRepository(PostgresRepository[Expense], IExpenseRepository):
+class PostgresExpenseRepository(PostgresRepository[Expense], ExpenseRepository):
     """Repository for Expense operations via Postgres."""
 
     def __init__(self, db: PostgresDatabase):

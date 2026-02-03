@@ -9,12 +9,15 @@ from src.modules.ai.engines.lchain.feature.finance.models.models import (
     CustomerCreate,
     CustomerUpdate,
 )
+from src.modules.ai.engines.lchain.feature.finance.repositories.customer_repository import (
+    CustomerRepository,
+)
 from src.modules.ai.engines.lchain.feature.finance.repositories.interfaces import (
     ICustomerRepository,
 )
 
 
-class PostgresCustomerRepository(PostgresRepository[Customer], ICustomerRepository):
+class PostgresCustomerRepository(PostgresRepository[Customer], CustomerRepository):
     """Repository for Customer operations via Postgres."""
 
     def __init__(self, db: PostgresDatabase):
