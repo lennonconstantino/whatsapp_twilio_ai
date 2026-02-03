@@ -98,6 +98,12 @@ def _create_chat_model(
     if provider == "ollama":
         if "validate_model_on_init" in extra_params:
             params["validate_model_on_init"] = extra_params["validate_model_on_init"]
+        
+        # Check for explicit base_url or try to use environment variable via os
+        import os
+        base_url = extra_params.get("base_url") or os.getenv("OLLAMA_BASE_URL")
+        if base_url:
+            params["base_url"] = base_url
 
     return model_class(**params)
 
@@ -125,9 +131,29 @@ for config in MODEL_CONFIGS:
         
     except Exception as exc:
         logger.warning(
-            f"Failed to initialize model {config['provider']}/{config['model_name']}",
+            "llm_init_warning",
+            message=f"Failed to initialize model {config['provider']}/{config['model_name']}",
             error=str(exc),
-            event="llm_init_warning",
         )
 
 LLM = f"{settings.llm_model.provider}/{settings.llm_model.model_name}"
+
+if LLM not in models:
+    logger.warning(
+        "llm_init_missing",
+        message=f"Default LLM {LLM} not found in pre-configured models. Attempting dynamic initialization.",
+    )
+    try:
+        models[LLM] = _create_chat_model(
+            model_name=settings.llm_model.model_name,
+            provider=settings.llm_model.provider,
+            temperature=0,
+        )
+        logger.info(f"Dynamically initialized default LLM: {LLM}")
+    except Exception as e:
+        logger.error(
+            "llm_init_critical_failure",
+            message=f"Failed to dynamically initialize default LLM {LLM}",
+            error=str(e),
+        )
+

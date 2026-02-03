@@ -28,10 +28,10 @@ dev:
 	pip install pytest-watch
 
 test:
-	pytest tests/ -v --cov=src --cov-report=html --cov-report=term
+	OTEL_EXPORTER_OTLP_ENDPOINT= OTEL_TRACES_EXPORTER=none pytest tests/ -v --cov=src --cov-report=html --cov-report=term
 
 test-watch:
-	pytest-watch tests/ -- -v
+	OTEL_EXPORTER_OTLP_ENDPOINT= OTEL_TRACES_EXPORTER=none pytest-watch tests/ -- -v
 
 lint:
 	flake8 src/ tests/

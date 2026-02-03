@@ -200,9 +200,27 @@ class RoutingAgent:
         tools = [tool.langchain_tool_schema for tool in self.task_agents]
 
         # Bind tools e invocar
-        model = self.llm[LLM]
+        model = self.llm.get(LLM)
+        if not model and isinstance(self.llm, dict) and self.llm:
+            fallback_key = next(iter(self.llm.keys()))
+            model = self.llm[fallback_key]
+            logger.warning(
+                f"LLM '{LLM}' not found. Falling back to '{fallback_key}'",
+                event_type="routing_agent_model_fallback",
+            )
+        
+        if not model:
+             raise KeyError(f"LLM model '{LLM}' not configured and no fallback available.")
+
         model_with_tools = model.bind_tools(tools)
-        response = model_with_tools.invoke(messages)
+        
+        logger.info(f"Invoking LLM: {LLM}", event_type="routing_agent_invoke_start")
+        try:
+            response = model_with_tools.invoke(messages)
+            logger.info(f"LLM Response: {response}", event_type="routing_agent_invoke_success")
+        except Exception as e:
+            logger.error(f"LLM Invoke Failed: {e}", event_type="routing_agent_invoke_error")
+            raise e
 
         # ------------------------------------------------------------------
         # INTEGRATION: Save User Input to Memory

@@ -89,6 +89,7 @@ class QueueService:
         Delegates to backend's start_consuming which handles the loop mechanism (pull vs push).
         """
         logger.info("Starting queue worker service...")
+        logger.info(f"Using backend: {settings.queue.backend}")
 
         # We pass self._process_message as the handler to the backend.
         # The backend is responsible for:

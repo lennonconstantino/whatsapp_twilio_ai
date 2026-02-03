@@ -1,8 +1,8 @@
-version: '3.8'
-
 services:
   postgres:
     image: pgvector/pgvector:pg16
+    env_file:
+      - .env
     container_name: postgres-container
     environment:
       POSTGRES_USER: user
@@ -20,34 +20,20 @@ services:
       timeout: 5s
       retries: 5
 
-  # API Service
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: owner-api
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/owner_db
-      QUEUE_BACKEND: bullmq
-      QUEUE_REDIS_URL: redis://redis:6379
-      API_HOST: 0.0.0.0
-      API_PORT: 8000
-      API_DEBUG: "True"
-      LOG_LEVEL: INFO
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      OTEL_SERVICE_NAME: owner-api
-      OTEL_RESOURCE_ATTRIBUTES: service.name=owner-api,deployment.environment=development
+  redis:
+    image: redis:7-alpine
+    env_file:
+      - .env    
+    container_name: owner-redis
     ports:
-      - "8000:8000"
+      - "6379:6379"
     volumes:
-      - ./src:/app/src
-      - ./scripts:/app/scripts
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Background Worker
   worker:
@@ -55,15 +41,33 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: owner-worker
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/owner_db
+      DATABASE_BACKEND: postgres
+      DATABASE_URL: postgresql://user:password@postgres:5432/owner_db
       QUEUE_BACKEND: bullmq
-      QUEUE_REDIS_URL: redis://redis:6379
+      QUEUE_REDIS_URL: redis://redis:6379/0
       API_DEBUG: "True"
       LOG_LEVEL: INFO
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_SERVICE_NAME: owner-worker
       OTEL_RESOURCE_ATTRIBUTES: service.name=owner-worker,deployment.environment=development
+      # LLM Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME}
+      # Whisper
+      WHISPER_SIZE: ${WHISPER_SIZE}
+      WHISPER_DEVICE: ${WHISPER_DEVICE}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE}
+      # Ollama
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./src:/app/src
     depends_on:
@@ -79,15 +83,27 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: owner-scheduler
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/owner_db
+      DATABASE_BACKEND: postgres
+      DATABASE_URL: postgresql://user:password@postgres:5432/owner_db
       QUEUE_BACKEND: bullmq
-      QUEUE_REDIS_URL: redis://redis:6379
-      API_DEBUG: "True"
-      LOG_LEVEL: INFO
+      QUEUE_REDIS_URL: redis://redis:6379/0      
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       OTEL_SERVICE_NAME: owner-scheduler
       OTEL_RESOURCE_ATTRIBUTES: service.name=owner-scheduler,deployment.environment=development
+      # LLM Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME}
+      # Whisper
+      WHISPER_SIZE: ${WHISPER_SIZE}
+      WHISPER_DEVICE: ${WHISPER_DEVICE}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE}
     volumes:
       - ./src:/app/src
     depends_on:
@@ -96,6 +112,49 @@ services:
       redis:
         condition: service_healthy
     command: python -m src.modules.conversation.workers.scheduler
+
+  # API Service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: owner-api
+    env_file:
+      - .env
+    environment:
+      DATABASE_BACKEND: postgres
+      DATABASE_URL: postgresql://user:password@postgres:5432/owner_db
+      QUEUE_BACKEND: bullmq
+      QUEUE_REDIS_URL: redis://redis:6379/0
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      API_DEBUG: "True"
+      LOG_LEVEL: INFO
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: owner-api
+      OTEL_RESOURCE_ATTRIBUTES: service.name=owner-api,deployment.environment=development
+      # LLM Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_MODEL_NAME: ${LLM_MODEL_NAME}
+      # Whisper
+      WHISPER_SIZE: ${WHISPER_SIZE}
+      WHISPER_DEVICE: ${WHISPER_DEVICE}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+      - ./scripts:/app/scripts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 
   # pgAdmin (optional)
   pgadmin:
@@ -165,3 +224,7 @@ volumes:
   redis_data:
   prometheus_data:
   grafana_data:
+
+networks:
+  prod:
+    driver: bridge

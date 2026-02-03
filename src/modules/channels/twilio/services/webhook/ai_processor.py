@@ -55,6 +55,7 @@ class TwilioWebhookAIProcessor:
         """
         Async wrapper for queue task.
         """
+        logger.info("Worker received handle_ai_response_task", task_payload=task_payload)
         payload = TwilioWhatsAppPayload(**task_payload["payload"])
 
         await self.handle_ai_response(
@@ -178,6 +179,11 @@ class TwilioWebhookAIProcessor:
                 response_text = await run_in_threadpool(
                     agent.run, user_input=payload.body, **agent_context
                 )
+                
+                logger.info(
+                    f"Agent raw response: {repr(response_text)}",
+                    correlation_id=correlation_id
+                )
             else:
                 response_text = "Desculpe, não encontrei seu cadastro. Por favor entre em contato com o suporte."
 
@@ -203,9 +209,12 @@ class TwilioWebhookAIProcessor:
             logger.info("AI response processed and sent", correlation_id=correlation_id)
 
         except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
             logger.error(
                 "Error in AI background processing",
                 error=str(e),
+                traceback=tb,
                 correlation_id=correlation_id,
             )
 
