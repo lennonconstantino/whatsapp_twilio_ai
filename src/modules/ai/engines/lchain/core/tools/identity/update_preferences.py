@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, Type
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from src.core.utils.logging import get_logger
 from src.modules.ai.engines.lchain.core.models.tool_result import ToolResult
@@ -8,13 +8,6 @@ from src.modules.ai.engines.lchain.core.tools.tool import Tool
 from src.modules.identity.services.user_service import UserService
 
 logger = get_logger(__name__)
-
-
-def get_user_service() -> UserService:
-    from src.core.di.container import Container
-
-    container = Container()
-    return container.user_service()
 
 
 class UpdateUserPreferencesSchema(BaseModel):
@@ -39,7 +32,9 @@ class UpdateUserPreferencesTool(Tool):
     )
     args_schema: Type[BaseModel] = UpdateUserPreferencesSchema
     model: Type[BaseModel] = UpdateUserPreferencesSchema
-    user_service: Optional[UserService] = None
+    user_service: Optional[Any] = None
+    
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def _run(self, **kwargs) -> ToolResult:
         return self.execute(**kwargs)
@@ -54,7 +49,10 @@ class UpdateUserPreferencesTool(Tool):
                 return ToolResult(success=False, content="user_id is required to update preferences.")
 
             preferences = kwargs.get("preferences", {})
-            user_service = self.user_service or get_user_service()
+            user_service = self.user_service
+            
+            if not user_service:
+                return ToolResult(success=False, content="Internal Error: UserService not injected into tool.")
             
             # 1. Get current user
             user = user_service.get_user_by_id(user_id)

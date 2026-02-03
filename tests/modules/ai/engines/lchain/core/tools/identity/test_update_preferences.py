@@ -5,10 +5,7 @@ from src.modules.identity.models.user import User
 
 @pytest.fixture
 def mock_user_service():
-    with patch("src.modules.ai.engines.lchain.core.tools.identity.update_preferences.get_user_service") as mock_get:
-        service = MagicMock()
-        mock_get.return_value = service
-        yield service
+    return MagicMock()
 
 def test_update_preferences_success(mock_user_service):
     # Setup
@@ -27,7 +24,7 @@ def test_update_preferences_success(mock_user_service):
     mock_user_service.update_user.return_value = updated_user
     
     # Execute
-    tool = UpdateUserPreferencesTool()
+    tool = UpdateUserPreferencesTool(user_service=mock_user_service)
     result = tool.execute(user_id=user_id, preferences=new_prefs)
     
     # Verify
@@ -48,7 +45,7 @@ def test_update_preferences_user_not_found(mock_user_service):
     mock_user_service.get_user_by_id.return_value = None
     
     # Execute
-    tool = UpdateUserPreferencesTool()
+    tool = UpdateUserPreferencesTool(user_service=mock_user_service)
     result = tool.execute(user_id=user_id, preferences={})
     
     # Verify
@@ -57,7 +54,7 @@ def test_update_preferences_user_not_found(mock_user_service):
 
 def test_update_preferences_missing_user_id(mock_user_service):
     # Execute
-    tool = UpdateUserPreferencesTool()
+    tool = UpdateUserPreferencesTool(user_service=mock_user_service)
     result = tool.execute(preferences={})
     
     # Verify
