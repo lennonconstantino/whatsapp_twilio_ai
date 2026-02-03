@@ -17,6 +17,16 @@ class PostgresTwilioAccountRepository(PostgresRepository[TwilioAccount], TwilioA
     def __init__(self, db: PostgresDatabase):
         super().__init__(db, "twilio_accounts", TwilioAccount)
 
+    def create(self, data: dict) -> Optional[TwilioAccount]:
+        """
+        Override create to serialize phone_numbers to JSON string.
+        Required because psycopg2 converts list to ARRAY, but column is JSONB.
+        """
+        if "phone_numbers" in data and isinstance(data["phone_numbers"], list):
+            data = data.copy()
+            data["phone_numbers"] = json.dumps(data["phone_numbers"])
+        return super().create(data)
+
     def find_by_owner(self, owner_id: str) -> Optional[TwilioAccount]:
         accounts = self.find_by({"owner_id": owner_id}, limit=1)
         return accounts[0] if accounts else None
@@ -50,7 +60,7 @@ class PostgresTwilioAccountRepository(PostgresRepository[TwilioAccount], TwilioA
         self, tw_account_id: int, phone_numbers: List[str]
     ) -> Optional[TwilioAccount]:
         return self.update(
-            tw_account_id, {"phone_numbers": phone_numbers}, id_column="tw_account_id"
+            tw_account_id, {"phone_numbers": json.dumps(phone_numbers)}, id_column="tw_account_id"
         )
 
     def add_phone_number(

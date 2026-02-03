@@ -19,24 +19,25 @@ from datetime import datetime, timedelta
 from postgrest.exceptions import APIError
 
 from src.core.config import settings
-from src.core.utils import get_db, get_logger
-from src.modules.channels.twilio.repositories.account_repository import \
-    TwilioAccountRepository
-from src.modules.conversation.enums.conversation_status import \
-    ConversationStatus
+from src.core.di.container import Container
+from src.core.utils import get_logger
+from src.modules.channels.twilio.repositories.account_repository import (
+    TwilioAccountRepository,
+)
+from src.modules.conversation.enums.conversation_status import ConversationStatus
 from src.modules.conversation.enums.message_direction import MessageDirection
 from src.modules.conversation.enums.message_owner import MessageOwner
 from src.modules.conversation.enums.message_type import MessageType
-from src.modules.conversation.repositories.conversation_repository import \
-    ConversationRepository
-from src.modules.conversation.repositories.message_repository import \
-    MessageRepository
+from src.modules.conversation.repositories.conversation_repository import (
+    ConversationRepository,
+)
+from src.modules.conversation.repositories.message_repository import MessageRepository
 from src.modules.identity.enums.user_role import UserRole
-from src.modules.identity.repositories.feature_repository import \
-    FeatureRepository
-from src.modules.identity.repositories.owner_repository import OwnerRepository
-from src.modules.identity.repositories.user_repository import UserRepository
-
+from src.modules.identity.repositories.interfaces import (
+    IFeatureRepository,
+    IOwnerRepository,
+    IUserRepository,
+)
 
 logger = get_logger(__name__)
 
@@ -49,7 +50,7 @@ TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER", "+14155238886")
 MY_PHONE_NUMBER = os.getenv("MY_PHONE_NUMBER", "+5511999999999")
 
 
-def seed_owners(owner_repo: OwnerRepository):
+def seed_owners(owner_repo: IOwnerRepository):
     """Seed owner data."""
     logger.info("Seeding owners...")
 
@@ -74,7 +75,7 @@ def seed_owners(owner_repo: OwnerRepository):
     return owners
 
 
-def seed_users(user_repo: UserRepository, owners):
+def seed_users(user_repo: IUserRepository, owners):
     """Seed user data."""
     logger.info("Seeding users...")
 
@@ -154,7 +155,7 @@ def seed_users(user_repo: UserRepository, owners):
     return users
 
 
-def seed_features(feature_repo: FeatureRepository, owners):
+def seed_features(feature_repo: IFeatureRepository, owners):
     """Seed feature data."""
     logger.info("Seeding features...")
 
@@ -307,6 +308,12 @@ def seed_sample_conversations(
             logger.info("Sample conversation already exists due to unique constraint")
             return
         raise
+    except Exception as e:
+        # Check for psycopg2 UniqueViolation (has pgcode 23505)
+        if hasattr(e, "pgcode") and e.pgcode == "23505":
+            logger.info("Sample conversation already exists due to unique constraint (Postgres)")
+            return
+        raise
     logger.info(f"Created sample conversation: {conversation.conv_id}")
 
     # Add sample messages
@@ -357,16 +364,16 @@ def main():
     logger.info("Starting seed process...")
 
     try:
-        # Use service key for seeding to bypass RLS if available
-        db_client = get_db()
-
-        # Initialize repositories
-        owner_repo = OwnerRepository(db_client)
-        user_repo = UserRepository(db_client)
-        feature_repo = FeatureRepository(db_client)
-        twilio_repo = TwilioAccountRepository(db_client)
-        conversation_repo = ConversationRepository(db_client)
-        message_repo = MessageRepository(db_client)
+        # Initialize Container
+        container = Container()
+        
+        # Resolve repositories
+        owner_repo = container.owner_repository()
+        user_repo = container.user_repository()
+        feature_repo = container.feature_repository()
+        twilio_repo = container.twilio_account_repository()
+        conversation_repo = container.conversation_repository()
+        message_repo = container.message_repository()
 
         # Seed data
         owners = seed_owners(owner_repo)

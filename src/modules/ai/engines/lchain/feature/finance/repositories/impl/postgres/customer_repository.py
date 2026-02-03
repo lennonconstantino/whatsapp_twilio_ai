@@ -1,5 +1,7 @@
 from typing import List, Optional
 
+from psycopg2 import sql
+
 from src.core.database.postgres_repository import PostgresRepository
 from src.core.database.postgres_session import PostgresDatabase
 from src.modules.ai.engines.lchain.feature.finance.models.models import (
@@ -7,12 +9,12 @@ from src.modules.ai.engines.lchain.feature.finance.models.models import (
     CustomerCreate,
     CustomerUpdate,
 )
-from src.modules.ai.engines.lchain.feature.finance.repositories.customer_repository import (
-    CustomerRepository,
+from src.modules.ai.engines.lchain.feature.finance.repositories.interfaces import (
+    ICustomerRepository,
 )
 
 
-class PostgresCustomerRepository(PostgresRepository[Customer], CustomerRepository):
+class PostgresCustomerRepository(PostgresRepository[Customer], ICustomerRepository):
     """Repository for Customer operations via Postgres."""
 
     def __init__(self, db: PostgresDatabase):
@@ -34,7 +36,17 @@ class PostgresCustomerRepository(PostgresRepository[Customer], CustomerRepositor
 
     def search_by_name(self, search_term: str, limit: int = 100) -> List[Customer]:
         """Search customers by name."""
-        raise NotImplementedError("Postgres implementation not yet available")
+        query = sql.SQL(
+            "SELECT * FROM {} WHERE first_name ILIKE %s OR last_name ILIKE %s OR company_name ILIKE %s LIMIT %s"
+        ).format(sql.Identifier(self.table_name))
+        
+        pattern = f"%{search_term}%"
+        results = self._execute_query(
+            query,
+            (pattern, pattern, pattern, limit),
+            fetch_all=True
+        )
+        return [self.model_class(**item) for item in results]
 
     def get_by_phone(self, phone: str) -> Optional[Customer]:
         """Find customer by phone number."""

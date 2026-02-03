@@ -16,12 +16,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.core.config import settings
 from src.core.utils import get_logger
+from src.core.di.container import Container
 from src.modules.ai.engines.lchain.feature.finance.models.models import (
     CustomerCreate, ExpenseCreate, InvoiceCreate, RevenueCreate)
-# Import finance repositories and models
-from src.modules.ai.engines.lchain.feature.finance.repositories.repository_finance import (
-    get_customer_repository, get_expense_repository, get_invoice_repository,
-    get_revenue_repository)
 
 
 logger = get_logger(__name__)
@@ -311,11 +308,14 @@ def main(clear_data: bool = False):
     logger.info("Starting finance seed process...")
 
     try:
+        # Initialize Container
+        container = Container()
+
         # Initialize repositories
-        revenue_repo = get_revenue_repository()
-        expense_repo = get_expense_repository()
-        customer_repo = get_customer_repository()
-        invoice_repo = get_invoice_repository()
+        revenue_repo = container.revenue_repository()
+        expense_repo = container.expense_repository()
+        customer_repo = container.customer_repository()
+        invoice_repo = container.invoice_repository()
 
         # Clear data if requested (CAREFUL!)
         if clear_data:

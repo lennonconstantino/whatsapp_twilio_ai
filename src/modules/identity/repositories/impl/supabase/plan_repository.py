@@ -68,3 +68,31 @@ class SupabasePlanRepository(SupabaseRepository[Plan], IPlanRepository):
         except Exception as e:
             logger.error(f"Failed to get features for plan {plan_id}: {e}")
             return []
+
+    def add_feature(
+        self, plan_id: str, name: str, value: dict
+    ) -> Optional[PlanFeature]:
+        """
+        Add a feature to a plan.
+
+        Args:
+            plan_id: Plan ID
+            name: Feature name
+            value: Feature value/configuration
+
+        Returns:
+            Created PlanFeature instance or None
+        """
+        try:
+            feature_data = {
+                "plan_id": plan_id,
+                "feature_name": name,
+                "feature_value": value,
+            }
+            response = self.client.table("plan_features").insert(feature_data).execute()
+            if response.data:
+                return PlanFeature(**response.data[0])
+            return None
+        except Exception as e:
+            logger.error(f"Failed to add feature {name} to plan {plan_id}: {e}")
+            return None

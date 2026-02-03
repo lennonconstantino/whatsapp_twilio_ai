@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import List, Optional
 
+from psycopg2 import sql
+
 from src.core.database.postgres_repository import PostgresRepository
 from src.core.database.postgres_session import PostgresDatabase
 from src.modules.ai.engines.lchain.feature.finance.models.models import (
@@ -8,12 +10,12 @@ from src.modules.ai.engines.lchain.feature.finance.models.models import (
     InvoiceCreate,
     InvoiceUpdate,
 )
-from src.modules.ai.engines.lchain.feature.finance.repositories.invoice_repository import (
-    InvoiceRepository,
+from src.modules.ai.engines.lchain.feature.finance.repositories.interfaces import (
+    IInvoiceRepository,
 )
 
 
-class PostgresInvoiceRepository(PostgresRepository[Invoice], InvoiceRepository):
+class PostgresInvoiceRepository(PostgresRepository[Invoice], IInvoiceRepository):
     """Repository for Invoice operations via Postgres."""
 
     def __init__(self, db: PostgresDatabase):
@@ -37,20 +39,22 @@ class PostgresInvoiceRepository(PostgresRepository[Invoice], InvoiceRepository):
         """Find invoice by number (unique)."""
         return self.find_by({"invoice_number": invoice_number}, limit=1)[0] if self.find_by({"invoice_number": invoice_number}, limit=1) else None
 
-    def get_by_customer(self, customer_id: int, limit: int = 100) -> List[Invoice]:
+    def get_by_customer(self, customer_id: int) -> List[Invoice]:
         """Find all invoices for a customer."""
-        return self.find_by({"customer_id": customer_id}, limit=limit)
-
-    def get_with_customer(self, invoice_id: int) -> Optional[dict]:
-        """Find invoice with customer data (JOIN)."""
-        raise NotImplementedError("Postgres implementation not yet available")
-
-    def get_all_with_customers(self, limit: int = 100, offset: int = 0) -> List[dict]:
-        """List all invoices with customer data."""
-        raise NotImplementedError("Postgres implementation not yet available")
+        return self.find_by({"customer_id": customer_id}, limit=100)
 
     def get_by_date_range(
         self, start_date: datetime, end_date: datetime
     ) -> List[Invoice]:
         """Find invoices in a date range."""
-        raise NotImplementedError("Postgres implementation not yet available")
+        query = sql.SQL(
+            "SELECT * FROM {} WHERE issue_date >= %s AND issue_date <= %s ORDER BY issue_date DESC"
+        ).format(sql.Identifier(self.table_name))
+        
+        results = self._execute_query(
+            query, 
+            (start_date, end_date), 
+            fetch_all=True
+        )
+        
+        return [self.model_class(**item) for item in results]

@@ -45,13 +45,20 @@ def validate_time(v):
     raise ValueError("Value must be a time object or ISO format string")
 
 
+from decimal import Decimal
+
 def numeric_validator(v):
     """Garante que valores numéricos sejam float"""
-    if isinstance(v, int):
+    if isinstance(v, (int, float)):
         return float(v)
-    elif isinstance(v, float):
-        return v
-    raise ValueError("Value must be a number")
+    if isinstance(v, Decimal):
+        return float(v)
+    if isinstance(v, str):
+        try:
+            return float(v)
+        except ValueError:
+            pass
+    raise ValueError(f"Value must be a number, got {type(v)}")
 
 
 # Tipos customizados

@@ -88,10 +88,24 @@ restart: stop run-worker run-scheduler run
 	@echo "✅ Application restarted."
 
 migrate:
-	@echo "\n--CORE--\n"
-	python -m scripts.migrate
-	@echo "\n--FEATURES--\n"
-	python -m scripts.migrate migrations/feature/
+	@DATABASE_BACKEND=$$(grep DATABASE_BACKEND .env | cut -d '=' -f2 | cut -d '#' -f1 | xargs); \
+	echo "Database backend detectado: [$$DATABASE_BACKEND]"; \
+	case "$$DATABASE_BACKEND" in \
+		supabase) \
+			echo "Usando banco supabase"; \
+			echo ""; echo "--CORE--"; echo ""; \
+			python -m scripts.migrate; \
+			echo ""; echo "--FEATURES--"; echo ""; \
+			python -m scripts.migrate migrations/feature/; \
+			echo "✅ Database migrated." ;; \
+		postgres) \
+			echo "Usando banco local"; \
+			./scripts/migrate_postgres.sh; \
+			echo "✅ Database migrated." ;; \
+		*) \
+			echo "❌ Error: Invalid DATABASE_BACKEND value. Must be 'postgres' or 'supabase'."; \
+			exit 1 ;; \
+	esac
 
 seed:
 	@echo "Seeding database..."

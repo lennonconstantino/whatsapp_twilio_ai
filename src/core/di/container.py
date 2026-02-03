@@ -27,6 +27,8 @@ from src.modules.ai.engines.lchain.feature.finance.repositories.impl.supabase.re
 from src.modules.ai.engines.lchain.feature.finance.repositories.impl.postgres.revenue_repository import PostgresRevenueRepository
 from src.modules.ai.engines.lchain.feature.finance.repositories.impl.supabase.customer_repository import SupabaseCustomerRepository
 from src.modules.ai.engines.lchain.feature.finance.repositories.impl.postgres.customer_repository import PostgresCustomerRepository
+from src.modules.ai.engines.lchain.feature.finance.repositories.impl.supabase.invoice_repository import SupabaseInvoiceRepository
+from src.modules.ai.engines.lchain.feature.finance.repositories.impl.postgres.invoice_repository import PostgresInvoiceRepository
 from src.modules.channels.twilio.repositories.impl.supabase.account_repository import \
     SupabaseTwilioAccountRepository
 from src.modules.channels.twilio.repositories.impl.postgres.account_repository import PostgresTwilioAccountRepository
@@ -87,12 +89,14 @@ from src.modules.identity.services.subscription_service import \
 from src.modules.identity.services.user_service import UserService
 
 from src.modules.ai.engines.lchain.feature.relationships.repositories.impl.supabase.person_repository import SupabasePersonRepository
+from src.modules.ai.engines.lchain.feature.relationships.repositories.impl.postgres.person_repository import PostgresPersonRepository
 from src.modules.ai.engines.lchain.feature.relationships.repositories.impl.supabase.interaction_repository import SupabaseInteractionRepository
+from src.modules.ai.engines.lchain.feature.relationships.repositories.impl.postgres.interaction_repository import PostgresInteractionRepository
 from src.modules.ai.engines.lchain.feature.relationships.repositories.impl.supabase.reminder_repository import SupabaseReminderRepository
+from src.modules.ai.engines.lchain.feature.relationships.repositories.impl.postgres.reminder_repository import PostgresReminderRepository
 
 
 from src.modules.ai.memory.repositories.redis_memory_repository import RedisMemoryRepository
-from src.modules.ai.memory.repositories.vector_memory_repository import VectorMemoryRepository
 from src.modules.ai.memory.repositories.impl.supabase.vector_memory_repository import SupabaseVectorMemoryRepository
 from src.modules.ai.memory.repositories.impl.postgres.vector_memory_repository import PostgresVectorMemoryRepository
 from src.modules.ai.memory.services.hybrid_memory_service import HybridMemoryService
@@ -200,9 +204,21 @@ class Container(containers.DeclarativeContainer):
     )
 
     # Relationships Repositories
-    person_repository = providers.Factory(SupabasePersonRepository, client=supabase_session)
-    interaction_repository = providers.Factory(SupabaseInteractionRepository, client=supabase_session)
-    reminder_repository = providers.Factory(SupabaseReminderRepository, client=supabase_session)
+    person_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(SupabasePersonRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresPersonRepository, db=postgres_db),
+    )
+    interaction_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(SupabaseInteractionRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresInteractionRepository, db=postgres_db),
+    )
+    reminder_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(SupabaseReminderRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresReminderRepository, db=postgres_db),
+    )
 
     conversation_repository = providers.Selector(
         db_backend,
@@ -238,6 +254,12 @@ class Container(containers.DeclarativeContainer):
         db_backend,
         supabase=providers.Factory(SupabaseCustomerRepository, client=supabase_session),
         postgres=providers.Factory(PostgresCustomerRepository, db=postgres_db),
+    )
+
+    invoice_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(SupabaseInvoiceRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresInvoiceRepository, db=postgres_db),
     )
 
     # Services

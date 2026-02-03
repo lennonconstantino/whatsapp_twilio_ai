@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Protocol
+from typing import Any, Dict, List, Optional, Protocol
 
 from src.core.database.interface import IRepository
 from src.modules.identity.models.feature import Feature
@@ -84,6 +84,12 @@ class IPlanRepository(IRepository[Plan], Protocol):
 
     def get_features(self, plan_id: str) -> List[PlanFeature]:
         """Get features for a plan."""
+        ...
+
+    def add_feature(
+        self, plan_id: str, name: str, value: Dict[str, Any]
+    ) -> Optional[PlanFeature]:
+        """Add a feature to a plan."""
         ...
 
 

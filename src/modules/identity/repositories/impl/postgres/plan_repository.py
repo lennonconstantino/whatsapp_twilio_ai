@@ -22,3 +22,10 @@ class PostgresPlanRepository(PostgresRepository[Plan], IPlanRepository):
     def get_features(self, plan_id: str) -> List[PlanFeature]:
         return self._plan_feature_repo.find_by({"plan_id": plan_id}, limit=200)
 
+    def add_feature(
+        self, plan_id: str, name: str, value: dict
+    ) -> Optional[PlanFeature]:
+        return self._plan_feature_repo.create(
+            {"plan_id": plan_id, "feature_name": name, "feature_value": value}
+        )
+
