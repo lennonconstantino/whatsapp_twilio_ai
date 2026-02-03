@@ -13,3 +13,5 @@ docker-compose exec api python -m scripts.seed
 docker-compose exec api python -m scripts.seed_plans
 docker compose exec api python -m scripts.seed_feature_finance
 docker compose exec api python -m scripts.seed_feature_relationships
+
+docker compose --profile tools up -d pgadmin
