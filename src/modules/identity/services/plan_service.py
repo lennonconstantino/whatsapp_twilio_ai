@@ -7,7 +7,7 @@ from typing import List, Optional
 from src.core.utils import get_logger
 from src.modules.identity.models.plan import Plan, PlanCreate, PlanUpdate
 from src.modules.identity.models.plan_feature import PlanFeature
-from src.modules.identity.repositories.plan_repository import PlanRepository
+from src.modules.identity.repositories.interfaces import IPlanRepository
 
 logger = get_logger(__name__)
 
@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 class PlanService:
     """Service for managing plans."""
 
-    def __init__(self, plan_repository: PlanRepository):
+    def __init__(self, plan_repository: IPlanRepository):
         self.plan_repository = plan_repository
 
     def create_plan(self, plan_data: PlanCreate) -> Optional[Plan]:

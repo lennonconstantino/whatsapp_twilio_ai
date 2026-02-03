@@ -9,11 +9,12 @@ from supabase import Client
 from src.core.database.supabase_repository import SupabaseRepository
 from src.core.utils import get_logger
 from src.modules.identity.models.owner import Owner
+from src.modules.identity.repositories.interfaces import IOwnerRepository
 
 logger = get_logger(__name__)
 
 
-class OwnerRepository(SupabaseRepository[Owner]):
+class SupabaseOwnerRepository(SupabaseRepository[Owner], IOwnerRepository):
     """Repository for Owner entity operations."""
 
     def __init__(self, client: Client):

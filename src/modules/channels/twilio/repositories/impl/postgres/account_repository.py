@@ -8,11 +8,12 @@ from src.core.database.postgres_repository import PostgresRepository
 from src.core.database.postgres_session import PostgresDatabase
 from src.core.utils import get_logger
 from src.modules.channels.twilio.models.domain import TwilioAccount
+from src.modules.channels.twilio.repositories.account_repository import TwilioAccountRepository
 
 logger = get_logger(__name__)
 
 
-class PostgresTwilioAccountRepository(PostgresRepository[TwilioAccount]):
+class PostgresTwilioAccountRepository(PostgresRepository[TwilioAccount], TwilioAccountRepository):
     def __init__(self, db: PostgresDatabase):
         super().__init__(db, "twilio_accounts", TwilioAccount)
 

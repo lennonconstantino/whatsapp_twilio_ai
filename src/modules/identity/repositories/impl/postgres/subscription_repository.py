@@ -5,9 +5,12 @@ from src.core.database.postgres_repository import PostgresRepository
 from src.core.database.postgres_session import PostgresDatabase
 from src.modules.identity.enums.subscription_status import SubscriptionStatus
 from src.modules.identity.models.subscription import Subscription
+from src.modules.identity.repositories.interfaces import ISubscriptionRepository
 
 
-class PostgresSubscriptionRepository(PostgresRepository[Subscription]):
+class PostgresSubscriptionRepository(
+    PostgresRepository[Subscription], ISubscriptionRepository
+):
     def __init__(self, db: PostgresDatabase):
         super().__init__(db, "subscriptions", Subscription)
 

@@ -9,11 +9,12 @@ from supabase import Client
 from src.core.database.supabase_repository import SupabaseRepository
 from src.core.utils import get_logger
 from src.modules.identity.models.user import User, UserRole
+from src.modules.identity.repositories.interfaces import IUserRepository
 
 logger = get_logger(__name__)
 
 
-class UserRepository(SupabaseRepository[User]):
+class SupabaseUserRepository(SupabaseRepository[User], IUserRepository):
     """Repository for User entity operations."""
 
     def __init__(self, client: Client):

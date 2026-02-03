@@ -9,9 +9,8 @@ from src.modules.identity.enums.subscription_status import SubscriptionStatus
 from src.modules.identity.models.subscription import (Subscription,
                                                       SubscriptionCreate,
                                                       SubscriptionUpdate)
-from src.modules.identity.repositories.plan_repository import PlanRepository
-from src.modules.identity.repositories.subscription_repository import \
-    SubscriptionRepository
+from src.modules.identity.repositories.interfaces import (IPlanRepository,
+                                                          ISubscriptionRepository)
 
 logger = get_logger(__name__)
 
@@ -21,8 +20,8 @@ class SubscriptionService:
 
     def __init__(
         self,
-        subscription_repository: SubscriptionRepository,
-        plan_repository: PlanRepository,
+        subscription_repository: ISubscriptionRepository,
+        plan_repository: IPlanRepository,
     ):
         self.subscription_repository = subscription_repository
         self.plan_repository = plan_repository

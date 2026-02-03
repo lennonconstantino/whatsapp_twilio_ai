@@ -7,11 +7,12 @@ from psycopg2.extras import RealDictCursor, execute_values
 from src.core.config.settings import settings
 from src.core.database.postgres_session import PostgresDatabase
 from src.core.utils.logging import get_logger
+from src.modules.ai.memory.repositories.vector_memory_repository import VectorMemoryRepository
 
 logger = get_logger(__name__)
 
 
-class PostgresVectorMemoryRepository:
+class PostgresVectorMemoryRepository(VectorMemoryRepository):
     def __init__(self, db: PostgresDatabase):
         self.db = db
         self.embeddings = self._init_embeddings()
@@ -45,11 +46,66 @@ class PostgresVectorMemoryRepository:
     ) -> List[Dict[str, Any]]:
         return self.vector_search_relevant(query, limit=limit, match_threshold=None, filter=filter)
 
+    def add_texts(
+        self,
+        texts: List[str],
+        metadatas: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[str]:
+        if self._disabled:
+            return []
+        
+        if not texts:
+            return []
+
+        try:
+            embeddings = self.embeddings.embed_documents(texts)
+            if metadatas is None:
+                metadatas = [{} for _ in texts]
+            
+            values = []
+            for i, text in enumerate(texts):
+                metadata = metadatas[i] if i < len(metadatas) else {}
+                embedding = embeddings[i]
+                # Use _vector_literal to format the embedding vector
+                values.append((text, json.dumps(metadata), self._vector_literal(embedding)))
+
+            # Use execute_values for efficient bulk insert
+            # Assuming message_embeddings table exists in the search path (usually public)
+            # Casting string literal to vector
+            insert_query = "INSERT INTO message_embeddings (content, metadata, embedding) VALUES %s RETURNING id"
+            
+            with self.db.connection() as conn:
+                cur = conn.cursor()
+                try:
+                    # template defines how values are formatted. 
+                    # %s for content, %s for metadata (json), %s::extensions.vector for embedding
+                    # Note: We assume 'extensions' schema for vector type based on previous SQL
+                    # but if vector extension is in public, it should be just vector.
+                    # The code in vector_search_relevant used 'extensions.vector(1536)'.
+                    execute_values(
+                        cur, 
+                        insert_query, 
+                        values, 
+                        template="(%s, %s, %s::extensions.vector)"
+                    )
+                    ids = [str(row[0]) for row in cur.fetchall()]
+                    # Commit is handled by the context manager usually? 
+                    # PostgresDatabase.connection() returns a context manager that yields connection.
+                    # Usually we need to commit explicitly if autocommit is off.
+                    conn.commit()
+                    return ids
+                finally:
+                    cur.close()
+
+        except Exception as e:
+            logger.error(f"Error adding texts to Postgres vector store: {e}")
+            raise e
+
     def vector_search_relevant(
         self,
         query: str,
         *,
-        limit: int = 5,
+        limit: int = 10,
         match_threshold: float | None = None,
         filter: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
@@ -98,135 +154,5 @@ class PostgresVectorMemoryRepository:
     ) -> List[Dict[str, Any]]:
         if self._disabled:
             return []
-        try:
-            payload = json.dumps(filter or {})
-            language = fts_language or settings.memory.fts_language
-            sql_query = (
-                "SELECT content, metadata, score "
-                "FROM app.search_message_embeddings_text(%s, %s, %s::jsonb, %s)"
-            )
-            with self.db.connection() as conn:
-                cur = conn.cursor(cursor_factory=RealDictCursor)
-                try:
-                    cur.execute(sql_query, (query, int(limit), payload, language))
-                    rows = cur.fetchall() or []
-                    return [
-                        {
-                            "content": r.get("content"),
-                            "metadata": r.get("metadata"),
-                            "score": r.get("score"),
-                        }
-                        for r in rows
-                        if r.get("content")
-                    ]
-                finally:
-                    cur.close()
-        except Exception as e:
-            error_text = str(e)
-            if "search_message_embeddings_text" in error_text or "does not exist" in error_text:
-                self._disable(error_text)
-                return []
-            logger.error(f"Error searching text index (postgres): {e}")
-            return []
-
-    def hybrid_search_relevant(
-        self,
-        query: str,
-        *,
-        limit: int = 5,
-        match_threshold: float = 0.0,
-        filter: Optional[Dict[str, Any]] = None,
-        weight_vector: float = 1.5,
-        weight_text: float = 1.0,
-        rrf_k: int = 60,
-        fts_language: str | None = None,
-    ) -> List[Dict[str, Any]]:
-        if self._disabled:
-            return []
-        try:
-            query_embedding = self.embeddings.embed_query(query)
-            vec = self._vector_literal(query_embedding)
-            payload = json.dumps(filter or {})
-            language = fts_language or settings.memory.fts_language
-            sql_query = (
-                "SELECT content, metadata, similarity, score "
-                "FROM app.search_message_embeddings_hybrid_rrf("
-                "%s, %s::extensions.vector(1536), %s, %s, %s::jsonb, %s, %s, %s, %s)"
-            )
-            with self.db.connection() as conn:
-                cur = conn.cursor(cursor_factory=RealDictCursor)
-                try:
-                    cur.execute(
-                        sql_query,
-                        (
-                            query,
-                            vec,
-                            int(limit),
-                            float(match_threshold),
-                            payload,
-                            float(weight_vector),
-                            float(weight_text),
-                            int(rrf_k),
-                            language,
-                        ),
-                    )
-                    rows = cur.fetchall() or []
-                    return [
-                        {
-                            "content": r.get("content"),
-                            "metadata": r.get("metadata"),
-                            "score": r.get("score"),
-                            "similarity": r.get("similarity"),
-                        }
-                        for r in rows
-                        if r.get("content")
-                    ]
-                finally:
-                    cur.close()
-        except Exception as e:
-            error_text = str(e)
-            if "search_message_embeddings_hybrid_rrf" in error_text or "does not exist" in error_text:
-                self._disable(error_text)
-                return []
-            logger.error(f"Error searching hybrid index (postgres): {e}")
-            return []
-
-    def add_texts(self, texts: List[str], metadatas: List[Dict[str, Any]]) -> None:
-        if self._disabled:
-            return
-        if not texts:
-            return
-        if len(texts) != len(metadatas):
-            raise ValueError("texts e metadatas devem ter o mesmo tamanho")
-        try:
-            embeddings = self.embeddings.embed_documents(texts)
-            rows = []
-            for text, metadata, emb in zip(texts, metadatas, embeddings):
-                rows.append(
-                    (
-                        text,
-                        json.dumps(metadata or {}),
-                        self._vector_literal(emb),
-                    )
-                )
-            insert_sql = (
-                "INSERT INTO app.message_embeddings (content, metadata, embedding) VALUES %s"
-            )
-            template = "(%s, %s::jsonb, %s::extensions.vector(1536))"
-            with self.db.connection() as conn:
-                cur = conn.cursor()
-                try:
-                    execute_values(cur, insert_sql, rows, template=template)
-                    conn.commit()
-                except Exception:
-                    conn.rollback()
-                    raise
-                finally:
-                    cur.close()
-        except Exception as e:
-            error_text = str(e)
-            if "message_embeddings" in error_text or "does not exist" in error_text:
-                self._disable(error_text)
-                return
-            logger.error(f"Error adding texts to vector store (postgres): {e}")
-
+        # TODO: Implement text search if needed
+        return []

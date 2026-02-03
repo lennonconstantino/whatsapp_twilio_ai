@@ -8,15 +8,9 @@ from src.modules.ai.engines.lchain.core.tools.tool import Tool
 from src.modules.ai.engines.lchain.feature.finance.models import *
 from src.modules.ai.engines.lchain.feature.finance.models.models import (
     Customer, CustomerCreate, Expense, ExpenseCreate, Revenue, RevenueCreate)
-from src.modules.ai.engines.lchain.feature.finance.repositories.repository_finance import (
-    get_customer_repository, get_expense_repository, get_revenue_repository)
-
-# Mapeamento de tabelas para repositories
-TABLES = {
-    "expense": (Expense, get_expense_repository),
-    "revenue": (Revenue, get_revenue_repository),
-    "customer": (Customer, get_customer_repository),
-}
+from src.modules.ai.engines.lchain.feature.finance.repositories.revenue_repository import RevenueRepository
+from src.modules.ai.engines.lchain.feature.finance.repositories.expense_repository import ExpenseRepository
+from src.modules.ai.engines.lchain.feature.finance.repositories.customer_repository import CustomerRepository
 
 # ============================================
 # MODELOS DE CONFIGURAÇÃO DE QUERY
@@ -343,55 +337,6 @@ def supabase_query_from_config(
         raise RuntimeError(f"Query execution failed: {str(e)}")
 
 
-def query_data_function(query_config: QueryConfig) -> ToolResult:
-    """
-    Query the database via natural language.
-
-    Args:
-        query_config: Configuração da query
-
-    Returns:
-        ToolResult com dados ou mensagem de erro
-    """
-    # Validar nome da tabela
-    if query_config.table_name not in TABLES:
-        available_tables = ", ".join(TABLES.keys())
-        return ToolResult(
-            content=f"Table name '{query_config.table_name}' not found. "
-            f"Available tables: {available_tables}",
-            success=False,
-        )
-
-    try:
-        # Obter modelo e repository
-        model_class, get_repo = TABLES[query_config.table_name]
-        repository = get_repo()
-
-        # Executar query
-        data = supabase_query_from_config(query_config, model_class, repository)
-
-        # Formatar resposta
-        if not data:
-            return ToolResult(
-                content=f"No results found in {query_config.table_name}", success=True
-            )
-
-        # Converter para formato legível
-        result_str = format_query_results(data, query_config.table_name)
-
-        return ToolResult(
-            content=f"Query results from {query_config.table_name}:\n{result_str}",
-            success=True,
-        )
-
-    except ValueError as e:
-        # Erro de validação (coluna não existe, etc)
-        return ToolResult(content=f"Validation error: {str(e)}", success=False)
-    except Exception as e:
-        # Erro inesperado
-        return ToolResult(content=f"Query error: {str(e)}", success=False)
-
-
 def format_query_results(data: List[Dict[str, Any]], table_name: str) -> str:
     """
     Formata resultados da query para exibição.
@@ -406,8 +351,16 @@ def format_query_results(data: List[Dict[str, Any]], table_name: str) -> str:
     if not data:
         return "No results found"
 
-    # Obter modelo para formatação
-    model_class, _ = TABLES[table_name]
+    # Mapeamento simples para formatação (apenas para display)
+    model_map = {
+        "expense": Expense,
+        "revenue": Revenue,
+        "customer": Customer
+    }
+    
+    model_class = model_map.get(table_name)
+    if not model_class:
+        return f"Unknown table {table_name}: {data}"
 
     results = []
     for idx, item in enumerate(data, 1):
@@ -449,6 +402,11 @@ class QueryDataTool(Tool):
     function: Callable = None
     parse_model: bool = True
     validate_missing: bool = False
+    
+    # Injeção de dependências
+    expense_repository: ExpenseRepository
+    revenue_repository: RevenueRepository
+    customer_repository: CustomerRepository
 
     def _run(self, **kwargs) -> ToolResult:
         """Executa tool de forma síncrona"""
@@ -468,14 +426,47 @@ class QueryDataTool(Tool):
         Returns:
             ToolResult com resultados ou erro
         """
-        return query_data_function(input_data)
+        # Validar nome da tabela e selecionar repository correto
+        repo_map = {
+            "expense": (Expense, self.expense_repository),
+            "revenue": (Revenue, self.revenue_repository),
+            "customer": (Customer, self.customer_repository),
+        }
 
+        if input_data.table_name not in repo_map:
+            available_tables = ", ".join(repo_map.keys())
+            return ToolResult(
+                content=f"Table name '{input_data.table_name}' not found. "
+                f"Available tables: {available_tables}",
+                success=False,
+            )
 
-# ============================================
-# INSTÂNCIA DA TOOL (SINGLETON)
-# ============================================
+        try:
+            model_class, repository = repo_map[input_data.table_name]
 
-query_data_tool = QueryDataTool()
+            # Executar query
+            data = supabase_query_from_config(input_data, model_class, repository)
+
+            # Formatar resposta
+            if not data:
+                return ToolResult(
+                    content=f"No results found in {input_data.table_name}", success=True
+                )
+
+            # Converter para formato legível
+            result_str = format_query_results(data, input_data.table_name)
+
+            return ToolResult(
+                content=f"Query results from {input_data.table_name}:\n{result_str}",
+                success=True,
+            )
+
+        except ValueError as e:
+            # Erro de validação (coluna não existe, etc)
+            return ToolResult(content=f"Validation error: {str(e)}", success=False)
+        except Exception as e:
+            # Erro inesperado
+            return ToolResult(content=f"Query error: {str(e)}", success=False)
 
 
 # ============================================

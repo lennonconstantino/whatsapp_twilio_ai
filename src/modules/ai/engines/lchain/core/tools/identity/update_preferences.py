@@ -2,11 +2,11 @@ from typing import Any, Dict, Optional, Type
 
 from pydantic import BaseModel, Field
 
-from src.core.database.session import get_db
 from src.core.utils.logging import get_logger
 from src.modules.ai.engines.lchain.core.models.tool_result import ToolResult
 from src.modules.ai.engines.lchain.core.tools.tool import Tool
-from src.modules.identity.repositories.user_repository import UserRepository
+from src.modules.identity.repositories.impl.supabase.user_repository import \
+    SupabaseUserRepository as UserRepository
 from src.modules.identity.services.user_service import UserService
 
 logger = get_logger(__name__)
@@ -18,13 +18,6 @@ class UpdateUserPreferencesSchema(BaseModel):
         description="Dictionary of preferences to update (e.g., {'theme': 'dark', 'language': 'pt-BR'}). keys will be merged with existing preferences."
     )
     user_id: str = Field(..., description="The ID of the user to update.")
-
-
-def get_user_service() -> UserService:
-    """Helper to get UserService with dependencies."""
-    client = get_db()
-    repo = UserRepository(client)
-    return UserService(repo)
 
 
 class UpdateUserPreferencesTool(Tool):
@@ -41,6 +34,7 @@ class UpdateUserPreferencesTool(Tool):
     )
     args_schema: Type[BaseModel] = UpdateUserPreferencesSchema
     model: Type[BaseModel] = UpdateUserPreferencesSchema
+    user_service: UserService
 
     def _run(self, **kwargs) -> ToolResult:
         return self.execute(**kwargs)
@@ -55,11 +49,9 @@ class UpdateUserPreferencesTool(Tool):
                 return ToolResult(success=False, content="user_id is required to update preferences.")
 
             preferences = kwargs.get("preferences", {})
-
-            service = get_user_service()
             
             # 1. Get current user
-            user = service.get_user_by_id(user_id)
+            user = self.user_service.get_user_by_id(user_id)
             if not user:
                  return ToolResult(success=False, content=f"User {user_id} not found.")
 
@@ -68,7 +60,7 @@ class UpdateUserPreferencesTool(Tool):
             updated_prefs = {**current_prefs, **preferences}
             
             # 3. Update
-            updated_user = service.update_user(user_id, {"preferences": updated_prefs})
+            updated_user = self.user_service.update_user(user_id, {"preferences": updated_prefs})
             
             if updated_user:
                 return ToolResult(
@@ -82,6 +74,3 @@ class UpdateUserPreferencesTool(Tool):
             logger.error(f"Error updating user preferences: {e}")
             return ToolResult(success=False, content=str(e))
 
-
-# Singleton instance
-update_user_preferences_tool = UpdateUserPreferencesTool()

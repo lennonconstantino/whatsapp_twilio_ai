@@ -16,15 +16,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.core.config import settings
 from src.core.utils import get_logger
+from src.core.di.container import Container
 from src.modules.ai.engines.lchain.feature.relationships.models.models import (
     PersonCreate, InteractionCreate, ReminderCreate
-)
-from src.modules.ai.engines.lchain.feature.relationships.repositories.repository_relationships import (
-    get_person_repository, get_interaction_repository, get_reminder_repository
 )
 
 
 logger = get_logger(__name__)
+
+def get_repositories():
+    """Get repositories from DI container."""
+    container = Container()
+    container.wire(modules=[__name__])
+    
+    person_repo = container.person_repository()
+    interaction_repo = container.interaction_repository()
+    reminder_repo = container.reminder_repository()
+    
+    return person_repo, interaction_repo, reminder_repo
 
 def seed_people(person_repo):
     """
@@ -299,9 +308,7 @@ def main(clear_data: bool = False):
     
     try:
         # Repositories
-        person_repo = get_person_repository()
-        interaction_repo = get_interaction_repository()
-        reminder_repo = get_reminder_repository()
+        person_repo, interaction_repo, reminder_repo = get_repositories()
         
         if clear_data:
              response = input("WARNING: DELETE ALL relationships data? 'YES' to confirm: ")

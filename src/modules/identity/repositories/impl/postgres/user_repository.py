@@ -3,9 +3,10 @@ from typing import List, Optional
 from src.core.database.postgres_repository import PostgresRepository
 from src.core.database.postgres_session import PostgresDatabase
 from src.modules.identity.models.user import User, UserRole
+from src.modules.identity.repositories.interfaces import IUserRepository
 
 
-class PostgresUserRepository(PostgresRepository[User]):
+class PostgresUserRepository(PostgresRepository[User], IUserRepository):
     def __init__(self, db: PostgresDatabase):
         super().__init__(db, "users", User)
 

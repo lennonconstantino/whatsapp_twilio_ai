@@ -9,11 +9,12 @@ from supabase import Client
 from src.core.database.supabase_repository import SupabaseRepository
 from src.core.utils import get_logger
 from src.modules.identity.models.feature import Feature
+from src.modules.identity.repositories.interfaces import IFeatureRepository
 
 logger = get_logger(__name__)
 
 
-class FeatureRepository(SupabaseRepository[Feature]):
+class SupabaseFeatureRepository(SupabaseRepository[Feature], IFeatureRepository):
     """Repository for Feature entity operations."""
 
     def __init__(self, client: Client):

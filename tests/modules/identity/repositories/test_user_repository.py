@@ -7,7 +7,10 @@ import pytest
 
 from src.modules.identity.enums.user_role import UserRole
 from src.modules.identity.models.user import User, UserRole
-from src.modules.identity.repositories.user_repository import UserRepository
+from src.modules.identity.repositories.impl.supabase.user_repository import (
+    SupabaseUserRepository,
+)
+from src.modules.identity.repositories.interfaces import IUserRepository
 
 
 class TestUserRepository:
@@ -33,9 +36,9 @@ class TestUserRepository:
         return client
 
     @pytest.fixture
-    def repository(self, mock_client):
+    def repository(self, mock_client) -> IUserRepository:
         """Create repository instance."""
-        return UserRepository(client=mock_client)
+        return SupabaseUserRepository(client=mock_client)
 
     @pytest.fixture
     def mock_user_data(self):

@@ -3,9 +3,10 @@ from typing import List, Optional
 from src.core.database.postgres_repository import PostgresRepository
 from src.core.database.postgres_session import PostgresDatabase
 from src.modules.identity.models.owner import Owner
+from src.modules.identity.repositories.interfaces import IOwnerRepository
 
 
-class PostgresOwnerRepository(PostgresRepository[Owner]):
+class PostgresOwnerRepository(PostgresRepository[Owner], IOwnerRepository):
     def __init__(self, db: PostgresDatabase):
         super().__init__(db, "owners", Owner)
 

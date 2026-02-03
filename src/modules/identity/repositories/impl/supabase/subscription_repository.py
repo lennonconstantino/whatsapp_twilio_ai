@@ -11,11 +11,14 @@ from src.core.database.supabase_repository import SupabaseRepository
 from src.core.utils import get_logger
 from src.modules.identity.enums.subscription_status import SubscriptionStatus
 from src.modules.identity.models.subscription import Subscription
+from src.modules.identity.repositories.interfaces import ISubscriptionRepository
 
 logger = get_logger(__name__)
 
 
-class SubscriptionRepository(SupabaseRepository[Subscription]):
+class SupabaseSubscriptionRepository(
+    SupabaseRepository[Subscription], ISubscriptionRepository
+):
     """Repository for Subscription entity operations."""
 
     def __init__(self, client: Client):

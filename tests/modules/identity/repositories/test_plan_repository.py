@@ -7,7 +7,10 @@ import pytest
 
 from src.modules.identity.models.plan import Plan
 from src.modules.identity.models.plan_feature import PlanFeature
-from src.modules.identity.repositories.plan_repository import PlanRepository
+from src.modules.identity.repositories.impl.supabase.plan_repository import (
+    SupabasePlanRepository,
+)
+from src.modules.identity.repositories.interfaces import IPlanRepository
 
 
 class TestPlanRepository:
@@ -31,9 +34,9 @@ class TestPlanRepository:
         return client
 
     @pytest.fixture
-    def repository(self, mock_client):
+    def repository(self, mock_client) -> IPlanRepository:
         """Create repository instance."""
-        return PlanRepository(client=mock_client)
+        return SupabasePlanRepository(client=mock_client)
 
     @pytest.fixture
     def mock_plan_data(self):

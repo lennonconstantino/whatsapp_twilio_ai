@@ -3,6 +3,9 @@ from typing import Dict, List, Optional, Protocol
 from src.core.database.interface import IRepository
 from src.modules.identity.models.feature import Feature
 from src.modules.identity.models.owner import Owner
+from src.modules.identity.models.plan import Plan
+from src.modules.identity.models.plan_feature import PlanFeature
+from src.modules.identity.models.subscription import Subscription
 from src.modules.identity.models.user import User, UserRole
 
 
@@ -65,6 +68,34 @@ class IUserRepository(IRepository[User], Protocol):
 
     def activate_user(self, user_id: str) -> Optional[User]:
         """Activate a user."""
+        ...
+
+
+class IPlanRepository(IRepository[Plan], Protocol):
+    """Interface for Plan repository."""
+
+    def find_public_plans(self, limit: int = 100) -> List[Plan]:
+        """Find all public and active plans."""
+        ...
+
+    def find_by_name(self, name: str) -> Optional[Plan]:
+        """Find plan by unique name."""
+        ...
+
+    def get_features(self, plan_id: str) -> List[PlanFeature]:
+        """Get features for a plan."""
+        ...
+
+
+class ISubscriptionRepository(IRepository[Subscription], Protocol):
+    """Interface for Subscription repository."""
+
+    def find_active_by_owner(self, owner_id: str) -> Optional[Subscription]:
+        """Find active subscription for an owner."""
+        ...
+
+    def cancel_subscription(self, subscription_id: str) -> Optional[Subscription]:
+        """Cancel a subscription."""
         ...
 
 

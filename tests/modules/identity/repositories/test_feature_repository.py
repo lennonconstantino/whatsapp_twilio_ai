@@ -6,8 +6,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.modules.identity.models.feature import Feature
-from src.modules.identity.repositories.feature_repository import \
-    FeatureRepository
+from src.modules.identity.repositories.impl.supabase.feature_repository import (
+    SupabaseFeatureRepository,
+)
+from src.modules.identity.repositories.interfaces import IFeatureRepository
 
 
 class TestFeatureRepository:
@@ -34,9 +36,9 @@ class TestFeatureRepository:
         return client
 
     @pytest.fixture
-    def repository(self, mock_client):
+    def repository(self, mock_client) -> IFeatureRepository:
         """Create repository instance."""
-        return FeatureRepository(client=mock_client)
+        return SupabaseFeatureRepository(client=mock_client)
 
     @pytest.fixture
     def mock_feature_data(self):

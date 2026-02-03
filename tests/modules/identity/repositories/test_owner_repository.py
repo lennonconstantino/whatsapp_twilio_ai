@@ -6,7 +6,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.modules.identity.models.owner import Owner
-from src.modules.identity.repositories.owner_repository import OwnerRepository
+from src.modules.identity.repositories.impl.supabase.owner_repository import (
+    SupabaseOwnerRepository,
+)
+from src.modules.identity.repositories.interfaces import IOwnerRepository
 
 
 class TestOwnerRepository:
@@ -34,9 +37,9 @@ class TestOwnerRepository:
         return client
 
     @pytest.fixture
-    def repository(self, mock_client):
+    def repository(self, mock_client) -> IOwnerRepository:
         """Create repository instance."""
-        return OwnerRepository(client=mock_client)
+        return SupabaseOwnerRepository(client=mock_client)
 
     @pytest.fixture
     def mock_owner_data(self):

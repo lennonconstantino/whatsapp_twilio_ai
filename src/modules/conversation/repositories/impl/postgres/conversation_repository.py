@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import json
 from psycopg2 import sql
@@ -11,11 +11,14 @@ from src.core.utils import get_logger
 from src.core.utils.exceptions import ConcurrencyError
 from src.modules.conversation.enums.conversation_status import ConversationStatus
 from src.modules.conversation.models.conversation import Conversation
+from src.modules.conversation.repositories.conversation_repository import (
+    ConversationRepository,
+)
 
 logger = get_logger(__name__)
 
 
-class PostgresConversationRepository(PostgresRepository[Conversation]):
+class PostgresConversationRepository(PostgresRepository[Conversation], ConversationRepository):
     def __init__(self, db: PostgresDatabase):
         super().__init__(db, "conversations", Conversation)
 
@@ -141,6 +144,132 @@ class PostgresConversationRepository(PostgresRepository[Conversation]):
                 return [self.model_class(**r) for r in rows]
             finally:
                 cur.close()
+
+    def find_active_by_session_key(
+        self, owner_id: str, session_key: str
+    ) -> Optional[Conversation]:
+        statuses = [s.value for s in ConversationStatus.active_statuses()]
+        query = sql.SQL(
+            "SELECT * FROM conversations "
+            "WHERE owner_id = %s AND session_key = %s AND status = ANY(%s) "
+            "ORDER BY started_at DESC "
+            "LIMIT 1"
+        )
+        with self.db.connection() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur.execute(query, (owner_id, session_key, statuses))
+                row = cur.fetchone()
+                return self.model_class(**row) if row else None
+            finally:
+                cur.close()
+
+    def find_all_by_session_key(
+        self, owner_id: str, session_key: str, limit: int = 10
+    ) -> List[Conversation]:
+        query = sql.SQL(
+            "SELECT * FROM conversations "
+            "WHERE owner_id = %s AND session_key = %s "
+            "ORDER BY started_at DESC "
+            "LIMIT %s"
+        )
+        with self.db.connection() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur.execute(query, (owner_id, session_key, limit))
+                rows = cur.fetchall()
+                return [self.model_class(**r) for r in rows]
+            finally:
+                cur.close()
+
+    def find_expired_candidates(self, limit: int = 100) -> List[Conversation]:
+        now = datetime.now(timezone.utc).isoformat()
+        statuses = [s.value for s in ConversationStatus.active_statuses()]
+        query = sql.SQL(
+            "SELECT * FROM conversations "
+            "WHERE status = ANY(%s) AND expires_at < %s "
+            "LIMIT %s"
+        )
+        with self.db.connection() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur.execute(query, (statuses, now, limit))
+                rows = cur.fetchall()
+                return [self.model_class(**r) for r in rows]
+            finally:
+                cur.close()
+
+    def find_idle_candidates(
+        self, idle_threshold_iso: str, limit: int = 100
+    ) -> List[Conversation]:
+        statuses = [s.value for s in ConversationStatus.active_statuses()]
+        query = sql.SQL(
+            "SELECT * FROM conversations "
+            "WHERE status = ANY(%s) AND updated_at < %s "
+            "LIMIT %s"
+        )
+        with self.db.connection() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur.execute(query, (statuses, idle_threshold_iso, limit))
+                rows = cur.fetchall()
+                return [self.model_class(**r) for r in rows]
+            finally:
+                cur.close()
+
+    def cleanup_expired_conversations(self, limit: int = 100) -> int:
+        processed = 0
+        candidates = self.find_expired_candidates(limit)
+        for conv in candidates:
+            try:
+                result = self.update_status(
+                    conv.conv_id,
+                    ConversationStatus.EXPIRED,
+                    ended_at=datetime.now(timezone.utc),
+                    initiated_by="system",
+                    reason="ttl_expired",
+                )
+                if result:
+                    processed += 1
+            except ConcurrencyError:
+                logger.warning(
+                    "Concurrency conflict expiring conversation", conv_id=conv.conv_id
+                )
+            except Exception as e:
+                logger.error(
+                    "Error expiring conversation", conv_id=conv.conv_id, error=str(e)
+                )
+        return processed
+
+    def close_by_message_policy(
+        self,
+        conv: Conversation,
+        *,
+        should_close: bool,
+        message_owner: Any,
+        message_text: Optional[str] = None,
+    ) -> bool:
+        if not should_close:
+            return False
+        owner = getattr(message_owner, "value", message_owner)
+        status_map = {
+            "agent": ConversationStatus.AGENT_CLOSED,
+            "support": ConversationStatus.SUPPORT_CLOSED,
+            "user": ConversationStatus.USER_CLOSED,
+        }
+        target = status_map.get(owner, ConversationStatus.EXPIRED)
+        result = self.update_status(
+            conv.conv_id,
+            target,
+            initiated_by=owner,
+            reason="message_policy",
+            ended_at=datetime.now(timezone.utc),
+        )
+        if result:
+            if message_text:
+                self.update_context(conv.conv_id, conv.context or {})
+            return True
+        return False
 
     def find_by_status(
         self,

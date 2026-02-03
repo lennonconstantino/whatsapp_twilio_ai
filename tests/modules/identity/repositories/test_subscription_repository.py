@@ -7,8 +7,10 @@ import pytest
 
 from src.modules.identity.enums.subscription_status import SubscriptionStatus
 from src.modules.identity.models.subscription import Subscription
-from src.modules.identity.repositories.subscription_repository import \
-    SubscriptionRepository
+from src.modules.identity.repositories.impl.supabase.subscription_repository import (
+    SupabaseSubscriptionRepository,
+)
+from src.modules.identity.repositories.interfaces import ISubscriptionRepository
 
 
 class TestSubscriptionRepository:
@@ -35,9 +37,9 @@ class TestSubscriptionRepository:
         return client
 
     @pytest.fixture
-    def repository(self, mock_client):
+    def repository(self, mock_client) -> ISubscriptionRepository:
         """Create repository instance."""
-        return SubscriptionRepository(client=mock_client)
+        return SupabaseSubscriptionRepository(client=mock_client)
 
     @pytest.fixture
     def mock_subscription_data(self):

@@ -10,18 +10,25 @@ from src.modules.ai.engines.lchain.feature.relationships.relationships_agent imp
 from src.core.database.session import DatabaseConnection
 from src.core.database.postgres_session import PostgresDatabase
 from src.core.queue.service import QueueService
-from src.modules.ai.ai_result.repositories.ai_result_repository import \
-    AIResultRepository
+from src.modules.ai.ai_result.repositories.impl.supabase.ai_result_repository import SupabaseAIResultRepository
 from src.modules.ai.ai_result.repositories.impl.postgres.ai_result_repository import PostgresAIResultRepository
 from src.modules.ai.ai_result.services.ai_log_thought_service import \
     AILogThoughtService
 from src.modules.ai.ai_result.services.ai_result_service import AIResultService
 from src.modules.ai.engines.lchain.core.agents.agent_factory import \
     AgentFactory
+from src.modules.ai.engines.lchain.core.agents.identity_agent import \
+    create_identity_agent
 from src.modules.ai.engines.lchain.feature.finance.finance_agent import \
     create_finance_agent
-from src.modules.channels.twilio.repositories.account_repository import \
-    TwilioAccountRepository
+from src.modules.ai.engines.lchain.feature.finance.repositories.impl.supabase.expense_repository import SupabaseExpenseRepository
+from src.modules.ai.engines.lchain.feature.finance.repositories.impl.postgres.expense_repository import PostgresExpenseRepository
+from src.modules.ai.engines.lchain.feature.finance.repositories.impl.supabase.revenue_repository import SupabaseRevenueRepository
+from src.modules.ai.engines.lchain.feature.finance.repositories.impl.postgres.revenue_repository import PostgresRevenueRepository
+from src.modules.ai.engines.lchain.feature.finance.repositories.impl.supabase.customer_repository import SupabaseCustomerRepository
+from src.modules.ai.engines.lchain.feature.finance.repositories.impl.postgres.customer_repository import PostgresCustomerRepository
+from src.modules.channels.twilio.repositories.impl.supabase.account_repository import \
+    SupabaseTwilioAccountRepository
 from src.modules.channels.twilio.repositories.impl.postgres.account_repository import PostgresTwilioAccountRepository
 from src.modules.channels.twilio.services.twilio_account_service import \
     TwilioAccountService
@@ -32,32 +39,43 @@ from src.modules.channels.twilio.services.webhook.owner_resolver import TwilioWe
 from src.modules.channels.twilio.services.webhook.message_handler import TwilioWebhookMessageHandler
 from src.modules.channels.twilio.services.webhook.audio_processor import TwilioWebhookAudioProcessor
 from src.modules.channels.twilio.services.webhook.ai_processor import TwilioWebhookAIProcessor
-from src.modules.conversation.repositories.conversation_repository import \
-    ConversationRepository
+from src.modules.conversation.repositories.impl.supabase.conversation_repository import (
+    SupabaseConversationRepository,
+)
 from src.modules.conversation.repositories.impl.postgres.conversation_repository import PostgresConversationRepository
-from src.modules.conversation.repositories.message_repository import \
-    MessageRepository
+from src.modules.conversation.repositories.impl.supabase.message_repository import (
+    SupabaseMessageRepository,
+)
 from src.modules.conversation.repositories.impl.postgres.message_repository import PostgresMessageRepository
-from src.modules.conversation.services.conversation_service import \
-    ConversationService
+from src.modules.conversation.services.conversation_service import (
+    ConversationService,
+)
 from src.modules.conversation.components.conversation_finder import \
     ConversationFinder
 from src.modules.conversation.components.conversation_lifecycle import \
     ConversationLifecycle
 from src.modules.conversation.components.conversation_closer import \
     ConversationCloser
-from src.modules.identity.repositories.feature_repository import \
-    FeatureRepository
+from src.modules.identity.repositories.impl.supabase.feature_repository import (
+    SupabaseFeatureRepository,
+)
 from src.modules.identity.repositories.impl.postgres.feature_repository import PostgresFeatureRepository
 # Repositories
-from src.modules.identity.repositories.owner_repository import OwnerRepository
+from src.modules.identity.repositories.impl.supabase.owner_repository import (
+    SupabaseOwnerRepository,
+)
 from src.modules.identity.repositories.impl.postgres.owner_repository import PostgresOwnerRepository
-from src.modules.identity.repositories.plan_repository import PlanRepository
+from src.modules.identity.repositories.impl.supabase.plan_repository import (
+    SupabasePlanRepository,
+)
 from src.modules.identity.repositories.impl.postgres.plan_repository import PostgresPlanRepository
-from src.modules.identity.repositories.subscription_repository import \
-    SubscriptionRepository
+from src.modules.identity.repositories.impl.supabase.subscription_repository import (
+    SupabaseSubscriptionRepository,
+)
 from src.modules.identity.repositories.impl.postgres.subscription_repository import PostgresSubscriptionRepository
-from src.modules.identity.repositories.user_repository import UserRepository
+from src.modules.identity.repositories.impl.supabase.user_repository import (
+    SupabaseUserRepository,
+)
 from src.modules.identity.repositories.impl.postgres.user_repository import PostgresUserRepository
 from src.modules.identity.services.feature_service import FeatureService
 from src.modules.identity.services.identity_service import IdentityService
@@ -68,9 +86,14 @@ from src.modules.identity.services.subscription_service import \
     SubscriptionService
 from src.modules.identity.services.user_service import UserService
 
+from src.modules.ai.engines.lchain.feature.relationships.repositories.impl.supabase.person_repository import SupabasePersonRepository
+from src.modules.ai.engines.lchain.feature.relationships.repositories.impl.supabase.interaction_repository import SupabaseInteractionRepository
+from src.modules.ai.engines.lchain.feature.relationships.repositories.impl.supabase.reminder_repository import SupabaseReminderRepository
+
 
 from src.modules.ai.memory.repositories.redis_memory_repository import RedisMemoryRepository
 from src.modules.ai.memory.repositories.vector_memory_repository import VectorMemoryRepository
+from src.modules.ai.memory.repositories.impl.supabase.vector_memory_repository import SupabaseVectorMemoryRepository
 from src.modules.ai.memory.repositories.impl.postgres.vector_memory_repository import PostgresVectorMemoryRepository
 from src.modules.ai.memory.services.hybrid_memory_service import HybridMemoryService
 
@@ -130,7 +153,7 @@ class Container(containers.DeclarativeContainer):
     vector_memory_repository = providers.Selector(
         db_backend,
         supabase=providers.Factory(
-            VectorMemoryRepository,
+            SupabaseVectorMemoryRepository,
             supabase_client=supabase_client,
         ),
         postgres=providers.Factory(
@@ -142,56 +165,79 @@ class Container(containers.DeclarativeContainer):
     # Repositories
     owner_repository = providers.Selector(
         db_backend,
-        supabase=providers.Factory(OwnerRepository, client=supabase_session),
+        supabase=providers.Factory(SupabaseOwnerRepository, client=supabase_session),
         postgres=providers.Factory(PostgresOwnerRepository, db=postgres_db),
     )
 
     user_repository = providers.Selector(
         db_backend,
-        supabase=providers.Factory(UserRepository, client=supabase_session),
+        supabase=providers.Factory(SupabaseUserRepository, client=supabase_session),
         postgres=providers.Factory(PostgresUserRepository, db=postgres_db),
     )
 
     feature_repository = providers.Selector(
         db_backend,
-        supabase=providers.Factory(FeatureRepository, client=supabase_session),
+        supabase=providers.Factory(SupabaseFeatureRepository, client=supabase_session),
         postgres=providers.Factory(PostgresFeatureRepository, db=postgres_db),
     )
 
     plan_repository = providers.Selector(
         db_backend,
-        supabase=providers.Factory(PlanRepository, client=supabase_session),
+        supabase=providers.Factory(SupabasePlanRepository, client=supabase_session),
         postgres=providers.Factory(PostgresPlanRepository, db=postgres_db),
     )
 
     subscription_repository = providers.Selector(
         db_backend,
-        supabase=providers.Factory(SubscriptionRepository, client=supabase_session),
+        supabase=providers.Factory(SupabaseSubscriptionRepository, client=supabase_session),
         postgres=providers.Factory(PostgresSubscriptionRepository, db=postgres_db),
     )
 
     twilio_account_repository = providers.Selector(
         db_backend,
-        supabase=providers.Factory(TwilioAccountRepository, client=supabase_session),
+        supabase=providers.Factory(SupabaseTwilioAccountRepository, client=supabase_session),
         postgres=providers.Factory(PostgresTwilioAccountRepository, db=postgres_db),
     )
 
+    # Relationships Repositories
+    person_repository = providers.Factory(SupabasePersonRepository, client=supabase_session)
+    interaction_repository = providers.Factory(SupabaseInteractionRepository, client=supabase_session)
+    reminder_repository = providers.Factory(SupabaseReminderRepository, client=supabase_session)
+
     conversation_repository = providers.Selector(
         db_backend,
-        supabase=providers.Factory(ConversationRepository, client=supabase_session),
+        supabase=providers.Factory(SupabaseConversationRepository, client=supabase_session),
         postgres=providers.Factory(PostgresConversationRepository, db=postgres_db),
     )
 
     message_repository = providers.Selector(
         db_backend,
-        supabase=providers.Factory(MessageRepository, client=supabase_session),
+        supabase=providers.Factory(SupabaseMessageRepository, client=supabase_session),
         postgres=providers.Factory(PostgresMessageRepository, db=postgres_db),
     )
 
     ai_result_repository = providers.Selector(
         db_backend,
-        supabase=providers.Factory(AIResultRepository, client=supabase_session),
+        supabase=providers.Factory(SupabaseAIResultRepository, client=supabase_session),
         postgres=providers.Factory(PostgresAIResultRepository, db=postgres_db),
+    )
+
+    expense_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(SupabaseExpenseRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresExpenseRepository, db=postgres_db),
+    )
+
+    revenue_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(SupabaseRevenueRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresRevenueRepository, db=postgres_db),
+    )
+
+    customer_repository = providers.Selector(
+        db_backend,
+        supabase=providers.Factory(SupabaseCustomerRepository, client=supabase_session),
+        postgres=providers.Factory(PostgresCustomerRepository, db=postgres_db),
     )
 
     # Services
@@ -262,12 +308,26 @@ class Container(containers.DeclarativeContainer):
         beam_size=settings.whisper.beam_size,
     )
 
+    identity_agent = providers.Factory(
+        create_identity_agent, user_service=user_service
+    )
+
     finance_agent = providers.Factory(
-        create_finance_agent, ai_log_thought_service=ai_log_thought_service
+        create_finance_agent,
+        ai_log_thought_service=ai_log_thought_service,
+        expense_repository=expense_repository,
+        revenue_repository=revenue_repository,
+        customer_repository=customer_repository,
+        identity_agent=identity_agent,
     )
 
     relationships_agent = providers.Factory(
-        create_relationships_agent, ai_log_thought_service=ai_log_thought_service
+        create_relationships_agent,
+        ai_log_thought_service=ai_log_thought_service,
+        person_repository=person_repository,
+        interaction_repository=interaction_repository,
+        reminder_repository=reminder_repository,
+        identity_agent=identity_agent,
     )
 
     # Memory Services (AI) - Hybrid

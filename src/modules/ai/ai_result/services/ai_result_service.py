@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional
 from src.core.utils import get_logger
 from src.modules.ai.ai_result.enums.ai_result_type import AIResultType
 from src.modules.ai.ai_result.models.ai_result import AIResult
-from src.modules.ai.ai_result.repositories.interfaces import \
-    IAIResultRepository
+from src.modules.ai.ai_result.repositories.ai_result_repository import \
+    AIResultRepository
 
 logger = get_logger(__name__)
 
@@ -23,7 +23,7 @@ class AIResultService:
     - Analyze processing history
     """
 
-    def __init__(self, ai_result_repo: IAIResultRepository):
+    def __init__(self, ai_result_repo: AIResultRepository):
         """
         Initialize the service.
 

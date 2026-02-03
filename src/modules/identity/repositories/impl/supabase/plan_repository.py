@@ -10,11 +10,12 @@ from src.core.database.supabase_repository import SupabaseRepository
 from src.core.utils import get_logger
 from src.modules.identity.models.plan import Plan
 from src.modules.identity.models.plan_feature import PlanFeature
+from src.modules.identity.repositories.interfaces import IPlanRepository
 
 logger = get_logger(__name__)
 
 
-class PlanRepository(SupabaseRepository[Plan]):
+class SupabasePlanRepository(SupabaseRepository[Plan], IPlanRepository):
     """Repository for Plan entity operations."""
 
     def __init__(self, client: Client):

@@ -6,9 +6,12 @@ from src.core.database.postgres_repository import PostgresRepository
 from src.core.database.postgres_session import PostgresDatabase
 from src.modules.ai.ai_result.enums.ai_result_type import AIResultType
 from src.modules.ai.ai_result.models.ai_result import AIResult
+from src.modules.ai.ai_result.repositories.ai_result_repository import (
+    AIResultRepository,
+)
 
 
-class PostgresAIResultRepository(PostgresRepository[AIResult]):
+class PostgresAIResultRepository(PostgresRepository[AIResult], AIResultRepository):
     def __init__(self, db: PostgresDatabase):
         super().__init__(db, "ai_results", AIResult)
 

@@ -3,9 +3,10 @@ from typing import List, Optional
 from src.core.database.postgres_repository import PostgresRepository
 from src.core.database.postgres_session import PostgresDatabase
 from src.modules.identity.models.feature import Feature
+from src.modules.identity.repositories.interfaces import IFeatureRepository
 
 
-class PostgresFeatureRepository(PostgresRepository[Feature]):
+class PostgresFeatureRepository(PostgresRepository[Feature], IFeatureRepository):
     def __init__(self, db: PostgresDatabase):
         super().__init__(db, "features", Feature)
 

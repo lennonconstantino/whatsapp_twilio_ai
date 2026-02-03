@@ -9,11 +9,12 @@ from src.core.utils import get_logger
 from src.core.utils.exceptions import DuplicateError
 from src.modules.conversation.enums.message_owner import MessageOwner
 from src.modules.conversation.models.message import Message
+from src.modules.conversation.repositories.message_repository import MessageRepository
 
 logger = get_logger(__name__)
 
 
-class PostgresMessageRepository(PostgresRepository[Message]):
+class PostgresMessageRepository(PostgresRepository[Message], MessageRepository):
     def __init__(self, db: PostgresDatabase):
         super().__init__(db, "messages", Message)
 
@@ -42,6 +43,17 @@ class PostgresMessageRepository(PostgresRepository[Message]):
                 cur.execute(query, (conv_id, limit, offset))
                 rows = cur.fetchall()
                 return [self.model_class(**r) for r in rows]
+            finally:
+                cur.close()
+
+    def count_by_conversation(self, conv_id: str) -> int:
+        query = sql.SQL("SELECT COUNT(*) as count FROM messages WHERE conv_id = %s")
+        with self.db.connection() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            try:
+                cur.execute(query, (conv_id,))
+                row = cur.fetchone()
+                return row["count"] if row else 0
             finally:
                 cur.close()
 

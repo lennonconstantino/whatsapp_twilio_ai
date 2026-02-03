@@ -4,9 +4,10 @@ from src.core.database.postgres_repository import PostgresRepository
 from src.core.database.postgres_session import PostgresDatabase
 from src.modules.identity.models.plan import Plan
 from src.modules.identity.models.plan_feature import PlanFeature
+from src.modules.identity.repositories.interfaces import IPlanRepository
 
 
-class PostgresPlanRepository(PostgresRepository[Plan]):
+class PostgresPlanRepository(PostgresRepository[Plan], IPlanRepository):
     def __init__(self, db: PostgresDatabase):
         super().__init__(db, "plans", Plan)
         self._plan_feature_repo = PostgresRepository(db, "plan_features", PlanFeature)
