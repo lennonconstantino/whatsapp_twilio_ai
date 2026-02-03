@@ -4,14 +4,14 @@ from unittest.mock import MagicMock
 
 from src.modules.conversation.models.conversation import (Conversation,
                                                           ConversationStatus)
-from src.modules.conversation.repositories.conversation_repository import \
-    ConversationRepository
+from src.modules.conversation.repositories.impl.supabase.conversation_repository import \
+    SupabaseConversationRepository
 
 
 class TestHistoryLogging(unittest.TestCase):
     def setUp(self):
         self.mock_client = MagicMock()
-        self.repo = ConversationRepository(self.mock_client)
+        self.repo = SupabaseConversationRepository(self.mock_client)
         self.mock_conv = Conversation(
             conv_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",

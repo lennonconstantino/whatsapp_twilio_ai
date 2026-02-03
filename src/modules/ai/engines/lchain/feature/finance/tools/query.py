@@ -375,6 +375,33 @@ def format_query_results(data: List[Dict[str, Any]], table_name: str) -> str:
     return "\n".join(results)
 
 
+TABLES: Dict[str, tuple[Type[BaseModel], Callable[[], Any]]] = {}
+
+
+def query_data_function(config: QueryConfig) -> ToolResult:
+    if config.table_name not in TABLES:
+        return ToolResult(
+            content=f"Table name '{config.table_name}' not found",
+            success=False,
+        )
+
+    model_class, repo_factory = TABLES[config.table_name]
+
+    try:
+        repository = repo_factory()
+        data = supabase_query_from_config(config, model_class, repository)
+
+        if not data:
+            return ToolResult(content="No results found", success=True)
+
+        result_str = format_query_results(data, config.table_name)
+        return ToolResult(content=result_str, success=True)
+    except ValueError as e:
+        return ToolResult(content=f"Validation error: {str(e)}", success=False)
+    except Exception as e:
+        return ToolResult(content=f"Query error: {str(e)}", success=False)
+
+
 # ============================================
 # TOOL REFATORADA
 # ============================================
@@ -404,9 +431,9 @@ class QueryDataTool(Tool):
     validate_missing: bool = False
     
     # Injeção de dependências
-    expense_repository: ExpenseRepository
-    revenue_repository: RevenueRepository
-    customer_repository: CustomerRepository
+    expense_repository: Optional[ExpenseRepository] = None
+    revenue_repository: Optional[RevenueRepository] = None
+    customer_repository: Optional[CustomerRepository] = None
 
     def _run(self, **kwargs) -> ToolResult:
         """Executa tool de forma síncrona"""
@@ -443,6 +470,11 @@ class QueryDataTool(Tool):
 
         try:
             model_class, repository = repo_map[input_data.table_name]
+            if repository is None:
+                return ToolResult(
+                    content=f"Repository not configured for table '{input_data.table_name}'.",
+                    success=False,
+                )
 
             # Executar query
             data = supabase_query_from_config(input_data, model_class, repository)

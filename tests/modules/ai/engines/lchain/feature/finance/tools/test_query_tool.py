@@ -215,13 +215,10 @@ class TestQueryDataTool:
         """Test tool execution."""
         tool = QueryDataTool()
 
-        # Mock the function it calls
-        with patch(
-            "src.modules.ai.engines.lchain.feature.finance.tools.query.query_data_function"
-        ) as mock_fn:
-            mock_fn.return_value = ToolResult(content="Ok", success=True)
-
+        with patch.object(
+            QueryDataTool, "execute", return_value=ToolResult(content="Ok", success=True)
+        ) as mock_execute:
             result = tool._run(table_name="expense")
 
             assert result.content == "Ok"
-            mock_fn.assert_called_once()
+            mock_execute.assert_called_once()

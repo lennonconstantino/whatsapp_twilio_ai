@@ -11,8 +11,8 @@ from src.modules.conversation.enums.conversation_status import \
     ConversationStatus
 from src.modules.conversation.enums.message_owner import MessageOwner
 from src.modules.conversation.models.conversation import Conversation
-from src.modules.conversation.repositories.conversation_repository import \
-    ConversationRepository
+from src.modules.conversation.repositories.impl.supabase.conversation_repository import \
+    SupabaseConversationRepository
 
 
 class TestConversationRepository:
@@ -26,7 +26,7 @@ class TestConversationRepository:
     @pytest.fixture
     def repository(self, mock_client):
         """Create repository instance."""
-        return ConversationRepository(client=mock_client)
+        return SupabaseConversationRepository(client=mock_client)
 
     @pytest.fixture
     def mock_conversation_data(self):
@@ -45,7 +45,7 @@ class TestConversationRepository:
 
     def test_calculate_session_key(self):
         """Test session key calculation (idempotency and ordering)."""
-        repo = ConversationRepository
+        repo = SupabaseConversationRepository
 
         # Test consistent ordering
         key1 = repo.calculate_session_key("+5511999999999", "+5511888888888")
@@ -366,7 +366,7 @@ class TestConversationRepository:
         # Alternatively, we can mock the logger to verify it logged an error
 
         with patch(
-            "src.modules.conversation.repositories.conversation_repository.logger"
+            "src.modules.conversation.repositories.impl.supabase.conversation_repository.logger"
         ) as mock_logger:
             # We configure the mock to raise exception on the SECOND call to table().insert().execute()
             # But simpler: let's just assume if it fails, it logs error and returns conversation
@@ -570,7 +570,7 @@ class TestConversationRepository:
         mock_client.table.side_effect = table_side_effect
 
         with patch(
-            "src.modules.conversation.repositories.conversation_repository.logger"
+            "src.modules.conversation.repositories.impl.supabase.conversation_repository.logger"
         ) as mock_logger:
             result = repository.update_status(
                 "01ARZ3NDEKTSV4RRFFQ69G5FAV", ConversationStatus.PROGRESS

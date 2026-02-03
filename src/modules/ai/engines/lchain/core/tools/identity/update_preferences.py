@@ -5,11 +5,16 @@ from pydantic import BaseModel, Field
 from src.core.utils.logging import get_logger
 from src.modules.ai.engines.lchain.core.models.tool_result import ToolResult
 from src.modules.ai.engines.lchain.core.tools.tool import Tool
-from src.modules.identity.repositories.impl.supabase.user_repository import \
-    SupabaseUserRepository as UserRepository
 from src.modules.identity.services.user_service import UserService
 
 logger = get_logger(__name__)
+
+
+def get_user_service() -> UserService:
+    from src.core.di.container import Container
+
+    container = Container()
+    return container.user_service()
 
 
 class UpdateUserPreferencesSchema(BaseModel):
@@ -34,7 +39,7 @@ class UpdateUserPreferencesTool(Tool):
     )
     args_schema: Type[BaseModel] = UpdateUserPreferencesSchema
     model: Type[BaseModel] = UpdateUserPreferencesSchema
-    user_service: UserService
+    user_service: Optional[UserService] = None
 
     def _run(self, **kwargs) -> ToolResult:
         return self.execute(**kwargs)
@@ -49,9 +54,10 @@ class UpdateUserPreferencesTool(Tool):
                 return ToolResult(success=False, content="user_id is required to update preferences.")
 
             preferences = kwargs.get("preferences", {})
+            user_service = self.user_service or get_user_service()
             
             # 1. Get current user
-            user = self.user_service.get_user_by_id(user_id)
+            user = user_service.get_user_by_id(user_id)
             if not user:
                  return ToolResult(success=False, content=f"User {user_id} not found.")
 
@@ -60,7 +66,7 @@ class UpdateUserPreferencesTool(Tool):
             updated_prefs = {**current_prefs, **preferences}
             
             # 3. Update
-            updated_user = self.user_service.update_user(user_id, {"preferences": updated_prefs})
+            updated_user = user_service.update_user(user_id, {"preferences": updated_prefs})
             
             if updated_user:
                 return ToolResult(
@@ -73,4 +79,3 @@ class UpdateUserPreferencesTool(Tool):
         except Exception as e:
             logger.error(f"Error updating user preferences: {e}")
             return ToolResult(success=False, content=str(e))
-
