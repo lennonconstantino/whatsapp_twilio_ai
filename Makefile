@@ -114,6 +114,11 @@ seed:
 	python -m scripts.seed
 	@echo "\n---\n"
 	python -m scripts.seed_plans
+	@echo "\n---\n"
+	python -m scripts.seed_feature_finance
+	@echo "\n---\n"
+	python -m scripts.seed_feature_relationships
+	@echo "\n---\n"	
 
 obs-up:
 	@echo "Starting Observability Stack..."
@@ -127,11 +132,7 @@ obs-down:
 	@echo "Stopping Observability Stack..."
 	docker-compose stop otel-collector prometheus grafana zipkin
 	@echo "Stopped."
-	@echo "\n---\n"
-	python -m scripts.seed_feature_finance
-	@echo "\n---\n"
-	python -m scripts.seed_feature_relationships
-	@echo "\n---\n"
+
 
 shell:
 	python -i -c "from src.utils import get_db; from src.repositories import *; from src.services import *; db = get_db()"
