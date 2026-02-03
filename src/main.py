@@ -47,7 +47,7 @@ is_production = settings.api.environment == "production"
 app = FastAPI(
     title="Owner API",
     description="Multi-tenant conversation management system with Twilio integration",
-    version="4.0.0",
+    version="4.1.0",
     lifespan=lifespan,
     debug=settings.api.debug,
     docs_url=None if is_production else "/docs",
@@ -76,7 +76,7 @@ app.include_router(identity_router.router)
 @app.get("/")
 async def root():
     """Root endpoint."""
-    return {"name": "Owner API", "version": "4.0.0", "status": "running"}
+    return {"name": "Owner API", "version": "4.1.0", "status": "running"}
 
 
 @app.get("/health")

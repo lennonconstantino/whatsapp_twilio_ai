@@ -141,6 +141,13 @@ O projeto inclui um `Makefile` para facilitar operações comuns:
 4. **Teste**:
    Envie uma mensagem para o número do WhatsApp configurado.
 
+### Acesso à Documentação da API
+
+Com a aplicação rodando localmente (após `make run`), você pode acessar a documentação interativa da API:
+
+- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+
 ## 📚 Documentação Adicional
 
 A documentação técnica detalhada encontra-se na pasta `docs/v4/`:
