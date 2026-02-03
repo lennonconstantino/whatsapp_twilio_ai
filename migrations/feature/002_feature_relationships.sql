@@ -2,6 +2,9 @@
 -- Migração de Tabelas para Feature Relationships
 -- ==============================================
 
+-- Set search path for the session
+SET search_path = app, extensions, public;
+
 -- ============================================================================
 -- DROP VIEWS
 -- ============================================================================

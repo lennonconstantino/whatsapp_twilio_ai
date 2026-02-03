@@ -5,6 +5,9 @@
 -- These must be created AFTER the message_embeddings table exists
 -- ============================================================================
 
+-- Set search path for the session
+SET search_path = app, extensions, public;
+
 DO $$
 BEGIN
     RAISE NOTICE '==============================================';
@@ -29,7 +32,7 @@ RETURNS TABLE (
     similarity float
 )
 LANGUAGE plpgsql
-SET search_path = public, extensions, temp
+SET search_path = app, extensions, public, temp
 AS $$
 BEGIN
     RETURN QUERY
@@ -66,7 +69,7 @@ RETURNS TABLE (
 )
 LANGUAGE sql
 STABLE
-SET search_path = public, extensions, temp
+SET search_path = app, extensions, public, temp
 AS $$
     SELECT
         me.id,
@@ -76,7 +79,7 @@ AS $$
             to_tsvector(fts_language::regconfig, coalesce(me.content, '')),
             plainto_tsquery(fts_language::regconfig, query_text)
         ) as score
-    FROM public.message_embeddings me
+    FROM message_embeddings me
     WHERE me.metadata @> filter
         AND to_tsvector(fts_language::regconfig, coalesce(me.content, ''))
             @@ plainto_tsquery(fts_language::regconfig, query_text)
@@ -105,73 +108,74 @@ RETURNS TABLE (
     id uuid,
     content text,
     metadata jsonb,
+    similarity double precision,
     score double precision
 )
-LANGUAGE sql
-STABLE
-SET search_path = public, extensions, temp
+LANGUAGE plpgsql
+SET search_path = app, extensions, public, temp
 AS $$
-    WITH v AS (
-        SELECT
-            me.id,
-            me.content,
-            me.metadata,
-            row_number() OVER (ORDER BY me.embedding <=> query_embedding) as rnk_v
-        FROM public.message_embeddings me
-        WHERE me.metadata @> filter
-            AND 1 - (me.embedding <=> query_embedding) > match_threshold
-        ORDER BY me.embedding <=> query_embedding
-        LIMIT match_count
+BEGIN
+    RETURN QUERY
+    WITH vec_search AS (
+        SELECT 
+            me.id, 
+            1 - (me.embedding <=> query_embedding) as vec_sim,
+            ROW_NUMBER() OVER (ORDER BY me.embedding <=> query_embedding) as rank_vec
+        FROM message_embeddings me
+        WHERE 1 - (me.embedding <=> query_embedding) > match_threshold
+        AND me.metadata @> filter
+        LIMIT match_count * 2
     ),
-    t AS (
-        SELECT
-            me.id,
-            me.content,
-            me.metadata,
-            row_number() OVER (
-                ORDER BY ts_rank_cd(
-                    to_tsvector(fts_language::regconfig, coalesce(me.content, '')),
-                    plainto_tsquery(fts_language::regconfig, query_text)
-                ) DESC
-            ) as rnk_t
-        FROM public.message_embeddings me
+    text_search AS (
+        SELECT 
+            me.id, 
+            ts_rank_cd(
+                to_tsvector(fts_language::regconfig, coalesce(me.content, '')),
+                plainto_tsquery(fts_language::regconfig, query_text)
+            ) as text_score,
+            ROW_NUMBER() OVER (ORDER BY ts_rank_cd(
+                to_tsvector(fts_language::regconfig, coalesce(me.content, '')),
+                plainto_tsquery(fts_language::regconfig, query_text)
+            ) DESC) as rank_text
+        FROM message_embeddings me
         WHERE me.metadata @> filter
-            AND to_tsvector(fts_language::regconfig, coalesce(me.content, ''))
-                @@ plainto_tsquery(fts_language::regconfig, query_text)
-        ORDER BY ts_rank_cd(
-            to_tsvector(fts_language::regconfig, coalesce(me.content, '')),
-            plainto_tsquery(fts_language::regconfig, query_text)
-        ) DESC
-        LIMIT match_count
+        AND to_tsvector(fts_language::regconfig, coalesce(me.content, ''))
+            @@ plainto_tsquery(fts_language::regconfig, query_text)
+        LIMIT match_count * 2
     ),
-    u AS (
+    combined AS (
         SELECT
-            coalesce(v.id, t.id) as id,
-            coalesce(v.content, t.content) as content,
-            coalesce(v.metadata, t.metadata) as metadata,
-            v.rnk_v,
-            t.rnk_t
-        FROM v
-        FULL OUTER JOIN t ON v.id = t.id
+            COALESCE(v.id, t.id) as id,
+            COALESCE(v.vec_sim, 0.0) as vec_sim,
+            COALESCE(t.text_score, 0.0) as text_score,
+            (
+                COALESCE(weight_vec / (rrf_k + v.rank_vec), 0.0) +
+                COALESCE(weight_text / (rrf_k + t.rank_text), 0.0)
+            ) as rrf_score
+        FROM vec_search v
+        FULL OUTER JOIN text_search t ON v.id = t.id
     )
     SELECT
-        id,
-        content,
-        metadata,
-        coalesce(weight_vec / (rrf_k + rnk_v), 0) + coalesce(weight_text / (rrf_k + rnk_t), 0) as score
-    FROM u
-    ORDER BY score DESC
-    LIMIT match_count
+        me.id,
+        me.content,
+        me.metadata,
+        c.vec_sim as similarity,
+        c.rrf_score as score
+    FROM combined c
+    JOIN message_embeddings me ON c.id = me.id
+    ORDER BY c.rrf_score DESC
+    LIMIT match_count;
+END;
 $$;
 
-COMMENT ON FUNCTION search_message_embeddings_hybrid_rrf IS 'Hybrid search combining vector similarity and full-text search using Reciprocal Rank Fusion';
+COMMENT ON FUNCTION search_message_embeddings_hybrid_rrf IS 'Hybrid search using RRF (Reciprocal Rank Fusion) combining Vector and Text search';
 
 DO $$
 BEGIN
     RAISE NOTICE '==============================================';
     RAISE NOTICE 'Search functions created successfully!';
-    RAISE NOTICE '✓ Vector similarity search';
-    RAISE NOTICE '✓ Full-text search (Portuguese)';
-    RAISE NOTICE '✓ Hybrid search with RRF';
+    RAISE NOTICE '✓ match_message_embeddings()';
+    RAISE NOTICE '✓ search_message_embeddings_text()';
+    RAISE NOTICE '✓ search_message_embeddings_hybrid_rrf()';
     RAISE NOTICE '==============================================';
 END $$;

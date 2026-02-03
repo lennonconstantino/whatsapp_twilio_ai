@@ -2,6 +2,9 @@
 -- Feature: 
 -- ==============================================
 
+-- Set search path for the session
+SET search_path = app, extensions, public;
+
 
 -- ==============================================
 -- Feature: Finance

@@ -4,6 +4,9 @@
 -- Execute este SQL no SQL Editor do Supabase
 -- ou via Supabase CLI
 
+-- Set search path for the session
+SET search_path = app, extensions, public;
+
 -- Habilitar extensões úteis (opcional)
 -- CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 

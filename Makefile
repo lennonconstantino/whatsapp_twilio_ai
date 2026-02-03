@@ -97,6 +97,8 @@ seed:
 	@echo "Seeding database..."
 	python -m scripts.seed
 	@echo "\n---\n"
+	python -m scripts.seed_plans
+	@echo "\n---\n"
 	python -m scripts.seed_feature_finance
 	@echo "\n---\n"
 	python -m scripts.seed_feature_relationships

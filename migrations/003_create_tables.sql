@@ -4,6 +4,9 @@
 -- Main database tables in correct dependency order
 -- ============================================================================
 
+-- Set search path for the session
+SET search_path = app, extensions, public;
+
 DO $$
 BEGIN
     RAISE NOTICE '==============================================';

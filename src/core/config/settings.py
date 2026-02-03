@@ -67,6 +67,11 @@ class SupabaseSettings(BaseSettings):
     service_key: str | None = Field(
         default=None, description="Supabase service role key"
     )
+    db_schema: str = Field(
+        default="public", description="Default database schema (e.g. public, app)"
+    )
+    project_ref: str = Field(..., description="Supabase project reference")
+    access_token: str = Field(..., description="Supabase access token")
 
     model_config = SettingsConfigDict(env_prefix="SUPABASE_")
 

@@ -6,7 +6,7 @@ Handles Supabase client initialization and management.
 import logging
 from typing import Any, Optional
 
-from supabase import Client, create_client
+from supabase import Client, ClientOptions, create_client
 
 from src.core.config import settings
 from src.core.database.interface import IDatabaseSession
@@ -48,9 +48,14 @@ class DatabaseConnection:
     def _connect(self):
         """Establish connection to Supabase."""
         try:
-            self._client = create_client(settings.supabase.url, settings.supabase.key)
+            options = ClientOptions(schema=settings.supabase.db_schema)
+            self._client = create_client(
+                settings.supabase.url, settings.supabase.key, options=options
+            )
             self._session = SupabaseSession(self._client)
-            logger.info("Successfully connected to Supabase")
+            logger.info(
+                f"Successfully connected to Supabase (schema={settings.supabase.db_schema})"
+            )
         except Exception as e:
             logger.error(f"Failed to connect to Supabase: {e}")
             raise

@@ -82,6 +82,7 @@ DROP EXTENSION IF EXISTS pg_trgm CASCADE;
 -- ============================================================================
 -- 7. DROP SCHEMAS (optional - only if you created custom schemas)
 -- ============================================================================
+DROP SCHEMA IF EXISTS app CASCADE;
 DROP SCHEMA IF EXISTS extensions CASCADE;
 
 -- Re-enable foreign key checks

@@ -13,6 +13,11 @@ END $$;
 
 -- UUID generation (for compatibility and additional UUID features)
 CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE SCHEMA IF NOT EXISTS app;
+
+-- Set search path for this session to ensure extensions are found/created correctly
+SET search_path = app, extensions, public;
+
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA extensions;
 
 -- Vector extension for embeddings (OpenAI, etc.)

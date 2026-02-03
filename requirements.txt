@@ -53,3 +53,5 @@ faster-whisper==1.0.3
 
 langchain-community==1.2.4
 tiktoken==0.7.0
+
+requests==2.32.3

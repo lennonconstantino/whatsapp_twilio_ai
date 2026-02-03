@@ -5,6 +5,9 @@
 -- These must be created BEFORE tables
 -- ============================================================================
 
+-- Set search path for the session
+SET search_path = app, extensions, public;
+
 DO $$
 BEGIN
     RAISE NOTICE '==============================================';
@@ -25,7 +28,7 @@ END $$;
 
 CREATE OR REPLACE FUNCTION generate_ulid() 
 RETURNS TEXT
-SET search_path = public, extensions, temp
+SET search_path = app, extensions, public, temp
 AS $$
 DECLARE
     -- Crockford's Base32 alphabet (excludes I, L, O, U to avoid confusion)
@@ -63,7 +66,7 @@ COMMENT ON FUNCTION generate_ulid() IS 'Generate ULID (Universally Unique Lexico
 
 CREATE OR REPLACE FUNCTION is_valid_ulid(ulid TEXT)
 RETURNS BOOLEAN
-SET search_path = public, extensions, temp
+SET search_path = app, extensions, public, temp
 AS $$
 DECLARE
     encoding TEXT := '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
@@ -94,29 +97,26 @@ COMMENT ON FUNCTION is_valid_ulid(TEXT) IS 'Validate ULID format (26 chars, Croc
 
 CREATE OR REPLACE FUNCTION ulid_to_timestamp(ulid TEXT)
 RETURNS TIMESTAMP WITH TIME ZONE
-SET search_path = public, extensions, temp
+SET search_path = app, extensions, public, temp
 AS $$
 DECLARE
     encoding TEXT := '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-    timestamp_part TEXT;
-    unix_ms BIGINT := 0;
-    char_val INTEGER;
+    char TEXT;
+    val BIGINT;
+    timestamp BIGINT := 0;
 BEGIN
     IF NOT is_valid_ulid(ulid) THEN
-        RAISE EXCEPTION 'Invalid ULID format: %', ulid;
+        RETURN NULL;
     END IF;
-    
-    -- Extract timestamp part (first 10 characters)
-    timestamp_part := SUBSTRING(ulid FROM 1 FOR 10);
-    
-    -- Decode Base32 timestamp
-    FOR i IN REVERSE 10..1 LOOP
-        char_val := POSITION(SUBSTRING(timestamp_part FROM i FOR 1) IN encoding) - 1;
-        unix_ms := unix_ms + (char_val * (32 ^ (10 - i)));
+
+    -- Decode first 10 characters
+    FOR i IN 1..10 LOOP
+        char := SUBSTRING(ulid FROM i FOR 1);
+        val := POSITION(char IN encoding) - 1;
+        timestamp := timestamp * 32 + val;
     END LOOP;
-    
-    -- Convert milliseconds to timestamp
-    RETURN TO_TIMESTAMP(unix_ms / 1000.0);
+
+    RETURN to_timestamp(timestamp / 1000.0);
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
@@ -128,7 +128,7 @@ COMMENT ON FUNCTION ulid_to_timestamp(TEXT) IS 'Extract timestamp from ULID';
 
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER
-SET search_path = public, extensions, temp
+SET search_path = app, extensions, public, temp
 AS $$
 BEGIN
     NEW.updated_at = NOW();
@@ -136,15 +136,54 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION update_updated_at_column() IS 'Automatically update updated_at column on row modification';
+COMMENT ON FUNCTION update_updated_at_column() IS 'Trigger function to automatically update updated_at timestamp';
 
 -- ============================================================================
--- HISTORY ID TRIGGER FUNCTION
+-- INSERT ID HELPERS (for backward compatibility if needed)
 -- ============================================================================
+
+CREATE OR REPLACE FUNCTION set_ulid_on_insert()
+RETURNS TRIGGER
+SET search_path = app, extensions, public, temp
+AS $$
+BEGIN
+    IF NEW.id IS NULL THEN
+        NEW.id := generate_ulid();
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Specific ones for tables that might use different ID column names
+-- Though in our schema most use {table}_id or id
+
+CREATE OR REPLACE FUNCTION set_owners_id_on_insert()
+RETURNS TRIGGER
+SET search_path = app, extensions, public, temp
+AS $$
+BEGIN
+    IF NEW.owner_id IS NULL THEN
+        NEW.owner_id := generate_ulid();
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION set_users_id_on_insert()
+RETURNS TRIGGER
+SET search_path = app, extensions, public, temp
+AS $$
+BEGIN
+    IF NEW.user_id IS NULL THEN
+        NEW.user_id := generate_ulid();
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION set_history_id_on_insert()
 RETURNS TRIGGER
-SET search_path = public, extensions, temp
+SET search_path = app, extensions, public, temp
 AS $$
 BEGIN
     IF NEW.history_id IS NULL THEN
@@ -154,14 +193,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-COMMENT ON FUNCTION set_history_id_on_insert() IS 'Automatically set history_id to ULID on insert';
-
 DO $$
 BEGIN
     RAISE NOTICE '==============================================';
     RAISE NOTICE 'Core functions created successfully!';
-    RAISE NOTICE '✓ ULID generation and validation';
-    RAISE NOTICE '✓ Timestamp utilities';
-    RAISE NOTICE '✓ Trigger functions';
+    RAISE NOTICE '✓ generate_ulid()';
+    RAISE NOTICE '✓ is_valid_ulid()';
+    RAISE NOTICE '✓ ulid_to_timestamp()';
+    RAISE NOTICE '✓ update_updated_at_column()';
     RAISE NOTICE '==============================================';
 END $$;
