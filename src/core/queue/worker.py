@@ -8,12 +8,14 @@ load_dotenv()
 
 from src.core.di.container import Container
 from src.core.utils.logging import get_logger
+from src.core.observability import setup_observability
 
 # Setup logging
 logger = get_logger("worker")
 
 
 async def main():
+    setup_observability()
     container = Container()
     container.wire(modules=[__name__])
 

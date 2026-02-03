@@ -14,6 +14,8 @@ help:
 	@echo "  make stop             - Stop application and workers"
 	@echo "  make migrate          - Migrate Database"
 	@echo "  make seed             - Seed the database"
+	@echo "  make obs-up           - Start observability stack (Prometheus, Grafana, OTel)"
+	@echo "  make obs-down         - Stop observability stack"
 
 check-env:
 	@python scripts/check_env.py
@@ -112,6 +114,19 @@ seed:
 	python -m scripts.seed
 	@echo "\n---\n"
 	python -m scripts.seed_plans
+
+obs-up:
+	@echo "Starting Observability Stack..."
+	docker-compose up -d otel-collector prometheus grafana zipkin
+	@echo "✅ Observability Stack is running."
+	@echo "📊 Grafana: http://localhost:3000 (admin/admin)"
+	@echo "📈 Prometheus: http://localhost:9090"
+	@echo "🔍 Zipkin: http://localhost:9411"
+
+obs-down:
+	@echo "Stopping Observability Stack..."
+	docker-compose stop otel-collector prometheus grafana zipkin
+	@echo "Stopped."
 	@echo "\n---\n"
 	python -m scripts.seed_feature_finance
 	@echo "\n---\n"

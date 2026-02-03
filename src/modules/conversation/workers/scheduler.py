@@ -9,7 +9,7 @@ import signal
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from dependency_injector.wiring import Provide, inject
 
@@ -17,6 +17,7 @@ from src.core.config import settings
 from src.core.di.container import Container
 from src.core.queue.service import QueueService
 from src.core.utils import get_logger
+from src.core.observability import setup_observability
 
 logger = get_logger(__name__)
 
@@ -133,6 +134,7 @@ class BackgroundScheduler:
 
 async def main_async():
     """Entry point."""
+    setup_observability()
     container = Container()
     container.wire(modules=[__name__])
 
