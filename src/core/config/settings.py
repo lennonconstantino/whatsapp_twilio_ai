@@ -259,10 +259,20 @@ class MemorySettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="MEMORY_")
 
 
+class OTELSettings(BaseSettings):
+    """OpenTelemetry settings."""
+    exporter_otlp_endpoint: str | None = Field(default=None, description="OTLP Exporter Endpoint")
+    service_name: str = Field(default="owner-api", description="Service Name")
+    resource_attributes: str | None = Field(default=None, description="Resource Attributes")
+
+    model_config = SettingsConfigDict(env_prefix="OTEL_")
+
+
 class Settings(BaseSettings):
     """Main application settings."""
 
     # Sub-settings
+    otel: OTELSettings = Field(default_factory=OTELSettings)
     conversation: ConversationSettings = Field(default_factory=ConversationSettings)
     toggle: ToggleSettings = Field(default_factory=ToggleSettings)
     queue: QueueSettings = Field(default_factory=QueueSettings)

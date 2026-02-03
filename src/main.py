@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .core.config import settings
 from .core.di.container import Container
 from .core.utils import get_logger
+from .core.observability import setup_observability
 from .modules.channels.twilio.api import router as twilio_router
 from .modules.conversation.api import router as conversation_router
 from .modules.identity.api import router as identity_router
@@ -54,6 +55,9 @@ app = FastAPI(
     redoc_url=None,  # Disable default Redoc to use custom CDN
     openapi_url=None if is_production else "/openapi.json",
 )
+
+# Setup Observability
+setup_observability(app)
 
 # Attach container to app
 app.container = container
