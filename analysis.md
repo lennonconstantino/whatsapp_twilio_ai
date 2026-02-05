@@ -1,71 +1,77 @@
-# Análise Consolidada de Conformidade e Plano de Ação
+# Análise de Convergência de Riscos e Plano de Ação
 
-Com base na revisão detalhada dos módulos `core`, `conversation`, `ai`, `channels/twilio` e `identity`, identificamos padrões recorrentes que representam riscos sistêmicos para a aplicação. Abaixo estão as 3 maiores preocupações transversais e o plano de ação recomendado.
+**Data:** 05/02/2026
+**Responsável:** Trae AI Architect
 
-## ⚠️ Top 3 Preocupações em Comum
-
-### 1. Fragilidade na Segurança e Controle de Acesso (Critical)
-A vulnerabilidade mais crítica e onipresente é a ausência de uma estratégia robusta e unificada de autenticação e autorização (AuthN/AuthZ).
-- **Sintomas:**
-  - **Identity:** Confiança cega em headers (`X-Auth-ID`) sem validação criptográfica.
-  - **Conversation:** Rotas públicas sem middleware de autenticação; `owner_id` é aceito via parâmetro do cliente (risco de *Broken Access Control*).
-  - **Core:** Defaults inseguros (`secret_key="change-me-in-production"`) e carregamento de `.env` que pode falhar silenciosamente.
-  - **AI/Twilio:** Dependência de RLS (banco) ou validações frágeis de assinatura, sem defesa em profundidade na camada de aplicação.
-- **Risco:** Vazamento de dados entre tenants (Cross-Tenant Data Leakage), acesso não autorizado a funcionalidades administrativas e exploração trivial de endpoints.
-
-### 2. Efeitos Colaterais em Imports e Inicialização (Architecture)
-O ciclo de vida da aplicação é imprevisível devido à execução de código lógico e conexões durante o tempo de importação dos módulos.
-- **Sintomas:**
-  - **Core:** `load_dotenv()` e `db = DatabaseConnection()` executados no nível global do módulo.
-  - **AI:** Inicialização "eager" (ansiosa) de múltiplos modelos LLM ao importar `infrastructure/llm.py`, causando lentidão no boot e falhas se credenciais faltarem.
-  - **Geral:** Dificuldade em isolar componentes para testes unitários sem "mockar o mundo", pois imports disparam conexões ou leituras de ambiente.
-- **Risco:** Fragilidade em testes, dificuldade de manutenção, "boot time" elevado e comportamentos difíceis de depurar em ambientes serverless ou contêineres.
-
-### 3. Observabilidade Inconsiste e Vazamento de Dados (Ops/Privacy)
-A estratégia de logging e tratamento de dados sensíveis (PII) é heterogênea e perigosa.
-- **Sintomas:**
-  - **Vazamento de PII:** Logs de `AI` e `Twilio` registram prompts, números de telefone e mensagens inteiras sem ofuscação.
-  - **Inconsistência:** Mistura de `print()` (em filas/workers) com `logging` nativo e `structlog`.
-  - **Tratamento de Erros:** Exceções internas vazando detalhes de infraestrutura (`str(e)`) nas respostas da API (`Conversation`, `Twilio`), facilitando reconhecimento por atacantes.
-- **Risco:** Violação de conformidade (LGPD/GDPR), dificuldade de correlação de logs em produção e exposição de vetores de ataque via mensagens de erro.
+Com base na revisão transversal dos relatórios de conformidade dos módulos `Core`, `Conversation`, `AI`, `Twilio` e `Identity`, identificamos **4 pilares críticos de preocupação** que devem nortear o plano de ação imediato. Estas não são apenas melhorias, mas correções estruturais necessárias para garantir a segurança, escalabilidade e operabilidade do sistema.
 
 ---
 
-## 🚀 Plano de Ação
+## 🚨 1. Segurança Crítica e Controle de Acesso (Prioridade Máxima)
 
-### Fase 1: Segurança e Fundações (Imediato)
-Foco em fechar as portas abertas e garantir que a identidade seja confiável.
+A maior vulnerabilidade do sistema reside na inconsistência dos padrões de autenticação e autorização, especialmente em módulos sensíveis como `Identity` e `AI`.
 
-1.  **Unificar Autenticação (Auth Gateway):**
-    *   Criar um middleware/dependência (`get_current_user` / `get_current_owner`) no `src/core` que valide um Token (JWT) ou API Key segura.
-    *   Remover a leitura de `owner_id` via query params/body em rotas protegidas; injetá-lo a partir do contexto de segurança.
-2.  **Sanitizar Configurações:**
-    *   Remover defaults inseguros de `settings.py`. A aplicação deve **falhar no boot** se `SECRET_KEY` ou credenciais críticas não estiverem definidas em Produção.
-    *   Implementar rotação ou criptografia para tokens armazenados (ex: Twilio Auth Token).
-3.  **Remover Side-Effects Críticos:**
-    *   Refatorar `DatabaseConnection` e `load_dotenv` para serem lazy ou iniciados explicitamente no `main.py`/`lifespan`, nunca no import global.
+*   **O Problema:**
+    *   **IDOR (Identity):** O endpoint de cancelamento de assinatura não valida a propriedade do recurso, permitindo ataques destrutivos.
+    *   **Auth Fraca:** Coexistência de JWT (seguro) e `X-Auth-ID` (inseguro/spoofable) cria vetores de ataque.
+    *   **Vazamento de Dados (AI):** A busca vetorial (RAG) não isola rigidamente os dados por Tenant/Owner, e os logs vazam PII (dados pessoais).
+    *   **Safety Settings (AI):** Modelos configurados como `BLOCK_NONE` expõem a aplicação a geração de conteúdo nocivo.
 
-### Fase 2: Robustez e Observabilidade (Curto Prazo)
-Melhorar a visibilidade e estabilidade do sistema.
-
-1.  **Padronizar Logging e Redação de PII:**
-    *   Impor o uso exclusivo de `structlog` (via `core.utils.logging`).
-    *   Criar processadores de log que detectem e mascarem automaticamente padrões de Email, CPF/CNPJ e Telefone.
-    *   Eliminar todos os `print()` do código.
-2.  **Tratamento de Erros Global:**
-    *   Implementar `ExceptionHandlers` no FastAPI para capturar erros de domínio e retornar respostas padronizadas (ex: `{"code": "INTERNAL_ERROR", "id": "req-123"}`), ocultando stack traces.
-3.  **Lazy Loading de AI/Infra:**
-    *   Refatorar o módulo de AI para instanciar clientes de LLM apenas na primeira utilização ou via Injeção de Dependência, removendo a inicialização no import.
-
-### Fase 3: Refinamento Arquitetural (Médio Prazo)
-Melhorias de design para manutenibilidade.
-
-1.  **Limpeza de Fronteiras (Core vs Modules):**
-    *   Mover utilitários de domínio (ex: helpers do Twilio) de `src/core/utils` para seus respectivos módulos.
-2.  **Endurecimento de Contratos (Identity/Conversation):**
-    *   Alinhar DTOs com Modelos de Banco (resolver discrepâncias de campos).
-    *   Centralizar máquinas de estado (remover duplicação de lógica entre Service e Repository).
+*   **Ação Necessária:**
+    1.  **Hardening Imediato:** Aplicar `Depends(get_current_owner_id)` em todas as rotas críticas de `Identity`.
+    2.  **Unificação de Auth:** Remover suporte ao header `X-Auth-ID` e padronizar 100% via JWT Bearer Token.
+    3.  **Privacidade:** Ativar mascaramento de PII nos logs do módulo de AI e impor filtro de `owner_id` mandatório nas buscas vetoriais.
 
 ---
 
-**Conclusão:** A base do projeto é promissora e bem segmentada, mas opera com "confiança excessiva" (em clientes, em ambiente e em imports). A prioridade zero deve ser **proteger o acesso aos dados (AuthN/AuthZ)** e **estabilizar o ciclo de vida da aplicação (remover side-effects)**.
+## 🐌 2. Performance e Bloqueio do Event Loop (Risco de Escalabilidade)
+
+Existe um erro arquitetural recorrente na implementação de endpoints assíncronos (`async def`) que invocam repositórios síncronos (`SQLAlchemy` com `psycopg2` ou `requests`), anulando a capacidade de concorrência do FastAPI.
+
+*   **O Problema:**
+    *   **Mistura Async/Sync:** Em `Conversation` e `Identity`, controladores `async` executam operações de I/O bloqueante na thread principal do *Event Loop*. Sob carga, isso fará a API parar de responder a novas requisições (Health Checks falharão), mesmo com CPU baixa.
+    *   **Redis N+1 (AI):** Inserção de mensagens no cache feita em loop, gerando latência de rede desnecessária.
+
+*   **Ação Necessária:**
+    1.  **Correção de Rotas:** Remover a keyword `async` dos controladores que usam repositórios síncronos (permitindo que o FastAPI os execute em *Threadpool*) **OU** migrar os repositórios para `asyncpg`.
+    2.  **Otimização de Cache:** Implementar *Bulk Inserts/Pipelines* no Redis.
+
+---
+
+## 🔭 3. Observabilidade e Tratamento de Erros (Operabilidade)
+
+A capacidade de diagnosticar problemas em produção está comprometida pelo tratamento genérico de exceções.
+
+*   **O Problema:**
+    *   **Erros Mascarados:** Módulos `Conversation` e `Identity` capturam `Exception` genérico e retornam 500 ou 400 com a mensagem bruta (`str(e)`). Isso dificulta diferenciar erros de cliente (validação) de erros de servidor (infra), além de vazar detalhes internos.
+    *   **Lixo Digital:** O módulo `AI` não possui política de retenção para logs de pensamento (`ai_thoughts`), o que degradará a performance do banco de dados ao longo do tempo.
+
+*   **Ação Necessária:**
+    1.  **Exception Handlers:** Implementar manipuladores globais que mapeiem exceções de domínio (ex: `SubscriptionNotFound`) para códigos HTTP corretos (404), sem vazar stack traces.
+    2.  **Limpeza de Dados:** Criar *Background Worker* para expurgo de logs antigos de IA.
+
+---
+
+## 🧪 4. Confiabilidade e Testes (Qualidade)
+
+Embora a cobertura de testes unitários seja boa em áreas como `Twilio`, há lacunas perigosas na validação de integração.
+
+*   **O Problema:**
+    *   **Falta de Testes E2E (Twilio):** A lógica crítica de recebimento de webhooks depende fortemente de mocks, sem validar se a integração real com o banco (constraints, triggers) funciona.
+    *   **Complexidade de DI (Core):** O container de injeção de dependência (`container.py`) está se tornando um "God Object", dificultando a manutenção e testes isolados.
+
+*   **Ação Necessária:**
+    1.  **Testes de Integração:** Adicionar testes com *Testcontainers* (Postgres) para fluxos críticos de Webhook e Assinatura.
+    2.  **Refatoração Modular:** Dividir o `Container` principal em módulos menores (`DbContainer`, `ServiceContainer`).
+
+---
+
+## Resumo do Plano de Ação
+
+| Prioridade | Área | Ação Chave |
+| :---: | :--- | :--- |
+| 🔥 **P0** | **Segurança** | Corrigir IDOR em `cancel_subscription` e remover `X-Auth-ID`. |
+| 🔥 **P0** | **Performance** | Corrigir controladores `async` que bloqueiam o Event Loop. |
+| 🚀 **P1** | **Privacidade** | Mascarar PII nos logs de IA e impor filtro de Tenant no Vector DB. |
+| 🚀 **P1** | **Qualidade** | Padronizar Exception Handlers (fim dos erros 500 genéricos). |
+| 📅 **P2** | **Manutenção** | Implementar limpeza de logs antigos e refatorar DI Container. |
