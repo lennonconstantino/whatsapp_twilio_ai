@@ -136,6 +136,15 @@ class TwilioWebhookService:
         # Send to Twilio
         response = await self.message_handler.send_twilio_message(owner_id, payload)
 
+        if not response:
+            logger.error("Failed to send outbound message via Twilio", owner_id=owner_id)
+            return TwilioWebhookResponseDTO(
+                success=False,
+                message="Failed to send message to Twilio provider",
+                conv_id=conversation.conv_id,
+                msg_id=None,
+            )
+
         # Persist Outbound Message
         message = await self.message_handler.persist_outbound_message(
             conversation=conversation,

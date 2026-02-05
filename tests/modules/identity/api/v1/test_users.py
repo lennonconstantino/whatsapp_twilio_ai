@@ -18,15 +18,23 @@ VALID_OWNER_ID = "01HRZ32M1X6Z4P5R7W8K9A0M1A"
 VALID_AUTH_ID = "auth_123"
 
 
+from src.core.security import get_current_user_id, get_current_owner_id
+
 class TestUserAPI:
 
     @pytest.fixture(autouse=True)
     def setup(self):
         self.mock_user_service = MagicMock(spec=UserService)
         app.container.user_service.override(providers.Object(self.mock_user_service))
+        
+        # Default overrides
+        app.dependency_overrides[get_current_user_id] = lambda: VALID_AUTH_ID
+        app.dependency_overrides[get_current_owner_id] = lambda: VALID_OWNER_ID
+
         self.now = datetime.now(UTC)
         yield
         app.container.user_service.reset_override()
+        app.dependency_overrides = {}
 
     def test_get_current_user_profile_success(self):
         mock_user = User(
@@ -38,9 +46,8 @@ class TestUserAPI:
         )
         self.mock_user_service.get_user_by_auth_id.return_value = mock_user
 
-        response = client.get(
-            "/identity/v1/users/me", headers={"X-Auth-ID": VALID_AUTH_ID}
-        )
+        # Header is no longer used, auth is via dependency override
+        response = client.get("/identity/v1/users/me")
 
         assert response.status_code == 200
         assert response.json()["user_id"] == VALID_USER_ID
@@ -48,9 +55,12 @@ class TestUserAPI:
 
     def test_get_current_user_profile_not_found(self):
         x_auth_id = "auth_unknown"
+        # Override dependency for this test
+        app.dependency_overrides[get_current_user_id] = lambda: x_auth_id
+        
         self.mock_user_service.get_user_by_auth_id.return_value = None
 
-        response = client.get("/identity/v1/users/me", headers={"X-Auth-ID": x_auth_id})
+        response = client.get("/identity/v1/users/me")
 
         assert response.status_code == 404
         assert response.json()["detail"] == "User not found"
@@ -161,3 +171,23 @@ class TestUserAPI:
 
         assert response.status_code == 201
         assert response.json()["user_id"] == "01HRZ32M1X6Z4P5R7W8K9A0M1P"
+
+    def test_list_users(self):
+        """Test listing users."""
+        mock_users = [
+            User(
+                user_id=VALID_USER_ID,
+                email="test@example.com",
+                owner_id=VALID_OWNER_ID,
+                created_at=self.now,
+            )
+        ]
+        self.mock_user_service.get_users_by_owner.return_value = mock_users
+
+        # owner_id from dependency
+        response = client.get("/identity/v1/users/")
+
+        assert response.status_code == 200
+        assert len(response.json()) == 1
+        assert response.json()[0]["user_id"] == VALID_USER_ID
+        self.mock_user_service.get_users_by_owner.assert_called_with(VALID_OWNER_ID)

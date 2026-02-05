@@ -80,6 +80,8 @@ class FakeConversationService:
         return msg
 
 
+from src.modules.channels.twilio.models.domain import TwilioWhatsAppPayload
+
 @pytest.mark.asyncio
 async def test_owner_lookup_inbound_local_sender():
     # Override dependencies
@@ -90,9 +92,12 @@ async def test_owner_lookup_inbound_local_sender():
     app.container.conversation_service.override(
         providers.Factory(FakeConversationService)
     )
+    
+    # We must ensure QueueService is mocked or works, although we are bypassing API
+    # app.container.queue_service.override(...)
 
     try:
-        payload = {
+        payload_dict = {
             "MessageSid": "SM_local_123",
             "AccountSid": "AC_test",
             "Body": "Olá",
@@ -107,18 +112,16 @@ async def test_owner_lookup_inbound_local_sender():
             "LocalSender": "True",
         }
 
-        # The API endpoint has been refactored to NOT accept background_tasks
-        # argument. It relies on QueueService which is injected.
-        # We test the API endpoint via AsyncClient which calls the endpoint
-        # normally.
-        async with AsyncClient(app=app, base_url="http://test") as ac:
-            resp = await ac.post("/channels/twilio/v1/webhooks/inbound", data=payload)
+        # Validate logic directly using the service, bypassing the API which is async/queue based
+        twilio_webhook_service = app.container.twilio_webhook_service()
+        payload = TwilioWhatsAppPayload(**payload_dict)
+        
+        # Call the logic directly
+        response = await twilio_webhook_service.process_webhook(payload)
 
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["success"] is True
-        assert data["conv_id"] == "01ARZ3NDEKTSV4RRFFQ69G5FAV"
-        assert data["msg_id"] == "01ARZ3NDEKTSV4RRFFQ69G5FA1"
+        assert response.success is True
+        assert response.conv_id == "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+        assert response.msg_id == "01ARZ3NDEKTSV4RRFFQ69G5FA1"
 
     finally:
         # Reset overrides

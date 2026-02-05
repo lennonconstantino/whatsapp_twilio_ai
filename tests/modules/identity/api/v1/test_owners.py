@@ -41,26 +41,47 @@ class TestOwnerAPI:
     def test_get_owner_success(self, mock_owner_service, mock_owner):
         """Test getting owner successfully."""
         mock_owner_service.get_owner_by_id.return_value = mock_owner
+        owner_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 
         result = get_owner(
-            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", owner_service=mock_owner_service
+            owner_id=owner_id,
+            token_owner_id=owner_id,
+            owner_service=mock_owner_service,
         )
 
         assert result == mock_owner
         mock_owner_service.get_owner_by_id.assert_called_with(
-            "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+            owner_id
         )
 
     def test_get_owner_not_found(self, mock_owner_service):
         """Test getting owner not found."""
         mock_owner_service.get_owner_by_id.return_value = None
+        owner_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 
         with pytest.raises(HTTPException) as exc:
             get_owner(
-                owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", owner_service=mock_owner_service
+                owner_id=owner_id,
+                token_owner_id=owner_id,
+                owner_service=mock_owner_service,
             )
 
         assert exc.value.status_code == 404
+
+    def test_get_owner_access_denied(self, mock_owner_service):
+        """Test getting owner with access denied."""
+        owner_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+        different_id = "01ARZ3NDEKTSV4RRFFQ69G5FAX"
+
+        with pytest.raises(HTTPException) as exc:
+            get_owner(
+                owner_id=owner_id,
+                token_owner_id=different_id,
+                owner_service=mock_owner_service,
+            )
+
+        assert exc.value.status_code == 403
+        assert exc.value.detail == "Access denied"
 
     def test_register_organization_success(self, mock_identity_service, mock_owner):
         """Test registering organization successfully."""
@@ -107,28 +128,49 @@ class TestOwnerAPI:
         """Test updating owner successfully."""
         update_dto = OwnerUpdateDTO(name="New Name")
         mock_owner_service.update_owner.return_value = mock_owner
+        owner_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 
         result = update_owner(
-            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            owner_id=owner_id,
             owner_data=update_dto,
+            token_owner_id=owner_id,
             owner_service=mock_owner_service,
         )
 
         assert result == mock_owner
         mock_owner_service.update_owner.assert_called_with(
-            "01ARZ3NDEKTSV4RRFFQ69G5FAV", update_dto
+            owner_id, update_dto
         )
 
     def test_update_owner_not_found(self, mock_owner_service):
         """Test updating owner not found."""
         update_dto = OwnerUpdateDTO(name="New Name")
         mock_owner_service.update_owner.return_value = None
+        owner_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 
         with pytest.raises(HTTPException) as exc:
             update_owner(
-                owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+                owner_id=owner_id,
                 owner_data=update_dto,
+                token_owner_id=owner_id,
                 owner_service=mock_owner_service,
             )
 
         assert exc.value.status_code == 404
+
+    def test_update_owner_access_denied(self, mock_owner_service):
+        """Test updating owner access denied."""
+        update_dto = OwnerUpdateDTO(name="New Name")
+        owner_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+        different_id = "01ARZ3NDEKTSV4RRFFQ69G5FAX"
+
+        with pytest.raises(HTTPException) as exc:
+            update_owner(
+                owner_id=owner_id,
+                owner_data=update_dto,
+                token_owner_id=different_id,
+                owner_service=mock_owner_service,
+            )
+
+        assert exc.value.status_code == 403
+        assert exc.value.detail == "Access denied"
