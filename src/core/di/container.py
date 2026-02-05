@@ -9,6 +9,7 @@ from src.core.di.modules.identity import IdentityContainer
 from src.core.di.modules.conversation import ConversationContainer
 from src.core.di.modules.ai import AIContainer
 from src.core.di.modules.twilio import TwilioContainer
+from src.core.di.modules.billing import BillingContainer
 
 
 class Container(containers.DeclarativeContainer):
@@ -65,6 +66,12 @@ class Container(containers.DeclarativeContainer):
         identity=identity,
         conversation=conversation,
         ai=ai
+    )
+
+    # Billing Module
+    billing = providers.Container(
+        BillingContainer,
+        core=core
     )
 
     # =========================================================================
@@ -131,3 +138,17 @@ class Container(containers.DeclarativeContainer):
     twilio_webhook_audio_processor = twilio.twilio_webhook_audio_processor
     twilio_webhook_ai_processor = twilio.twilio_webhook_ai_processor
     twilio_webhook_service = twilio.twilio_webhook_service
+
+    # Billing
+    features_catalog_repository = billing.features_catalog_repository
+    feature_usage_repository = billing.feature_usage_repository
+    plan_repository = billing.plan_repository
+    plan_feature_repository = billing.plan_feature_repository
+    plan_version_repository = billing.plan_version_repository
+    subscription_repository = billing.subscription_repository
+    subscription_event_repository = billing.subscription_event_repository
+    
+    features_catalog_service = billing.features_catalog_service
+    feature_usage_service = billing.feature_usage_service
+    billing_plan_service = billing.plan_service
+    billing_subscription_service = billing.subscription_service
