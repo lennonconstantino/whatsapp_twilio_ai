@@ -25,6 +25,7 @@ class MessageCreateDTO(BaseModel):
     direction: MessageDirection = MessageDirection.INBOUND
     message_owner: MessageOwner = MessageOwner.USER
     message_type: MessageType = MessageType.TEXT
+    sent_by_ia: bool = False
     content: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 

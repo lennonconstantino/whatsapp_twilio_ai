@@ -58,6 +58,50 @@ class TestConversationLifecycle(unittest.TestCase):
                 initiated_by="system"
             )
 
+    def test_transition_handoff_to_progress(self):
+        """Test valid transition from HUMAN_HANDOFF to PROGRESS."""
+        self.mock_conv.status = ConversationStatus.HUMAN_HANDOFF.value
+        self.repo.update_status.return_value = self.mock_conv
+        
+        self.lifecycle.transition_to(
+            self.mock_conv,
+            ConversationStatus.PROGRESS,
+            reason="release_to_bot",
+            initiated_by="agent"
+        )
+        
+        self.repo.update_status.assert_called_with(
+            self.mock_conv.conv_id,
+            ConversationStatus.PROGRESS,
+            initiated_by="agent",
+            reason="release_to_bot",
+            ended_at=None,
+            expires_at=None
+        )
+
+    def test_transition_expired_validity(self):
+        """Test expiration transitions."""
+        # PENDING -> EXPIRED
+        self.mock_conv.status = ConversationStatus.PENDING.value
+        self.repo.update_status.return_value = self.mock_conv
+        self.lifecycle.transition_to(
+            self.mock_conv,
+            ConversationStatus.EXPIRED,
+            reason="ttl",
+            initiated_by="system"
+        )
+        self.repo.update_status.assert_called()
+        
+        # PROGRESS -> EXPIRED
+        self.mock_conv.status = ConversationStatus.PROGRESS.value
+        self.lifecycle.transition_to(
+            self.mock_conv,
+            ConversationStatus.EXPIRED,
+            reason="ttl",
+            initiated_by="system"
+        )
+        self.repo.update_status.assert_called()
+
     def test_transition_concurrency_error(self):
         """Test concurrency error propagation."""
         self.repo.update_status.return_value = None # Simulate optimistic lock failure

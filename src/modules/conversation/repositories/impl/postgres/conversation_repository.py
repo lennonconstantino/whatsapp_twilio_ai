@@ -331,53 +331,9 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
             status if isinstance(status, ConversationStatus) else ConversationStatus(status)
         )
 
-        if not force:
-            valid_next = {
-                ConversationStatus.PENDING: [
-                    ConversationStatus.PROGRESS,
-                    ConversationStatus.HUMAN_HANDOFF,
-                    ConversationStatus.EXPIRED,
-                    ConversationStatus.SUPPORT_CLOSED,
-                    ConversationStatus.USER_CLOSED,
-                    ConversationStatus.AGENT_CLOSED,
-                    ConversationStatus.FAILED,
-                ],
-                ConversationStatus.PROGRESS: [
-                    ConversationStatus.HUMAN_HANDOFF,
-                    ConversationStatus.AGENT_CLOSED,
-                    ConversationStatus.SUPPORT_CLOSED,
-                    ConversationStatus.USER_CLOSED,
-                    ConversationStatus.IDLE_TIMEOUT,
-                    ConversationStatus.EXPIRED,
-                    ConversationStatus.FAILED,
-                ],
-                ConversationStatus.HUMAN_HANDOFF: [
-                    ConversationStatus.PROGRESS,
-                    ConversationStatus.AGENT_CLOSED,
-                    ConversationStatus.SUPPORT_CLOSED,
-                    ConversationStatus.USER_CLOSED,
-                    ConversationStatus.FAILED,
-                ],
-                ConversationStatus.IDLE_TIMEOUT: [
-                    ConversationStatus.PROGRESS,
-                    ConversationStatus.HUMAN_HANDOFF,
-                    ConversationStatus.EXPIRED,
-                    ConversationStatus.AGENT_CLOSED,
-                    ConversationStatus.USER_CLOSED,
-                    ConversationStatus.FAILED,
-                ],
-                ConversationStatus.AGENT_CLOSED: [],
-                ConversationStatus.SUPPORT_CLOSED: [],
-                ConversationStatus.USER_CLOSED: [],
-                ConversationStatus.EXPIRED: [],
-                ConversationStatus.FAILED: [],
-            }
-            if from_status != to_status:
-                allowed = valid_next.get(from_status, [])
-                if to_status not in allowed:
-                    raise ValueError(
-                        f"Invalid transition from {from_status} to {to_status}"
-                    )
+        # Validation is now delegated to the ConversationLifecycle component (Business Layer)
+        # The repository is responsible for persistence only.
+        # if not force: ... (removed duplication)
 
         update_data: Dict[str, Any] = {
             "status": to_status.value,

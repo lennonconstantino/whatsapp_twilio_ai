@@ -19,7 +19,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     owner_id: str
-    external_auth_id: Optional[str] = None
+    auth_id: Optional[str] = None
 
 
 class UserSync(BaseModel):

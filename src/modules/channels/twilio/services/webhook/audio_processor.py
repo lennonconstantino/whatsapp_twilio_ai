@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 from starlette.concurrency import run_in_threadpool
 
 from src.core.utils import get_logger
-from src.core.utils.helpers import TwilioHelpers
+from src.modules.channels.twilio.utils.helpers import download_media
 from src.core.queue.service import QueueService
 from src.modules.ai.services.transcription_service import TranscriptionService
 from src.modules.channels.twilio.services.webhook.message_handler import TwilioWebhookMessageHandler
@@ -72,7 +72,7 @@ class TwilioWebhookAudioProcessor:
         try:
             # 1. Download Media
             media_content = await run_in_threadpool(
-                TwilioHelpers.download_media,
+                download_media,
                 media_type=media_type,
                 media_url=media_url
             )
