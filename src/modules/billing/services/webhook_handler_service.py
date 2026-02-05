@@ -1,5 +1,6 @@
 from typing import Dict, Any, Optional
 import structlog
+import asyncio
 from datetime import datetime
 
 from src.modules.billing.services.subscription_service import SubscriptionService
@@ -20,6 +21,11 @@ class WebhookHandlerService:
     ):
         self.subscription_service = subscription_service
         self.plan_service = plan_service
+
+    async def _run_sync(self, func, *args, **kwargs):
+        """Helper to run sync functions in thread executor to avoid blocking event loop."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, lambda: func(*args, **kwargs))
 
     async def handle_event(self, event: Dict[str, Any]):
         """
@@ -68,14 +74,18 @@ class WebhookHandlerService:
         # For now, we assume checkout creates a new subscription.
         # Ideally, we should check if user already has an active subscription.
         
-        existing_sub = self.subscription_service.subscription_repo.find_by_owner(client_reference_id)
+        existing_sub = await self._run_sync(
+            self.subscription_service.subscription_repo.find_by_owner,
+            client_reference_id
+        )
         if existing_sub and existing_sub.status == SubscriptionStatus.ACTIVE:
             logger.info(f"User {client_reference_id} already has an active subscription. Updating metadata instead of creating new.")
             # Optionally update the existing subscription with new stripe info if missing
             return
 
         # Create subscription
-        self.subscription_service.create_subscription(
+        await self._run_sync(
+            self.subscription_service.create_subscription,
             owner_id=client_reference_id,
             plan_id=plan_id,
             metadata={
@@ -95,7 +105,10 @@ class WebhookHandlerService:
             return
 
         # Find subscription by stripe_subscription_id
-        subscription = self.subscription_service.subscription_repo.find_by_stripe_subscription_id(stripe_subscription_id)
+        subscription = await self._run_sync(
+            self.subscription_service.subscription_repo.find_by_stripe_subscription_id,
+            stripe_subscription_id
+        )
         
         if not subscription:
             logger.warning(f"Subscription not found for Stripe ID {stripe_subscription_id}")
@@ -103,7 +116,8 @@ class WebhookHandlerService:
 
         # Update status to ACTIVE if it was not
         if subscription.status != SubscriptionStatus.ACTIVE:
-             self.subscription_service.subscription_repo.update(
+             await self._run_sync(
+                self.subscription_service.subscription_repo.update,
                 subscription.subscription_id,
                 {"status": SubscriptionStatus.ACTIVE}
             )
@@ -122,14 +136,18 @@ class WebhookHandlerService:
         if not stripe_subscription_id:
             return
 
-        subscription = self.subscription_service.subscription_repo.find_by_stripe_subscription_id(stripe_subscription_id)
+        subscription = await self._run_sync(
+            self.subscription_service.subscription_repo.find_by_stripe_subscription_id,
+            stripe_subscription_id
+        )
         
         if not subscription:
             logger.warning(f"Subscription not found for Stripe ID {stripe_subscription_id}")
             return
 
         # Cancel internally
-        self.subscription_service.cancel_subscription(
+        await self._run_sync(
+            self.subscription_service.cancel_subscription,
             subscription_id=subscription.subscription_id,
             immediately=True,
             reason="Canceled via Stripe",

@@ -6,8 +6,9 @@ from pydantic import BaseModel, EmailStr
 
 from src.core.di.container import Container
 from src.core.security import get_current_user_id
-from src.modules.identity.api.dependencies import get_authenticated_owner_id
+from src.modules.identity.api.dependencies import get_authenticated_owner_id, get_authenticated_user
 from src.modules.identity.dtos.user_dto import UserCreateDTO
+from src.modules.identity.enums.user_role import UserRole
 from src.modules.identity.models.user import User, UserCreate, UserUpdate
 from src.modules.identity.services.user_service import UserService
 
@@ -104,7 +105,25 @@ def list_users(
 @inject
 def create_user(
     user_data: UserCreateDTO,
+    current_user: User = Depends(get_authenticated_user),
     user_service: UserService = Depends(Provide[Container.user_service]),
 ):
-    """Create a new user."""
+    """
+    Create a new user.
+    
+    Requires Authentication and ADMIN role.
+    The new user must belong to the same organization (owner_id) as the admin.
+    """
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can create users",
+        )
+
+    if user_data.owner_id != current_user.owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot create user for another organization",
+        )
+
     return user_service.create_user(user_data)

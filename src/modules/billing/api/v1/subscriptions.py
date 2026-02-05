@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from dependency_injector.wiring import inject, Provide
 
 from src.core.di.container import Container
+from src.modules.identity.api.dependencies import get_authenticated_user
+from src.modules.identity.models.user import User
 from src.modules.billing.services.subscription_service import SubscriptionService
 from src.modules.billing.models.subscription import Subscription
 
@@ -29,8 +31,11 @@ class SubscriptionCancelRequest(BaseModel):
 @inject
 def create_subscription(
     req: SubscriptionCreateRequest,
+    current_user: User = Depends(get_authenticated_user),
     service: SubscriptionService = Depends(Provide[Container.billing_subscription_service])
 ):
+    if req.owner_id != current_user.owner_id:
+        raise HTTPException(status_code=403, detail="Cannot create subscription for another owner")
     try:
         return service.create_subscription(
             owner_id=req.owner_id,
@@ -46,6 +51,7 @@ def create_subscription(
 def upgrade_subscription(
     subscription_id: str,
     req: SubscriptionUpgradeRequest,
+    current_user: User = Depends(get_authenticated_user),
     service: SubscriptionService = Depends(Provide[Container.billing_subscription_service])
 ):
     try:
@@ -62,6 +68,7 @@ def upgrade_subscription(
 def cancel_subscription(
     subscription_id: str,
     req: SubscriptionCancelRequest,
+    current_user: User = Depends(get_authenticated_user),
     service: SubscriptionService = Depends(Provide[Container.billing_subscription_service])
 ):
     try:

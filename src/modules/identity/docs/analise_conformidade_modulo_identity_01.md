@@ -67,7 +67,7 @@ graph TD
 | Categoria | Status | Justificativa |
 | :--- | :--- | :--- |
 | **Arquitetura** | ✅ Conforme | Clean Architecture exemplar. Interfaces definidas, DTOs para transporte, separação de camadas clara. |
-| **Segurança** | ✅ Conforme | **Resolvido:** Endpoint `POST /users/` agora exige autenticação e Role ADMIN. |
+| **Segurança** | 🔴 Não Conforme | **Falha Crítica:** Endpoint `POST /users/` aberto publicamente. Falta de validação se quem cria o usuário tem permissão de Admin no Owner. |
 | **Qualidade** | ✅ Conforme | Código limpo, bem tipado, uso de ULIDs, tratamento de erros com logs. Rollback manual em `register_organization` é um bom esforço de consistência. |
 | **Performance** | ⚠️ Parcial | Uso de I/O síncrono (Supabase client) em endpoints Async. Pode escalar mal. |
 | **Documentação** | ✅ Conforme | Docstrings detalhadas, README (implícito na estrutura), código auto-explicativo. |
@@ -87,7 +87,7 @@ graph TD
 
 ### 🔴 Riscos
 
-1.  **[RESOLVIDO] CRÍTICO - Criação de Usuário Não Autenticada:** O endpoint `create_user` foi protegido com `Depends(get_authenticated_user)` e verificação de Role ADMIN.
+1.  **CRÍTICO - Criação de Usuário Não Autenticada:** O endpoint `create_user` em `src/modules/identity/api/v1/users.py` não tem `Depends(get_authenticated_owner_id)` ou similar. Permite injeção de usuários.
 2.  **MÉDIO - Inconsistência de Dados:** Falhas durante o registro de organização podem deixar "sujeira" no banco (Owners órfãos) devido à falta de transações ACID.
 
 ### 🎯 Oportunidades
@@ -96,7 +96,7 @@ graph TD
 *   **Estrutural:** Implementar "Unit of Work" ou Transações do Supabase (via RPC ou cliente Postgres direto) para garantir que `register_organization` seja atômico.
 *   **Refatoração:** Migrar para cliente assíncrono do Supabase (`supabase-py-async` ou usar `motor`/`databases` se mudar o backend).
 
-### 📊 Nota: 8.5 / 10
+### 📊 Nota: 7.0 / 10
 
 ---
 
@@ -131,7 +131,7 @@ graph TD
 
 ## 6. Plano de Ação (Top 5)
 
-1.  **[FEITO] Segurança:** Adicionar dependência de segurança (`get_current_user_id` + verificação de Role ADMIN) no endpoint `create_user` em `api/v1/users.py`.
+1.  **Segurança:** Adicionar dependência de segurança (`get_current_user_id` + verificação de Role ADMIN) no endpoint `create_user` em `api/v1/users.py`.
 2.  **Segurança:** Revisar todos os endpoints de escrita (`POST`, `PUT`, `DELETE`) em `api/v1/` para garantir que exigem autenticação adequada.
 3.  **Arquitetura:** Refatorar `IdentityService.register_organization` para usar uma abordagem mais segura de transação (se possível com a stack atual) ou melhorar o mecanismo de compensação (ex: fila de limpeza de órfãos).
 4.  **Testes:** Criar teste de integração que simule falha na criação do usuário durante o registro da organização para validar se o rollback manual está funcionando como esperado.
@@ -147,4 +147,4 @@ graph TD
 
 ---
 
-**Nota Final:** 8.5 (Sólido, risco crítico de segurança mitigado)
+**Nota Final:** 7.0 (Sólido, mas com brecha de segurança pontual)

@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from src.modules.billing.models.subscription import Subscription, SubscriptionCreate, SubscriptionUpdate
 from src.modules.billing.enums.subscription_status import SubscriptionStatus
@@ -47,7 +47,7 @@ class SubscriptionService:
             raise ValueError(f"Plan {plan_id} not found or inactive")
 
         # 2. Create subscription
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         subscription_data = {
             "owner_id": owner_id,
@@ -120,7 +120,7 @@ class SubscriptionService:
             subscription_id,
             {
                 "plan_id": new_plan_id,
-                "updated_at": datetime.utcnow()
+                "updated_at": datetime.now(timezone.utc)
             }
         )
 
@@ -158,7 +158,7 @@ class SubscriptionService:
         if not subscription:
             raise ValueError(f"Subscription {subscription_id} not found")
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         if immediately:
             # Cancel immediately
