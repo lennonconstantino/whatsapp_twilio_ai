@@ -1,5 +1,6 @@
-from typing import Protocol, Dict, Any
+from typing import Protocol, Dict, Any, runtime_checkable
 
+@runtime_checkable
 class IdentityProvider(Protocol):
     """
     Interface for identity management operations required by the AI module.
