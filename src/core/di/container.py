@@ -87,6 +87,7 @@ from src.modules.identity.services.plan_service import PlanService
 from src.modules.identity.services.subscription_service import \
     SubscriptionService
 from src.modules.identity.services.user_service import UserService
+from src.modules.identity.adapters.ai_identity_provider import AIIdentityProvider
 
 from src.modules.ai.engines.lchain.feature.relationships.repositories.impl.supabase.person_repository import SupabasePersonRepository
 from src.modules.ai.engines.lchain.feature.relationships.repositories.impl.postgres.person_repository import PostgresPersonRepository
@@ -292,6 +293,11 @@ class Container(containers.DeclarativeContainer):
     twilio_account_service = providers.Factory(
         TwilioAccountService, twilio_account_repo=twilio_account_repository
     )
+    
+    # Adapters
+    ai_identity_provider = providers.Factory(
+        AIIdentityProvider, user_service=user_service
+    )
 
     # Conversation V2 Components
     conversation_finder = providers.Factory(
@@ -330,7 +336,7 @@ class Container(containers.DeclarativeContainer):
     )
 
     identity_agent = providers.Factory(
-        create_identity_agent, user_service=user_service
+        create_identity_agent, identity_provider=ai_identity_provider
     )
 
     finance_agent = providers.Factory(

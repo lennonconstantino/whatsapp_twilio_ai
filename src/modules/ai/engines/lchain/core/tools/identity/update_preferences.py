@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from src.core.utils.logging import get_logger
 from src.modules.ai.engines.lchain.core.models.tool_result import ToolResult
 from src.modules.ai.engines.lchain.core.tools.tool import Tool
-from src.modules.identity.services.user_service import UserService
+from src.modules.ai.engines.lchain.core.interfaces.identity_provider import IdentityProvider
 
 logger = get_logger(__name__)
 
@@ -32,7 +32,7 @@ class UpdateUserPreferencesTool(Tool):
     )
     args_schema: Type[BaseModel] = UpdateUserPreferencesSchema
     model: Type[BaseModel] = UpdateUserPreferencesSchema
-    user_service: Optional[Any] = None
+    identity_provider: Optional[IdentityProvider] = None
     
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -49,30 +49,27 @@ class UpdateUserPreferencesTool(Tool):
                 return ToolResult(success=False, content="user_id is required to update preferences.")
 
             preferences = kwargs.get("preferences", {})
-            user_service = self.user_service
+            identity_provider = self.identity_provider
             
-            if not user_service:
-                return ToolResult(success=False, content="Internal Error: UserService not injected into tool.")
+            if not identity_provider:
+                return ToolResult(success=False, content="Internal Error: IdentityProvider not injected into tool.")
             
-            # 1. Get current user
-            user = user_service.get_user_by_id(user_id)
-            if not user:
-                 return ToolResult(success=False, content=f"User {user_id} not found.")
-
+            # 1. Get current preferences
+            current_prefs = identity_provider.get_user_preferences(user_id)
+            
             # 2. Merge preferences
-            current_prefs = user.preferences or {}
             updated_prefs = {**current_prefs, **preferences}
             
             # 3. Update
-            updated_user = user_service.update_user(user_id, {"preferences": updated_prefs})
+            success = identity_provider.update_user_preferences(user_id, updated_prefs)
             
-            if updated_user:
+            if success:
                 return ToolResult(
                     success=True, 
-                    content=f"Preferences updated successfully. New preferences: {updated_user.preferences}"
+                    content=f"Preferences updated successfully. New preferences: {updated_prefs}"
                 )
             else:
-                return ToolResult(success=False, content="Failed to update user.")
+                return ToolResult(success=False, content="Failed to update user preferences.")
 
         except Exception as e:
             logger.error(f"Error updating user preferences: {e}")
