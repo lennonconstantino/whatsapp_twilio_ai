@@ -4,6 +4,8 @@ services:
     env_file:
       - .env
     container_name: postgres-container
+    networks:
+      - whatsapp_twilio_ai
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
@@ -25,6 +27,8 @@ services:
     env_file:
       - .env    
     container_name: owner-redis
+    networks:
+      - whatsapp_twilio_ai
     ports:
       - "6379:6379"
     volumes:
@@ -41,6 +45,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: owner-worker
+    networks:
+      - whatsapp_twilio_ai
     env_file:
       - .env
     environment:
@@ -83,6 +89,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: owner-scheduler
+    networks:
+      - whatsapp_twilio_ai
     env_file:
       - .env
     environment:
@@ -119,6 +127,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: owner-api
+    networks:
+      - whatsapp_twilio_ai    
     env_file:
       - .env
     environment:
@@ -160,6 +170,8 @@ services:
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: owner-pgadmin
+    networks:
+      - whatsapp_twilio_ai    
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com
       PGADMIN_DEFAULT_PASSWORD: admin
@@ -176,6 +188,8 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.88.0
     container_name: owner-otel-collector
+    networks:
+      - whatsapp_twilio_ai    
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./observability/otel-collector-config.yaml:/etc/otel-collector-config.yaml
@@ -187,6 +201,8 @@ services:
   prometheus:
     image: prom/prometheus:v2.47.2
     container_name: owner-prometheus
+    networks:
+      - whatsapp_twilio_ai    
     volumes:
       - ./observability/prometheus.yaml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
@@ -204,6 +220,8 @@ services:
   grafana:
     image: grafana/grafana:10.2.0
     container_name: owner-grafana
+    networks:
+      - whatsapp_twilio_ai    
     volumes:
       - grafana_data:/var/lib/grafana
       - ./observability/grafana/datasources:/etc/grafana/provisioning/datasources
@@ -219,6 +237,8 @@ services:
   zipkin:
     image: openzipkin/zipkin:latest
     container_name: owner-zipkin
+    networks:
+      - whatsapp_twilio_ai
     ports:
       - "9411:9411"
 
@@ -229,5 +249,5 @@ volumes:
   grafana_data:
 
 networks:
-  prod:
+  whatsapp_twilio_ai:
     driver: bridge
