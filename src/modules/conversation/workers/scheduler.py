@@ -131,6 +131,26 @@ class BackgroundScheduler:
             logger.error(f"Failed to enqueue expired task: {e}")
             self.metrics.errors += 1
 
+        # 3. Cleanup AI Logs (Run once per day, or check every cycle and decide)
+        # For simplicity, we enqueue it every cycle but the worker can be smart, 
+        # or we just rely on the fact that the query is fast if nothing to delete.
+        # Ideally we should track last run time.
+        # Let's run it if we are roughly at midnight or just check a flag?
+        # Actually, enqueuing it every minute (default interval) is too much.
+        # Let's do a simple check: only enqueue if current minute is 0 (once an hour)
+        current_time = datetime.now(timezone.utc)
+        if current_time.minute == 0:
+            try:
+                await self.queue_service.enqueue(
+                    "cleanup_ai_logs", 
+                    {"retention_days": settings.ai.log_retention_days}
+                )
+                self.metrics.tasks_enqueued += 1
+                logger.info("Enqueued AI cleanup task")
+            except Exception as e:
+                logger.error(f"Failed to enqueue AI cleanup task: {e}")
+                # Don't increment error metric to avoid noise for non-critical task
+
 
 async def main_async():
     """Entry point."""

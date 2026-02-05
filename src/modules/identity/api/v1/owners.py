@@ -65,17 +65,13 @@ def register_organization(
         auth_id=data.auth_id,
     )
 
-    try:
-        # 3. Call Service
-        owner, _ = identity_service.register_organization(
-            owner_data=owner_data,
-            admin_user_data=admin_data,
-            initial_features=[],  # Can be configured later
-        )
-        return owner
-    except Exception as e:
-        # Log error in production
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    # 3. Call Service
+    owner, _ = identity_service.register_organization(
+        owner_data=owner_data,
+        admin_user_data=admin_data,
+        initial_features=[],  # Can be configured later
+    )
+    return owner
 
 
 @router.patch("/{owner_id}", response_model=Owner)

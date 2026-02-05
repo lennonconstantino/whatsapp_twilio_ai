@@ -84,20 +84,16 @@ def create_conversation(
             detail=f"Not authorized to create conversation for owner {conversation_data.owner_id}",
         )
 
-    try:
-        conversation = service.get_or_create_conversation(
-            owner_id=conversation_data.owner_id,
-            from_number=conversation_data.from_number,
-            to_number=conversation_data.to_number,
-            channel=conversation_data.channel,
-            user_id=conversation_data.user_id,
-            metadata=conversation_data.metadata,
-        )
+    conversation = service.get_or_create_conversation(
+        owner_id=conversation_data.owner_id,
+        from_number=conversation_data.from_number,
+        to_number=conversation_data.to_number,
+        channel=conversation_data.channel,
+        user_id=conversation_data.user_id,
+        metadata=conversation_data.metadata,
+    )
 
-        return ConversationResponse.model_validate(conversation)
-    except Exception as e:
-        logger.error("Error creating conversation V2", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+    return ConversationResponse.model_validate(conversation)
 
 
 @router.get("/{conv_id}", response_model=ConversationResponse)
@@ -185,12 +181,8 @@ def add_message(
     # Ensure conv_id matches
     message_data.conv_id = conv_id
 
-    try:
-        message = service.add_message(conversation, message_data)
-        return MessageResponse.model_validate(message)
-    except Exception as e:
-        logger.error("Error adding message V2", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+    message = service.add_message(conversation, message_data)
+    return MessageResponse.model_validate(message)
 
 
 @router.post("/{conv_id}/close", response_model=ConversationResponse)
@@ -212,11 +204,7 @@ def close_conversation(
     if conversation.owner_id != owner_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this conversation")
 
-    try:
-        closed = service.close_conversation(
-            conversation, status, initiated_by="api_user_v2", reason=reason
-        )
-        return ConversationResponse.model_validate(closed)
-    except Exception as e:
-        logger.error("Error closing conversation V2", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+    closed = service.close_conversation(
+        conversation, status, initiated_by="api_user_v2", reason=reason
+    )
+    return ConversationResponse.model_validate(closed)

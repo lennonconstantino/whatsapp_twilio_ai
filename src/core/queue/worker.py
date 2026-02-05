@@ -70,6 +70,28 @@ async def main():
         outbound_worker.handle_send_message_task
     )
 
+    # Register AI Cleanup tasks
+    # Using container to resolve dependencies (Repository)
+    # Since AICleanupTasks uses @inject on __init__, we need to make sure wiring is active
+    # (Container().wire(modules=[__name__]) above handles the wiring for THIS file, 
+    # but AICleanupTasks needs wiring too if we instantiate it manually without container factory)
+    # Ideally we should add ai_cleanup_tasks to container factories, but for now we instantiate directly
+    # and rely on wiring or pass dependencies manually if needed.
+    # However, since we are inside a wired context (worker.py), let's instantiate it.
+    # To be safe with DI, we should ensure src.modules.ai.workers.cleanup_tasks is wired.
+    container.wire(modules=[sys.modules[__name__], "src.modules.ai.workers.cleanup_tasks"])
+    
+    from src.modules.ai.workers.cleanup_tasks import AICleanupTasks
+    
+    # We can resolve repo from container manually to be safe
+    ai_repo = container.ai_result_repository()
+    cleanup_tasks = AICleanupTasks(ai_result_repo=ai_repo)
+    
+    queue_service.register_handler(
+        "cleanup_ai_logs",
+        cleanup_tasks.cleanup_old_logs
+    )
+
     logger.info("Services initialized. Starting worker...")
 
     try:

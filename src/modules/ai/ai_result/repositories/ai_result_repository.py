@@ -39,3 +39,8 @@ class AIResultRepository(ABC):
     ) -> Optional[AIResult]:
         """Create a new AI result."""
         pass
+
+    @abstractmethod
+    def delete_older_than(self, days: int) -> int:
+        """Delete AI results older than N days."""
+        pass

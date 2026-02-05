@@ -114,3 +114,31 @@ class SupabaseAIResultRepository(SupabaseRepository[AIResult], AIResultRepositor
             data["correlation_id"] = correlation_id
 
         return self.create(data)
+
+    def delete_older_than(self, days: int) -> int:
+        """
+        Delete AI results older than N days.
+        
+        Args:
+            days: Number of days to keep
+            
+        Returns:
+            Number of deleted records (Supabase API might not return count easily, returning 0 or trying count)
+        """
+        from datetime import datetime, timedelta, timezone
+        
+        cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        
+        try:
+            # Supabase-py / Postgrest doesn't support returning count easily on delete
+            # We filter by processed_at < cutoff_date
+            result = (
+                self.client.table(self.table_name)
+                .delete(count="exact")
+                .lt("processed_at", cutoff_date)
+                .execute()
+            )
+            return result.count or 0
+        except Exception as e:
+            logger.error("Error deleting old AI results", error=str(e))
+            raise

@@ -367,6 +367,22 @@ class OTELSettings(BaseSettings):
     )
 
 
+class AISettings(BaseSettings):
+    """AI configuration."""
+
+    log_retention_days: int = Field(
+        default=30, description="Days to retain AI logs (thoughts/results)"
+    )
+
+    model_config = SettingsConfigDict(
+        env_prefix="AI_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
+
+
 class Settings(BaseSettings):
     """Main application settings."""
 
@@ -385,6 +401,7 @@ class Settings(BaseSettings):
     llm_model: LLMModelSettings = Field(default_factory=LLMModelSettings)
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
     memory: MemorySettings = Field(default_factory=MemorySettings)
+    ai: AISettings = Field(default_factory=AISettings)
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"

@@ -57,3 +57,17 @@ class PostgresAIResultRepository(PostgresRepository[AIResult], AIResultRepositor
             data["correlation_id"] = correlation_id
         return self.create(data)
 
+    def delete_older_than(self, days: int) -> int:
+        query = (
+            "DELETE FROM ai_results "
+            "WHERE processed_at < NOW() - INTERVAL '%s days'"
+        )
+        with self.db.connection() as conn:
+            cur = conn.cursor()
+            try:
+                cur.execute(query, (days,))
+                conn.commit()
+                return cur.rowcount
+            finally:
+                cur.close()
+
