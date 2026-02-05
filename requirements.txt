@@ -59,6 +59,9 @@ tiktoken==0.7.0
 
 requests
 
+# Payment
+stripe==10.12.0
+
 # Observability
 opentelemetry-api==1.22.0
 opentelemetry-sdk==1.22.0

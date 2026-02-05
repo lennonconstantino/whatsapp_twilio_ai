@@ -22,6 +22,7 @@ from .core.api.exception_handlers import setup_exception_handlers
 from .modules.channels.twilio.api import router as twilio_router
 from .modules.conversation.api import router as conversation_router
 from .modules.identity.api import router as identity_router
+from .modules.billing.api import router as billing_router
 
 logger = get_logger(__name__)
 
@@ -80,6 +81,7 @@ app.add_middleware(
 app.include_router(conversation_router.router)
 app.include_router(twilio_router.router)
 app.include_router(identity_router.router)
+app.include_router(billing_router.router)
 
 
 @app.get("/")

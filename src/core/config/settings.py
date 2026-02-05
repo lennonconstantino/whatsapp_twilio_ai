@@ -383,6 +383,23 @@ class AISettings(BaseSettings):
     )
 
 
+class StripeSettings(BaseSettings):
+    """Stripe payment settings."""
+    
+    api_key: str | None = Field(default=None, description="Stripe Secret API Key")
+    webhook_secret: str | None = Field(default=None, description="Stripe Webhook Secret")
+    publishable_key: str | None = Field(default=None, description="Stripe Publishable Key")
+    
+    model_config = SettingsConfigDict(
+        env_prefix="STRIPE_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
+
+
+
 class Settings(BaseSettings):
     """Main application settings."""
 
@@ -402,6 +419,7 @@ class Settings(BaseSettings):
     embedding: EmbeddingSettings = Field(default_factory=EmbeddingSettings)
     memory: MemorySettings = Field(default_factory=MemorySettings)
     ai: AISettings = Field(default_factory=AISettings)
+    stripe: StripeSettings = Field(default_factory=StripeSettings)
 
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"

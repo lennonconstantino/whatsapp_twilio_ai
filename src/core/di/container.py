@@ -31,6 +31,10 @@ class Container(containers.DeclarativeContainer):
             "src.modules.identity.api.v1.plans",
             "src.modules.identity.api.v1.subscriptions",
             "src.modules.identity.api.v1.features",
+            "src.modules.billing.api.v1.plans",
+            "src.modules.billing.api.v1.subscriptions",
+            "src.modules.billing.api.v1.feature_usage",
+            "src.modules.billing.api.v1.webhooks",
             "src.modules.conversation.workers.scheduler",
             "src.core.queue.worker",
         ]
@@ -152,3 +156,4 @@ class Container(containers.DeclarativeContainer):
     feature_usage_service = billing.feature_usage_service
     billing_plan_service = billing.plan_service
     billing_subscription_service = billing.subscription_service
+    stripe_service = billing.stripe_service
