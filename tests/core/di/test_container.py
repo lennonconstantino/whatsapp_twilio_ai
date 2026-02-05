@@ -14,11 +14,13 @@ class TestContainer:
         try:
             container = Container()
             # Mock database connections to avoid side effects
-            container.postgres_db.override(MagicMock())
-            container.supabase_connection.override(MagicMock())
-            container.supabase_session.override(MagicMock())
-            container.supabase_client.override(MagicMock())
-            container.redis_memory_repository.override(MagicMock())
+            # We need to access providers via core container
+            container.core.postgres_db.override(MagicMock())
+            container.core.supabase_connection.override(MagicMock())
+            container.core.supabase_session.override(MagicMock())
+            container.core.supabase_client.override(MagicMock())
+            # Redis is now in AI container
+            container.ai.redis_memory_repository.override(MagicMock())
             yield container
         finally:
             # Restore wiring config
