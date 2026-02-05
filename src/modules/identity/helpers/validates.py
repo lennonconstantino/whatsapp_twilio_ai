@@ -85,21 +85,3 @@ class PathValidator:
 
         return result
 
-
-# Usage example
-if __name__ == "__main__":
-    # Test 1
-    result = PathValidator.validate_and_check_next_directory(
-        "src/modules/ai/engines/lchain/feature"
-    )
-    print(f"Path: {result['original_path']}")
-    print(f"Valid: {result['valid_path']}")
-    print(f"Exists: {result['path_exists']}")
-    print(f"Next directory exists: {result['next_directory_exists']}")
-    print(f"Message: {result['message']}")
-    print(f"Full path: {result['full_path']}")
-    print("-" * 50)
-
-    # Test 2 - Invalid path
-    result2 = PathValidator.validate_and_check_next_directory("")
-    print(f"Message: {result2['message']}")

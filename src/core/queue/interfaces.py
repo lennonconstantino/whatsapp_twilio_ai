@@ -1,8 +1,11 @@
 import asyncio
 from abc import ABC, abstractmethod
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Awaitable, Callable, Optional
 
+from src.core.utils.logging import get_logger
 from .models import QueueMessage
+
+logger = get_logger(__name__)
 
 
 class QueueBackend(ABC):
@@ -60,6 +63,8 @@ class QueueBackend(ABC):
         """
         MAX_RETRIES = 3  # Hardcoded for now, or move to settings
 
+        logger.info("Starting consumer loop", backend=self.__class__.__name__)
+
         while True:
             try:
                 msg = await self.dequeue()
@@ -70,17 +75,29 @@ class QueueBackend(ABC):
                     except Exception as e:
                         # Check max retries
                         if msg.attempts >= MAX_RETRIES:
-                            print(f"Message {msg.id} failed permanently after {msg.attempts} attempts. Error: {e}")
+                            logger.error(
+                                "Message failed permanently",
+                                message_id=msg.id,
+                                attempts=msg.attempts,
+                                error=str(e),
+                            )
                             await self.fail(msg.id, error=str(e))
                         else:
                             # Exponential backoff: 10s, 20s, 40s...
                             retry_after = 10 * (2 ** msg.attempts)
-                            print(f"Message {msg.id} failed (attempt {msg.attempts}). Retrying in {retry_after}s. Error: {e}")
+                            logger.warning(
+                                "Message failed, retrying",
+                                message_id=msg.id,
+                                attempts=msg.attempts,
+                                retry_after=retry_after,
+                                error=str(e),
+                            )
                             await self.nack(msg.id, retry_after=retry_after)
                 else:
                     await asyncio.sleep(1)
             except asyncio.CancelledError:
+                logger.info("Consumer loop cancelled")
                 break
             except Exception as e:
-                print(f"Error in consumer loop: {e}")
+                logger.error("Error in consumer loop", error=str(e))
                 await asyncio.sleep(5)
