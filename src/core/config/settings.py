@@ -41,7 +41,13 @@ class ConversationSettings(BaseSettings):
         description="Keywords that indicate conversation closure",
     )
 
-    model_config = SettingsConfigDict(env_prefix="CONVERSATION_")
+    model_config = SettingsConfigDict(
+        env_prefix="CONVERSATION_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
 
 class DatabaseSettings(BaseSettings):
@@ -64,7 +70,13 @@ class DatabaseSettings(BaseSettings):
         description="Postgres pool maximum connections (used when backend=postgres)",
     )
 
-    model_config = SettingsConfigDict(env_prefix="DATABASE_")
+    model_config = SettingsConfigDict(
+        env_prefix="DATABASE_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
 
 class SupabaseSettings(BaseSettings):
@@ -81,7 +93,13 @@ class SupabaseSettings(BaseSettings):
     project_ref: str | None = Field(default=None, description="Supabase project reference")
     access_token: str | None = Field(default=None, description="Supabase access token")
 
-    model_config = SettingsConfigDict(env_prefix="SUPABASE_")
+    model_config = SettingsConfigDict(
+        env_prefix="SUPABASE_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
 
 class TwilioSettings(BaseSettings):
@@ -96,7 +114,13 @@ class TwilioSettings(BaseSettings):
         default=None, description="Internal API key for sender.py and internal services"
     )
 
-    model_config = SettingsConfigDict(env_prefix="TWILIO_")
+    model_config = SettingsConfigDict(
+        env_prefix="TWILIO_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
 
 class APISettings(BaseSettings):
@@ -117,7 +141,13 @@ class APISettings(BaseSettings):
         description="Bypass subscription validation (Development only)",
     )
 
-    model_config = SettingsConfigDict(env_prefix="API_")
+    model_config = SettingsConfigDict(
+        env_prefix="API_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
 
 class SecuritySettings(BaseSettings):
@@ -131,7 +161,13 @@ class SecuritySettings(BaseSettings):
         default=30, description="Token expiration time"
     )
 
-    model_config = SettingsConfigDict(env_prefix="")
+    model_config = SettingsConfigDict(
+        env_prefix="",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
     
     @field_validator("secret_key")
     @classmethod
@@ -151,7 +187,13 @@ class LogSettings(BaseSettings):
 
     level: str = Field(default="INFO", description="Log level")
 
-    model_config = SettingsConfigDict(env_prefix="LOG_")
+    model_config = SettingsConfigDict(
+        env_prefix="LOG_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
 
 class WhisperSettings(BaseSettings):
@@ -174,7 +216,13 @@ class WhisperSettings(BaseSettings):
         description="Beam size for decoding. Higher values improve accuracy but slow down transcription.",
     )
 
-    model_config = SettingsConfigDict(env_prefix="WHISPER_")
+    model_config = SettingsConfigDict(
+        env_prefix="WHISPER_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
 
 class ToggleSettings(BaseSettings):
@@ -205,7 +253,13 @@ class QueueSettings(BaseSettings):
         default=None, description="AWS Secret Access Key"
     )
 
-    model_config = SettingsConfigDict(env_prefix="QUEUE_")
+    model_config = SettingsConfigDict(
+        env_prefix="QUEUE_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
 class LLMModelSettings(BaseSettings):
     """LLM model settings."""
@@ -213,7 +267,14 @@ class LLMModelSettings(BaseSettings):
     provider: str = Field(default="ollama", description="LLM provider")
     model_name: str = Field(default="gpt-oss:20b", description="LLM model name")
 
-    model_config = SettingsConfigDict(env_prefix="LLM_", protected_namespaces=('settings_',))
+    model_config = SettingsConfigDict(
+        env_prefix="LLM_",
+        protected_namespaces=('settings_',),
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
     
 
 class EmbeddingSettings(BaseSettings):
@@ -227,7 +288,13 @@ class EmbeddingSettings(BaseSettings):
     )
     dimensions: int = Field(default=1536, description="Embedding dimensions")
 
-    model_config = SettingsConfigDict(env_prefix="EMBEDDING_")
+    model_config = SettingsConfigDict(
+        env_prefix="EMBEDDING_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
 
 class MemorySettings(BaseSettings):
@@ -276,7 +343,13 @@ class MemorySettings(BaseSettings):
         description="Config de linguagem do Postgres para FTS (ex: portuguese, simple)",
     )
 
-    model_config = SettingsConfigDict(env_prefix="MEMORY_")
+    model_config = SettingsConfigDict(
+        env_prefix="MEMORY_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
 
 class OTELSettings(BaseSettings):
@@ -285,7 +358,13 @@ class OTELSettings(BaseSettings):
     service_name: str = Field(default="owner-api", description="Service Name")
     resource_attributes: str | None = Field(default=None, description="Resource Attributes")
 
-    model_config = SettingsConfigDict(env_prefix="OTEL_")
+    model_config = SettingsConfigDict(
+        env_prefix="OTEL_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
 
 
 class Settings(BaseSettings):

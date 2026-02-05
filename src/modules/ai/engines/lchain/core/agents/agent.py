@@ -49,13 +49,48 @@ class Agent:
 
         self.ai_log_thought_service = ai_log_thought_service
 
-    def run(self, body: str, context: str = None):
-        # Converter tools para formato LangChain
-        langchain_tools = [tool.langchain_tool_schema for tool in self.tools]
-        system_message = self.system_message.format(context=context)
+    def _get_agent_user_id(self) -> str | None:
+        """Helper to safely extract user_id from agent_context."""
+        if not self.agent_context:
+            return None
+            
+        user = None
+        if isinstance(self.agent_context, dict):
+            user = self.agent_context.get("user")
+        else:
+            user = getattr(self.agent_context, "user", None)
+            
+        if not user:
+            return None
+            
+        if isinstance(user, dict):
+            return user.get("user_id") or user.get("id")
+        else:
+            # Fallback for object-like user
+            return getattr(user, "user_id", getattr(user, "id", None))
 
+    def run(self, body: str, context: str = None):
+        # Resolve context logic
         if self.user_context:
             context = context if context else self.user_context
+
+        # Inject User ID into context if available to prevent hallucinations
+        agent_user_id = self._get_agent_user_id()
+
+        if agent_user_id:
+            logger.info(f"Injecting User ID into context: {agent_user_id}", event_type="agent_context_injection")
+            user_id_info = f"Current User ID: {agent_user_id}"
+            context = f"{context}\n{user_id_info}" if context else user_id_info
+
+        # Converter tools para formato LangChain
+        langchain_tools = [tool.langchain_tool_schema for tool in self.tools]
+        
+        # Format system message with the potentially updated context
+        try:
+            system_message = self.system_message.format(context=context)
+        except Exception:
+            # Fallback if format fails (e.g. context is None or placeholders mismatch)
+            system_message = self.system_message
 
         if context:
             body = f"{context}\n---\n\nUser Message: {body}"
@@ -105,12 +140,7 @@ class Agent:
                         if isinstance(self.agent_context, dict)
                         else getattr(self.agent_context, "owner_id", None)
                     )
-                    agent_user_id = None
-                    if isinstance(self.agent_context, dict):
-                        agent_user_id = ((self.agent_context.get("user") or {}) or {}).get("user_id")
-                    else:
-                        ctx_user = getattr(self.agent_context, "user", None) or {}
-                        agent_user_id = ctx_user.get("user_id") if isinstance(ctx_user, dict) else None
+                    agent_user_id = self._get_agent_user_id()
 
                     memory_messages = self.memory_service.get_context(
                         session_id,
