@@ -162,9 +162,9 @@ class AddCustomerTool(Tool):
             customer = self.repository.create_from_schema(customer_input)
 
             content = f"Successfully added customer: {customer.first_name} {customer.last_name} (ID: {customer.id})"
-            return ToolResult(success=True, message=content)
+            return ToolResult(success=True, content=content)
         except Exception as e:
-            return ToolResult(success=False, message=str(e))
+            return ToolResult(success=False, content=str(e))
 
 
 

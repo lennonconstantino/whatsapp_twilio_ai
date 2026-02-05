@@ -24,6 +24,8 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/conversations", tags=["conversations_v2"])
 
 
+from datetime import datetime
+
 # Response models (Reusing existing or creating new ones if schema changed)
 # For now, we assume schema compatibility
 class ConversationResponse(BaseModel):
@@ -34,8 +36,8 @@ class ConversationResponse(BaseModel):
     from_number: str
     to_number: str
     status: str
-    started_at: Optional[str]
-    ended_at: Optional[str]
+    started_at: Optional[datetime]
+    ended_at: Optional[datetime]
     channel: Optional[str]
     # V2 specific fields if any, keeping it compatible for now
 
@@ -50,7 +52,7 @@ class MessageResponse(BaseModel):
     conv_id: str
     body: str
     direction: str
-    timestamp: Optional[str]
+    timestamp: Optional[datetime]
     message_owner: str
 
     class Config:
