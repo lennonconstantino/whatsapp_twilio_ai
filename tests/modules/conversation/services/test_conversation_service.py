@@ -455,6 +455,99 @@ class TestConversationService:
             conversation, "supervisor", "angry_customer"
         )
 
+    def test_request_handoff(self):
+        """Test request_handoff."""
+        conversation = Mock()
+        self.service.request_handoff(conversation, reason="help")
+        self.mock_lifecycle.transition_to.assert_called_with(
+            conversation,
+            ConversationStatus.HUMAN_HANDOFF,
+            reason="help",
+            initiated_by="system"
+        )
+
+    def test_assign_agent(self):
+        """Test assign_agent."""
+        conversation = Mock(conv_id="123", version=1)
+        self.mock_conv_repo.update.return_value = conversation
+        
+        result = self.service.assign_agent(conversation, "agent_007")
+        
+        assert result == conversation
+        self.mock_conv_repo.update.assert_called()
+        args = self.mock_conv_repo.update.call_args
+        assert args[0][0] == "123" # conv_id
+        assert args[0][1]["agent_id"] == "agent_007"
+
+    def test_assign_agent_failure(self):
+        """Test assign_agent concurrency failure."""
+        conversation = Mock(conv_id="123", version=1)
+        self.mock_conv_repo.update.return_value = None
+        
+        with pytest.raises(Exception):
+            self.service.assign_agent(conversation, "agent_007")
+
+    def test_release_to_bot(self):
+        """Test release_to_bot."""
+        conversation = Mock()
+        self.service.release_to_bot(conversation)
+        self.mock_lifecycle.transition_to.assert_called_with(
+            conversation,
+            ConversationStatus.PROGRESS,
+            reason="agent_release",
+            initiated_by="agent"
+        )
+
+    def test_get_conversation_by_id(self):
+        """Test get_conversation_by_id."""
+        self.service.get_conversation_by_id("123")
+        self.mock_conv_repo.find_by_id.assert_called_with("123", id_column="conv_id")
+
+    def test_get_active_conversations(self):
+        """Test get_active_conversations."""
+        self.service.get_active_conversations("owner_1", limit=50)
+        self.mock_conv_repo.find_active_by_owner.assert_called_with("owner_1", 50)
+
+    def test_get_handoff_conversations(self):
+        """Test get_handoff_conversations."""
+        self.service.get_handoff_conversations("owner_1", agent_id="agent_1")
+        self.mock_conv_repo.find_by_status.assert_called_with(
+            owner_id="owner_1",
+            status=ConversationStatus.HUMAN_HANDOFF,
+            agent_id="agent_1",
+            limit=100
+        )
+
+    def test_get_conversation_messages(self):
+        """Test get_conversation_messages."""
+        self.service.get_conversation_messages("123", limit=10, offset=5)
+        self.mock_msg_repo.find_by_conversation.assert_called_with("123", 10, 5)
+
+    def test_process_expired_conversations(self):
+        """Test delegation of expiration processing."""
+        self.service.process_expired_conversations(limit=10)
+        self.mock_lifecycle.process_expirations.assert_called_with(10)
+
+    def test_process_idle_conversations(self):
+        """Test delegation of idle processing."""
+        self.service.process_idle_conversations(idle_minutes=30, limit=10)
+        self.mock_lifecycle.process_idle_timeouts.assert_called_with(30, 10)
+
+    def test_close_conversation_with_priority(self):
+        """Test delegation of prioritized closure."""
+        conversation = Mock()
+        self.service.close_conversation_with_priority(
+            conversation, ConversationStatus.FAILED, reason="error"
+        )
+        self.mock_lifecycle.transition_to_with_priority.assert_called_with(
+            conversation, ConversationStatus.FAILED, "error", "system"
+        )
+
+    def test_extend_expiration(self):
+        """Test delegation of extend expiration."""
+        conversation = Mock()
+        self.service.extend_expiration(conversation, additional_minutes=10)
+        self.mock_lifecycle.extend_expiration.assert_called_with(conversation, 10)
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

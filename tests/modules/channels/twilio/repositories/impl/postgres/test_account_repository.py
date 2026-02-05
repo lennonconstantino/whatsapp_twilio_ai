@@ -1,3 +1,4 @@
+
 import pytest
 from unittest.mock import MagicMock
 import json
@@ -35,19 +36,6 @@ class TestPostgresTwilioAccountRepository:
         repository.create(mock_account_data)
         
         # Check that phone_numbers was serialized to json string in the execute call
-        # found_json_string = False
-        # if cursor.execute.called:
-        #      args = cursor.execute.call_args[0]
-        #      if len(args) > 1:
-        #          params = args[1]
-        #          for p in params:
-        #              if p == '["+1234567890"]':
-        #                  found_json_string = True
-        #                  break
-        
-        # assert found_json_string
-        # Note: Validating exact param structure in dynamic SQL construction is brittle.
-        # But we verify that execute was called.
         assert cursor.execute.called
 
     def test_find_by_owner(self, repository, mock_db, mock_account_data):
@@ -81,6 +69,15 @@ class TestPostgresTwilioAccountRepository:
         params = call_args[0][1]
         assert params[0] == '["+1234567890"]'
 
+    def test_find_by_phone_number_error(self, repository, mock_db):
+        cursor = mock_db.connection.return_value.__enter__.return_value.cursor.return_value
+        cursor.execute.side_effect = Exception("DB Error")
+        
+        with pytest.raises(Exception):
+            repository.find_by_phone_number("+1234567890")
+        
+        assert cursor.close.called
+
     def test_update_phone_numbers(self, repository, mock_db, mock_account_data):
         cursor = mock_db.connection.return_value.__enter__.return_value.cursor.return_value
         
@@ -113,7 +110,23 @@ class TestPostgresTwilioAccountRepository:
         
         assert "+999" in result.phone_numbers
 
-    def test_remove_phone_number(self, repository, mock_db, mock_account_data):
+    def test_add_phone_number_not_found(self, repository, mock_db):
+        cursor = mock_db.connection.return_value.__enter__.return_value.cursor.return_value
+        cursor.fetchone.return_value = None
+        
+        result = repository.add_phone_number(999, "+999")
+        
+        assert result is None
+
+    def test_add_phone_number_already_exists(self, repository, mock_db, mock_account_data):
+        cursor = mock_db.connection.return_value.__enter__.return_value.cursor.return_value
+        cursor.fetchone.return_value = mock_account_data
+        
+        result = repository.add_phone_number(1, "+1234567890")
+        
+        assert result.phone_numbers == ["+1234567890"]
+
+    def test_remove_phone_number_success(self, repository, mock_db, mock_account_data):
         cursor = mock_db.connection.return_value.__enter__.return_value.cursor.return_value
         
         updated_data = mock_account_data.copy()
@@ -127,3 +140,19 @@ class TestPostgresTwilioAccountRepository:
         result = repository.remove_phone_number(1, "+1234567890")
         
         assert len(result.phone_numbers) == 0
+
+    def test_remove_phone_number_not_found(self, repository, mock_db):
+        cursor = mock_db.connection.return_value.__enter__.return_value.cursor.return_value
+        cursor.fetchone.return_value = None
+        
+        result = repository.remove_phone_number(999, "+999")
+        
+        assert result is None
+
+    def test_remove_phone_number_not_exists(self, repository, mock_db, mock_account_data):
+        cursor = mock_db.connection.return_value.__enter__.return_value.cursor.return_value
+        cursor.fetchone.return_value = mock_account_data
+        
+        result = repository.remove_phone_number(1, "+999")
+        
+        assert result.phone_numbers == ["+1234567890"]

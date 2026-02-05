@@ -60,6 +60,32 @@ O Grafana já vem provisionado com um dashboard de **Golden Signals** (Latência
 
 > **Atenção**: As métricas dependem da instrumentação do OpenTelemetry. Se os gráficos estiverem vazios, verifique se o nome da métrica no Prometheus corresponde às queries do Dashboard (ex: `http_server_duration_milliseconds_bucket`).
 
+## Logs indesejáveis:
+```
+Transient error StatusCode.UNAVAILABLE ... exporting traces to localhost:4317
+```
+### Causa OpenTelemetry
+
+Como Resolver:
+Subir a Stack de Observabilidade (Recomendado)
+```bash
+make obs-up
+```
+Silenciar os Logs (Se não quiser rodar containers extras)
+Se você não quer usar observabilidade agora e quer apenas limpar o terminal, você pode desativar a exportação de traces definindo a variável de ambiente OTEL_TRACES_EXPORTER como none .
+
+No terminal onde você roda a aplicação:
+
+```
+export OTEL_TRACES_EXPORTER=none
+make run
+```
+Ou ajustando seu .env :
+
+```
+OTEL_TRACES_EXPORTER=none
+```
+
 ## Debug
 
 Se as métricas não aparecerem:

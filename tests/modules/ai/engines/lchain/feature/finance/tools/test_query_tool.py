@@ -211,14 +211,69 @@ class TestQueryHelpers:
 class TestQueryDataTool:
     """Test Tool class wrapper."""
 
-    def test_tool_execution(self):
-        """Test tool execution."""
+    @pytest.fixture
+    def tool(self):
         tool = QueryDataTool()
+        tool.expense_repository = Mock()
+        tool.revenue_repository = Mock()
+        tool.customer_repository = Mock()
+        return tool
 
-        with patch.object(
-            QueryDataTool, "execute", return_value=ToolResult(content="Ok", success=True)
-        ) as mock_execute:
-            result = tool._run(table_name="expense")
+    def test_execute_success(self, tool):
+        """Test tool execution success."""
+        # Setup repo
+        tool.expense_repository.query_dynamic.return_value = [
+            {"id": "1", "description": "Coffee", "gross_amount": 10.0, "category": "Food", "date": "2023-01-01"}
+        ]
+        
+        config = QueryConfig(
+            table_name="expense",
+            select_columns=["description", "gross_amount"]
+        )
+        
+        result = tool.execute(config)
+        
+        assert result.success is True
+        assert "Coffee" in result.content
+        tool.expense_repository.query_dynamic.assert_called()
 
-            assert result.content == "Ok"
-            mock_execute.assert_called_once()
+    def test_execute_table_not_found(self, tool):
+        """Test invalid table name."""
+        config = QueryConfig(table_name="invalid")
+        result = tool.execute(config)
+        assert result.success is False
+        assert "Table name 'invalid' not found" in result.content
+
+    def test_execute_repo_not_configured(self, tool):
+        """Test missing repository."""
+        tool.expense_repository = None
+        config = QueryConfig(table_name="expense")
+        result = tool.execute(config)
+        assert result.success is False
+        assert "Repository not configured" in result.content
+
+    def test_execute_no_results(self, tool):
+        """Test empty results."""
+        tool.expense_repository.query_dynamic.return_value = []
+        config = QueryConfig(table_name="expense")
+        result = tool.execute(config)
+        assert result.success is True
+        assert "No results found" in result.content
+
+    def test_execute_validation_error(self, tool):
+        """Test validation error handling."""
+        # Force validation error by requesting invalid column
+        # Note: supabase_query_from_config checks columns against model
+        config = QueryConfig(table_name="expense", select_columns=["invalid_col"])
+        
+        result = tool.execute(config)
+        assert result.success is False
+        assert "Validation error" in result.content
+
+    def test_execute_unexpected_error(self, tool):
+        """Test unexpected exception handling."""
+        tool.expense_repository.query_dynamic.side_effect = Exception("DB Crash")
+        config = QueryConfig(table_name="expense")
+        result = tool.execute(config)
+        assert result.success is False
+        assert "Query error" in result.content

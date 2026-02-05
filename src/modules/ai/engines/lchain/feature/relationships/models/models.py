@@ -35,10 +35,10 @@ def validate_date(v):
 
 def validate_date_only(v):
     """Valida e converte para date object"""
-    if isinstance(v, date):
-        return v
     if isinstance(v, datetime):
         return v.date()
+    if isinstance(v, date):
+        return v
     if isinstance(v, str):
         try:
             return datetime.fromisoformat(v).date()
@@ -49,9 +49,7 @@ def validate_date_only(v):
         except ValueError:
             pass
             
-    return None # Allow None if optional and failed parsing? Or raise? 
-    # If field is Optional[DateFormat], Pydantic handles None before calling validator usually if logic is correct.
-    # But here we are using Annotated with BeforeValidator.
+    raise ValueError("Invalid date format")
     
 # Tipos customizados
 DateFormat = Annotated[datetime, BeforeValidator(validate_date)]

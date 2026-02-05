@@ -43,6 +43,120 @@ class TestConversationRepository:
             "context": {},
         }
 
+    def test_find_by_status(self, repository, mock_client, mock_conversation_data):
+        """Test finding conversations by status."""
+        mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = [
+            mock_conversation_data
+        ]
+
+        result = repository.find_by_status(
+            owner_id="owner_123",
+            status=ConversationStatus.PROGRESS
+        )
+        assert len(result) == 1
+        assert result[0].status == "progress"
+
+    def test_find_by_status_with_agent(self, repository, mock_client, mock_conversation_data):
+        """Test finding conversations by status and agent_id."""
+        mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = [
+            mock_conversation_data
+        ]
+
+        result = repository.find_by_status(
+            owner_id="owner_123",
+            status=ConversationStatus.PROGRESS,
+            agent_id="agent_1"
+        )
+        assert len(result) == 1
+
+    def test_update_context(self, repository, mock_client, mock_conversation_data):
+        """Test updating context."""
+        updated_data = {**mock_conversation_data, "context": {"new": "val"}, "version": 2}
+        
+        # Mock update returning data
+        mock_client.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value.data = [
+            updated_data
+        ]
+
+        result = repository.update_context(
+            "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            {"new": "val"},
+            expected_version=1
+        )
+        assert result.context == {"new": "val"}
+
+    def test_update_timestamp(self, repository, mock_client, mock_conversation_data):
+        """Test updating timestamp."""
+        # Mock find_by_id used in update override
+        with patch.object(repository, "find_by_id") as mock_find:
+            mock_find.return_value = Conversation(**mock_conversation_data)
+            
+            # Chain: table().update().eq().execute()
+            # Note: update_timestamp does not enforce version check in the update call itself (current_version=None)
+            mock_client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = [
+                mock_conversation_data
+            ]
+
+            result = repository.update_timestamp("01ARZ3NDEKTSV4RRFFQ69G5FAV")
+            assert result is not None
+
+    def test_update_status_force(self, repository, mock_client, mock_conversation_data):
+        """Test update status with force=True skipping validation."""
+        # Current is PENDING
+        mock_conversation_data["status"] = "pending"
+        mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
+            mock_conversation_data
+        ]
+
+        # Update success
+        updated_data = {**mock_conversation_data, "status": "idle_timeout", "version": 2}
+        mock_client.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value.data = [
+            updated_data
+        ]
+        
+        # Should succeed despite invalid transition PENDING -> IDLE_TIMEOUT
+        result = repository.update_status(
+            "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            ConversationStatus.IDLE_TIMEOUT,
+            force=True
+        )
+        assert result.status == "idle_timeout"
+
+    def test_update_status_with_expires_at(self, repository, mock_client, mock_conversation_data):
+        """Test update status with expires_at."""
+        mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
+            mock_conversation_data
+        ]
+        
+        updated_data = {**mock_conversation_data, "version": 2}
+        mock_client.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value.data = [
+            updated_data
+        ]
+
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+        result = repository.update_status(
+            "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            ConversationStatus.PROGRESS,
+            expires_at=expires_at
+        )
+        assert result is not None
+
+    def test_update_status_not_found(self, repository, mock_client):
+        """Test update status when conversation not found."""
+        mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
+        
+        result = repository.update_status(
+            "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            ConversationStatus.PROGRESS
+        )
+        assert result is None
+
+    def test_find_by_status_exception(self, repository, mock_client):
+        """Test exception in find_by_status."""
+        mock_client.table.side_effect = Exception("DB Error")
+        with pytest.raises(Exception):
+            repository.find_by_status("owner", ConversationStatus.PROGRESS)
+
     def test_calculate_session_key(self):
         """Test session key calculation (idempotency and ordering)."""
         repo = SupabaseConversationRepository
