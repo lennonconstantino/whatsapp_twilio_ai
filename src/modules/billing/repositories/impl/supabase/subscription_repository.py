@@ -28,6 +28,23 @@ class SupabaseSubscriptionRepository(SupabaseRepository[Subscription], ISubscrip
         except Exception:
             return None
 
+    def find_by_stripe_subscription_id(self, stripe_subscription_id: str) -> Optional[Subscription]:
+        try:
+            # Check if metadata contains the stripe_subscription_id
+            # PostgREST operator for jsonb containment is @> (cs in supabase-py)
+            result = (
+                self.client.table(self.table_name)
+                .select("*")
+                .contains("metadata", {"stripe_subscription_id": stripe_subscription_id})
+                .limit(1)
+                .execute()
+            )
+            if result.data:
+                return self.model_class(**result.data[0])
+            return None
+        except Exception:
+            return None
+
     def find_pending_cancellations(self) -> List[Subscription]:
         try:
             now = datetime.utcnow().isoformat()

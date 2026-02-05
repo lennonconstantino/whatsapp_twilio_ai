@@ -68,6 +68,10 @@ class ISubscriptionRepository(IRepository[Subscription]):
     @abstractmethod
     def find_by_owner(self, owner_id: str) -> Optional[Subscription]:
         pass
+
+    @abstractmethod
+    def find_by_stripe_subscription_id(self, stripe_subscription_id: str) -> Optional[Subscription]:
+        pass
         
     @abstractmethod
     def find_pending_cancellations(self) -> List[Subscription]:

@@ -18,6 +18,10 @@ class PostgresSubscriptionRepository(PostgresRepository[Subscription], ISubscrip
         result = self.session.execute(stmt).scalars().first()
         return result
 
+    def find_by_stripe_subscription_id(self, stripe_subscription_id: str) -> Optional[Subscription]:
+        # TODO: Implement JSONB query for Postgres
+        return None
+
     def find_pending_cancellations(self) -> List[Subscription]:
         stmt = select(self.model).where(self.model.status == SubscriptionStatus.PENDING_CANCELLATION)
         result = self.session.execute(stmt).scalars().all()

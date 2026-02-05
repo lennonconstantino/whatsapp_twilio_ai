@@ -157,3 +157,4 @@ class Container(containers.DeclarativeContainer):
     billing_plan_service = billing.plan_service
     billing_subscription_service = billing.subscription_service
     stripe_service = billing.stripe_service
+    webhook_handler_service = billing.webhook_handler_service

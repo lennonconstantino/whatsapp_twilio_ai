@@ -4,6 +4,7 @@ import structlog
 
 from src.core.di.container import Container
 from src.modules.billing.services.stripe_service import StripeService
+from src.modules.billing.services.webhook_handler_service import WebhookHandlerService
 
 logger = structlog.get_logger()
 
@@ -14,7 +15,8 @@ router = APIRouter(prefix="/webhooks", tags=["Billing Webhooks"])
 async def stripe_webhook(
     request: Request,
     stripe_signature: str = Header(None),
-    stripe_service: StripeService = Depends(Provide[Container.stripe_service])
+    stripe_service: StripeService = Depends(Provide[Container.stripe_service]),
+    webhook_handler: WebhookHandlerService = Depends(Provide[Container.webhook_handler_service])
 ):
     if not stripe_signature:
         raise HTTPException(status_code=400, detail="Missing Stripe-Signature header")
@@ -32,18 +34,6 @@ async def stripe_webhook(
         raise HTTPException(status_code=400, detail="Invalid signature")
 
     # Handle the event
-    event_type = event.get('type')
-    logger.info(f"Received Stripe event: {event_type}")
-
-    # TODO: Delegate to a specific handler service
-    if event_type == 'checkout.session.completed':
-        # Payment successful, create/activate subscription
-        pass
-    elif event_type == 'invoice.payment_succeeded':
-        # Renew subscription
-        pass
-    elif event_type == 'customer.subscription.deleted':
-        # Cancel subscription
-        pass
+    await webhook_handler.handle_event(event)
 
     return {"status": "success"}

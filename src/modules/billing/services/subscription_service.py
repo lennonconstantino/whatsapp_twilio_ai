@@ -35,7 +35,8 @@ class SubscriptionService:
         owner_id: str,
         plan_id: str,
         trial_days: Optional[int] = None,
-        payment_method_id: Optional[str] = None
+        payment_method_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
     ) -> Subscription:
         """
         Create subscription and initialize feature usage.
@@ -54,6 +55,7 @@ class SubscriptionService:
             "status": SubscriptionStatus.TRIALING if trial_days else SubscriptionStatus.ACTIVE,
             "current_period_start": now,
             "current_period_end": now + timedelta(days=30),  # TODO: based on plan
+            "metadata": metadata or {}
         }
 
         if trial_days:

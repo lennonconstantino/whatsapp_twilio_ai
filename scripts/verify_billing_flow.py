@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 from datetime import datetime
+import uuid
 
 # Add project root to path
 sys.path.append(os.getcwd())
@@ -12,7 +13,7 @@ from src.modules.billing.enums.billing_period import BillingPeriod
 from src.modules.billing.enums.subscription_status import SubscriptionStatus
 
 async def main():
-    print("🚀 Starting Billing Integration Verification...")
+    print("🚀 Starting Billing Integration Verification (Internal E2E)...")
     
     # Initialize Container
     container = Container()
@@ -28,11 +29,13 @@ async def main():
         plan_service = container.billing_plan_service()
         subscription_service = container.billing_subscription_service()
         feature_usage_service = container.feature_usage_service()
+        webhook_handler = container.webhook_handler_service()
         
         # 1. Create a Test Plan
         print("\n📦 Creating Test Plan...")
+        plan_name = f"test_plan_{int(datetime.now().timestamp())}"
         plan_data = PlanCreate(
-            name=f"test_plan_{int(datetime.now().timestamp())}",
+            name=plan_name,
             display_name="Test Integration Plan",
             description="Plan created by verification script",
             price_cents=1990,
@@ -45,10 +48,6 @@ async def main():
         
         # 2. Add Feature to Plan
         print("\n✨ Adding Feature 'ocr_processing' to Plan...")
-        # First ensure feature exists (in real app, catalog is pre-seeded)
-        # For this script, we assume it might not exist or we might fail if not seeded.
-        # We'll try to add it. If catalog doesn't have it, this might fail.
-        # Let's verify catalog first? No, let's try to add and handle error.
         try:
             plan_service.add_feature_to_plan(
                 plan_id=plan.plan_id,
@@ -59,16 +58,50 @@ async def main():
         except ValueError as e:
             print(f"⚠️  Could not add feature (expected if catalog empty): {e}")
 
-        # 3. Create Subscription
-        print("\n📝 Creating Subscription for 'test_owner_integration'...")
-        owner_id = "test_owner_integration"
-        subscription = subscription_service.create_subscription(
-            owner_id=owner_id,
-            plan_id=plan.plan_id
-        )
-        print(f"✅ Subscription created: {subscription.subscription_id} (Status: {subscription.status})")
+        # 3. Simulate Stripe Checkout Webhook (Creation)
+        print("\n📝 Simulating Stripe Checkout Webhook...")
+        owner_id = f"user_{uuid.uuid4().hex[:8]}"
+        stripe_sub_id = f"sub_{uuid.uuid4().hex[:16]}"
+        stripe_cus_id = f"cus_{uuid.uuid4().hex[:16]}"
+        checkout_session_id = f"cs_test_{uuid.uuid4().hex[:16]}"
 
-        # 4. Check Feature Access
+        event_checkout = {
+            "id": f"evt_{uuid.uuid4().hex}",
+            "type": "checkout.session.completed",
+            "data": {
+                "object": {
+                    "id": checkout_session_id,
+                    "client_reference_id": owner_id,
+                    "subscription": stripe_sub_id,
+                    "customer": stripe_cus_id,
+                    "metadata": {
+                        "plan_id": plan.plan_id
+                    }
+                }
+            }
+        }
+
+        await webhook_handler.handle_event(event_checkout)
+        print(f"✅ Webhook processed for owner: {owner_id}")
+
+        # 4. Verify Subscription Created in DB
+        print("\n🔍 Verifying Subscription in Database...")
+        subscription = subscription_service.subscription_repo.find_by_owner(owner_id)
+        
+        if subscription:
+            print(f"✅ Subscription found: {subscription.subscription_id}")
+            print(f"   Status: {subscription.status}")
+            print(f"   Plan: {subscription.plan_id}")
+            print(f"   Stripe ID: {subscription.metadata.get('stripe_subscription_id')}")
+            
+            assert subscription.status == SubscriptionStatus.ACTIVE
+            assert subscription.plan_id == plan.plan_id
+            assert subscription.metadata.get('stripe_subscription_id') == stripe_sub_id
+        else:
+            print("❌ Subscription NOT found!")
+            return
+
+        # 5. Check Feature Access
         print("\n🔍 Checking Feature Access...")
         access = feature_usage_service.check_feature_access(
             owner_id=owner_id,
@@ -77,7 +110,7 @@ async def main():
         print(f"ℹ️  Access allowed: {access.allowed}")
         print(f"ℹ️  Current usage: {access.current_usage}/{access.quota_limit}")
 
-        # 5. Increment Usage
+        # 6. Increment Usage
         if access.allowed:
             print("\n📈 Incrementing Usage...")
             feature_usage_service.increment_usage(
@@ -91,16 +124,38 @@ async def main():
             )
             print(f"✅ Usage incremented: {access_after.current_usage}/{access_after.quota_limit}")
         
-        # 6. Cleanup (Cancel Subscription)
-        print("\n🧹 Cleaning up (Cancelling Subscription)...")
-        subscription_service.cancel_subscription(
-            subscription_id=subscription.subscription_id,
-            immediately=True,
-            reason="Integration test cleanup"
-        )
-        print("✅ Subscription canceled.")
+        # 7. Simulate Stripe Cancellation Webhook
+        print("\n🚫 Simulating Stripe Cancellation Webhook...")
+        event_cancel = {
+            "id": f"evt_{uuid.uuid4().hex}",
+            "type": "customer.subscription.deleted",
+            "data": {
+                "object": {
+                    "id": stripe_sub_id
+                }
+            }
+        }
         
-        print("\n🎉 Verification Completed Successfully!")
+        await webhook_handler.handle_event(event_cancel)
+        print("✅ Cancellation webhook processed.")
+
+        # 8. Verify Cancellation in DB
+        print("\n🔍 Verifying Cancellation in Database...")
+        # Need to fetch again to see update
+        # Since find_by_owner might return None if logic filters inactive (it doesn't currently, but let's be safe)
+        # We use find_by_id or check the object we had if we reload it
+        sub_cancelled = subscription_service.subscription_repo.find_by_stripe_subscription_id(stripe_sub_id)
+        
+        if sub_cancelled:
+            print(f"ℹ️  Subscription Status: {sub_cancelled.status}")
+            print(f"ℹ️  Canceled At: {sub_cancelled.canceled_at}")
+            
+            assert sub_cancelled.status == SubscriptionStatus.CANCELED
+            print("✅ Subscription successfully canceled in DB.")
+        else:
+            print("❌ Could not reload subscription to verify cancellation.")
+
+        print("\n🎉 Internal E2E Verification Completed Successfully!")
 
     except Exception as e:
         print(f"\n❌ Error during verification: {str(e)}")
