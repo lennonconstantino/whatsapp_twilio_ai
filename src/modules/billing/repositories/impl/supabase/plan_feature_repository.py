@@ -7,7 +7,13 @@ from src.modules.billing.repositories.interfaces import IPlanFeatureRepository
 
 class SupabasePlanFeatureRepository(SupabaseRepository[PlanFeature], IPlanFeatureRepository):
     def __init__(self, client):
-        super().__init__(client, "plan_features", PlanFeature)
+        super().__init__(
+            client, 
+            "plan_features", 
+            PlanFeature, 
+            validates_ulid=False, 
+            primary_key="plan_feature_id"
+        )
 
     def find_by_plan_and_feature(self, plan_id: str, feature_id: str) -> Optional[PlanFeature]:
         try:

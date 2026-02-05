@@ -36,6 +36,7 @@ class SupabaseRepository(Generic[T]):
         model_class: type,
         validates_ulid: bool = True,
         exclude_on_create: Optional[List[str]] = None,
+        primary_key: str = "id",
     ):
         """
         Initialize Supabase repository.
@@ -46,14 +47,16 @@ class SupabaseRepository(Generic[T]):
             model_class: Pydantic model class
             validates_ulid: Whether to validate ULID format (default: True)
                            Set to False for tables using integer IDs
+            primary_key: Name of the primary key column (default: "id")
         """
         self.client = client
         self.table_name = table_name
         self.model_class = model_class
         self.validates_ulid = validates_ulid
         self.exclude_on_create = exclude_on_create or []
+        self.primary_key = primary_key
 
-    def _validate_id(self, id_value: Any, id_name: str = "id") -> None:
+    def _validate_id(self, id_value: Any, id_name: Optional[str] = None) -> None:
         """
         Validate ID value based on type.
 
@@ -64,6 +67,9 @@ class SupabaseRepository(Generic[T]):
         Raises:
             ValueError: If ULID validation is enabled and format is invalid
         """
+        if id_name is None:
+            id_name = self.primary_key
+
         if not self.validates_ulid:
             return
 
@@ -82,6 +88,16 @@ class SupabaseRepository(Generic[T]):
                 id_value=id_value,
                 type=type(id_value).__name__,
             )
+
+    def _serialize_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert complex types (like datetime) to JSON-serializable format."""
+        serialized = {}
+        for key, value in data.items():
+            if hasattr(value, "isoformat"):  # datetime, date, time
+                serialized[key] = value.isoformat()
+            else:
+                serialized[key] = value
+        return serialized
 
     def create(self, data: Dict[str, Any]) -> Optional[T]:
         """
@@ -111,7 +127,10 @@ class SupabaseRepository(Generic[T]):
                         data = {**data}
                         data.pop(col, None)
 
-            result = self.client.table(self.table_name).insert(data).execute()
+            # Serialize data (e.g. datetime -> ISO string)
+            serialized_data = self._serialize_data(data)
+
+            result = self.client.table(self.table_name).insert(serialized_data).execute()
             if result.data:
                 return self.model_class(**result.data[0])
             return None
@@ -119,7 +138,7 @@ class SupabaseRepository(Generic[T]):
             logger.error(f"Error creating record in {self.table_name}", error=str(e))
             raise
 
-    def find_by_id(self, id_value: Any, id_column: str = "id") -> Optional[T]:
+    def find_by_id(self, id_value: Any, id_column: Optional[str] = None) -> Optional[T]:
         """
         Find a record by ID.
 
@@ -128,7 +147,7 @@ class SupabaseRepository(Generic[T]):
 
         Args:
             id_value: ID value to search for (int or ULID string)
-            id_column: Name of the ID column
+            id_column: Name of the ID column (defaults to self.primary_key)
 
         Returns:
             Model instance or None
@@ -136,6 +155,9 @@ class SupabaseRepository(Generic[T]):
         Raises:
             ValueError: If ULID validation fails
         """
+        if id_column is None:
+            id_column = self.primary_key
+
         # Validate ID if it's a string (ULID)
         self._validate_id(id_value, id_column)
 
@@ -187,7 +209,7 @@ class SupabaseRepository(Generic[T]):
         self,
         id_value: Union[int, str],
         data: Dict[str, Any],
-        id_column: str = "id",
+        id_column: Optional[str] = None,
         current_version: Optional[int] = None,
     ) -> Optional[T]:
         """
@@ -199,7 +221,7 @@ class SupabaseRepository(Generic[T]):
         Args:
             id_value: ID value of the record to update (int or ULID string)
             data: Data to update
-            id_column: Name of the ID column
+            id_column: Name of the ID column (defaults to self.primary_key)
 
         Returns:
             Updated model instance or None
@@ -207,6 +229,9 @@ class SupabaseRepository(Generic[T]):
         Raises:
             ValueError: If ULID validation fails
         """
+        if id_column is None:
+            id_column = self.primary_key
+
         # Validate ID if it's a string (ULID)
         self._validate_id(id_value, id_column)
 
@@ -222,7 +247,10 @@ class SupabaseRepository(Generic[T]):
                 if "version" not in data:
                     data = {**data, "version": current_version + 1}
 
-            query = self.client.table(self.table_name).update(data).eq(
+            # Serialize data (e.g. datetime -> ISO string)
+            serialized_data = self._serialize_data(data)
+
+            query = self.client.table(self.table_name).update(serialized_data).eq(
                 id_column, id_value
             )
             if current_version is not None:
@@ -237,7 +265,7 @@ class SupabaseRepository(Generic[T]):
             logger.error(f"Error updating record in {self.table_name}", error=str(e))
             raise
 
-    def delete(self, id_value: Union[int, str], id_column: str = "id") -> bool:
+    def delete(self, id_value: Union[int, str], id_column: Optional[str] = None) -> bool:
         """
         Delete a record.
 
@@ -246,7 +274,7 @@ class SupabaseRepository(Generic[T]):
 
         Args:
             id_value: ID value of the record to delete (int or ULID string)
-            id_column: Name of the ID column
+            id_column: Name of the ID column (defaults to self.primary_key)
 
         Returns:
             True if deleted, False otherwise
@@ -254,6 +282,9 @@ class SupabaseRepository(Generic[T]):
         Raises:
             ValueError: If ULID validation fails
         """
+        if id_column is None:
+            id_column = self.primary_key
+
         # Validate ID if it's a string (ULID)
         self._validate_id(id_value, id_column)
 

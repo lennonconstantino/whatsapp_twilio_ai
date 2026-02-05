@@ -7,7 +7,7 @@ from src.modules.billing.repositories.interfaces import ISubscriptionEventReposi
 
 class SupabaseSubscriptionEventRepository(SupabaseRepository[SubscriptionEvent], ISubscriptionEventRepository):
     def __init__(self, client):
-        super().__init__(client, "subscription_events", SubscriptionEvent)
+        super().__init__(client, "subscription_events", SubscriptionEvent, primary_key="event_id")
 
     def find_by_subscription(self, subscription_id: str) -> List[SubscriptionEvent]:
         try:

@@ -8,7 +8,7 @@ from src.modules.billing.repositories.interfaces import ISubscriptionRepository
 
 class SupabaseSubscriptionRepository(SupabaseRepository[Subscription], ISubscriptionRepository):
     def __init__(self, client):
-        super().__init__(client, "subscriptions", Subscription)
+        super().__init__(client, "subscriptions", Subscription, primary_key="subscription_id")
 
     def find_by_owner(self, owner_id: str) -> Optional[Subscription]:
         try:

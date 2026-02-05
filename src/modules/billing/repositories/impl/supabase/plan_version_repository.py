@@ -7,7 +7,7 @@ from src.modules.billing.repositories.interfaces import IPlanVersionRepository
 
 class SupabasePlanVersionRepository(SupabaseRepository[PlanVersion], IPlanVersionRepository):
     def __init__(self, client):
-        super().__init__(client, "plan_versions", PlanVersion)
+        super().__init__(client, "plan_versions", PlanVersion, primary_key="version_id")
 
     def find_by_plan(self, plan_id: str) -> List[PlanVersion]:
         try:

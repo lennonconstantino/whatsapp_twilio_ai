@@ -8,7 +8,7 @@ from src.modules.billing.repositories.interfaces import IPlanRepository
 
 class SupabasePlanRepository(SupabaseRepository[Plan], IPlanRepository):
     def __init__(self, client):
-        super().__init__(client, "plans", Plan)
+        super().__init__(client, "plans", Plan, primary_key="plan_id")
 
     def get_features(self, plan_id: str) -> List[PlanFeature]:
         try:

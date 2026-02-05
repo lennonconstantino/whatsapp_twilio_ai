@@ -30,7 +30,24 @@ async def main():
         subscription_service = container.billing_subscription_service()
         feature_usage_service = container.feature_usage_service()
         webhook_handler = container.webhook_handler_service()
+        owner_repository = container.owner_repository()
         
+        # 0. Create Owner
+        print("\n👤 Creating Test Owner...")
+        owner_id = f"user_{uuid.uuid4().hex[:8]}" # Actually, let's let DB generate ULID or use UUID if table allows? 
+        # Wait, identity module likely uses ULID. 
+        # Let's create proper owner record.
+        owner_email = f"test_{int(datetime.now().timestamp())}@example.com"
+        owner_data = {
+            "name": "Test Billing Owner",
+            "email": owner_email,
+            "active": True
+        }
+        # Assuming owner_repository follows standard interface
+        owner = owner_repository.create(owner_data)
+        owner_id = owner.owner_id
+        print(f"✅ Owner created: {owner_id} ({owner.email})")
+
         # 1. Create a Test Plan
         print("\n📦 Creating Test Plan...")
         plan_name = f"test_plan_{int(datetime.now().timestamp())}"
@@ -60,7 +77,7 @@ async def main():
 
         # 3. Simulate Stripe Checkout Webhook (Creation)
         print("\n📝 Simulating Stripe Checkout Webhook...")
-        owner_id = f"user_{uuid.uuid4().hex[:8]}"
+        # owner_id is already created above
         stripe_sub_id = f"sub_{uuid.uuid4().hex[:16]}"
         stripe_cus_id = f"cus_{uuid.uuid4().hex[:16]}"
         checkout_session_id = f"cs_test_{uuid.uuid4().hex[:16]}"

@@ -7,7 +7,7 @@ from src.modules.billing.repositories.interfaces import IFeaturesCatalogReposito
 
 class SupabaseFeaturesCatalogRepository(SupabaseRepository[Feature], IFeaturesCatalogRepository):
     def __init__(self, client):
-        super().__init__(client, "features_catalog", Feature)
+        super().__init__(client, "features_catalog", Feature, primary_key="feature_id")
 
     def find_by_key(self, feature_key: str) -> Optional[Feature]:
         try:

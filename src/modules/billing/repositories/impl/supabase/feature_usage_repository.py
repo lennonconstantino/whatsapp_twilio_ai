@@ -7,7 +7,7 @@ from src.modules.billing.repositories.interfaces import IFeatureUsageRepository
 
 class SupabaseFeatureUsageRepository(SupabaseRepository[FeatureUsage], IFeatureUsageRepository):
     def __init__(self, client):
-        super().__init__(client, "feature_usage", FeatureUsage)
+        super().__init__(client, "feature_usage", FeatureUsage, primary_key="usage_id")
 
     def find_by_owner_and_feature(self, owner_id: str, feature_id: str) -> Optional[FeatureUsage]:
         try:
@@ -52,7 +52,7 @@ class SupabaseFeatureUsageRepository(SupabaseRepository[FeatureUsage], IFeatureU
             
         new_usage = usage.current_usage + amount
         
-        updated = self.update(usage.usage_id, {"current_usage": new_usage}, id_column="usage_id")
+        updated = self.update(usage.usage_id, {"current_usage": new_usage})
         return updated
 
     def decrement(self, owner_id: str, feature_id: str, amount: int) -> FeatureUsage:
@@ -62,7 +62,7 @@ class SupabaseFeatureUsageRepository(SupabaseRepository[FeatureUsage], IFeatureU
             
         new_usage = max(0, usage.current_usage - amount)
         
-        updated = self.update(usage.usage_id, {"current_usage": new_usage}, id_column="usage_id")
+        updated = self.update(usage.usage_id, {"current_usage": new_usage})
         return updated
 
     def upsert(self, data: Dict[str, Any]) -> FeatureUsage:
