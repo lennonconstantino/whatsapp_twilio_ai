@@ -43,29 +43,27 @@ class TestFeaturesAPI:
         }
 
         result = list_my_features(
-            x_auth_id="auth_123",
+            owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             identity_service=mock_identity_service,
-            user_service=mock_user_service,
         )
 
         assert result == {"feature1": True}
-        mock_user_service.get_user_by_auth_id.assert_called_with("auth_123")
         mock_identity_service.get_consolidated_features.assert_called_with(
             mock_user.owner_id
         )
 
-    def test_list_my_features_user_not_found(
-        self, mock_identity_service, mock_user_service
-    ):
-        """Test listing features when user not found."""
-        mock_user_service.get_user_by_auth_id.return_value = None
-
-        with pytest.raises(HTTPException) as exc:
-            list_my_features(
-                x_auth_id="auth_123",
-                identity_service=mock_identity_service,
-                user_service=mock_user_service,
-            )
-
-        assert exc.value.status_code == 404
-        assert exc.value.detail == "User not found"
+    # This test is no longer relevant as user resolution happens in dependency
+    # def test_list_my_features_user_not_found(
+    #     self, mock_identity_service, mock_user_service
+    # ):
+    #     """Test listing features when user not found."""
+    #     mock_user_service.get_user_by_auth_id.return_value = None
+    #
+    #     with pytest.raises(HTTPException) as exc:
+    #         list_my_features(
+    #             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    #             identity_service=mock_identity_service,
+    #         )
+    #
+    #     assert exc.value.status_code == 404
+    #     assert exc.value.detail == "User not found"

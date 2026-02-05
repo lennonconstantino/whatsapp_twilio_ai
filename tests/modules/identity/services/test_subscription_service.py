@@ -125,14 +125,14 @@ class TestSubscriptionService(unittest.TestCase):
         result = self.service.create_subscription(subscription_data)
 
         self.mock_subscription_repo.cancel_subscription.assert_called_with(
-            existing_sub_id
+            existing_sub_id, self.owner_id
         )
         self.mock_subscription_repo.create.assert_called()
         self.assertEqual(result, expected_subscription)
 
     def test_cancel_subscription(self):
-        self.service.cancel_subscription(self.sub_id)
-        self.mock_subscription_repo.cancel_subscription.assert_called_with(self.sub_id)
+        self.service.cancel_subscription(self.sub_id, self.owner_id)
+        self.mock_subscription_repo.cancel_subscription.assert_called_with(self.sub_id, self.owner_id)
 
     def test_get_active_subscription(self):
         self.service.get_active_subscription(self.owner_id)

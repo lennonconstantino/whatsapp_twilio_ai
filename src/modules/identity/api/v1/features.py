@@ -1,11 +1,11 @@
 from typing import Any, Dict
 
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends
 
 from src.core.di.container import Container
+from src.modules.identity.api.dependencies import get_authenticated_owner_id
 from src.modules.identity.services.identity_service import IdentityService
-from src.modules.identity.services.user_service import UserService
 
 router = APIRouter(prefix="/features", tags=["Features"])
 
@@ -13,18 +13,11 @@ router = APIRouter(prefix="/features", tags=["Features"])
 @router.get("/", response_model=Dict[str, Any])
 @inject
 def list_my_features(
-    x_auth_id: str = Header(..., alias="X-Auth-ID"),
+    owner_id: str = Depends(get_authenticated_owner_id),
     identity_service: IdentityService = Depends(Provide[Container.identity_service]),
-    user_service: UserService = Depends(Provide[Container.user_service]),
 ):
     """
     List consolidated features for the current user's organization.
     Returns {feature_name: config}.
     """
-    user = user_service.get_user_by_auth_id(x_auth_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
-
-    return identity_service.get_consolidated_features(user.owner_id)
+    return identity_service.get_consolidated_features(owner_id)

@@ -19,6 +19,7 @@ VALID_AUTH_ID = "auth_123"
 
 
 from src.core.security import get_current_user_id, get_current_owner_id
+from src.modules.identity.api.dependencies import get_authenticated_owner_id
 
 class TestUserAPI:
 
@@ -30,6 +31,7 @@ class TestUserAPI:
         # Default overrides
         app.dependency_overrides[get_current_user_id] = lambda: VALID_AUTH_ID
         app.dependency_overrides[get_current_owner_id] = lambda: VALID_OWNER_ID
+        app.dependency_overrides[get_authenticated_owner_id] = lambda: VALID_OWNER_ID
 
         self.now = datetime.now(UTC)
         yield

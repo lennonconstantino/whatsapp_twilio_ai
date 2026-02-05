@@ -1,15 +1,16 @@
 from typing import Optional
 
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.core.di.container import Container
+from src.modules.identity.api.dependencies import (get_authenticated_owner_id,
+                                                   get_authenticated_user)
 from src.modules.identity.models.subscription import (Subscription,
                                                       SubscriptionCreate)
-from src.modules.identity.models.user import UserRole
+from src.modules.identity.models.user import User, UserRole
 from src.modules.identity.services.subscription_service import \
     SubscriptionService
-from src.modules.identity.services.user_service import UserService
 
 router = APIRouter(prefix="/subscriptions", tags=["Subscriptions"])
 
@@ -17,18 +18,13 @@ router = APIRouter(prefix="/subscriptions", tags=["Subscriptions"])
 @router.get("/current", response_model=Subscription)
 @inject
 def get_current_subscription(
-    x_auth_id: str = Header(..., alias="X-Auth-ID"),
+    owner_id: str = Depends(get_authenticated_owner_id),
     subscription_service: SubscriptionService = Depends(
         Provide[Container.subscription_service]
     ),
-    user_service: UserService = Depends(Provide[Container.user_service]),
 ):
     """Get active subscription for the current user's organization."""
-    user = user_service.get_user_by_auth_id(x_auth_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    subscription = subscription_service.get_active_subscription(user.owner_id)
+    subscription = subscription_service.get_active_subscription(owner_id)
     if not subscription:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -41,21 +37,16 @@ def get_current_subscription(
 @inject
 def get_owner_subscription(
     owner_id: str,
-    x_auth_id: str = Header(..., alias="X-Auth-ID"),
+    authenticated_owner_id: str = Depends(get_authenticated_owner_id),
     subscription_service: SubscriptionService = Depends(
         Provide[Container.subscription_service]
     ),
-    user_service: UserService = Depends(Provide[Container.user_service]),
 ):
     """
     Get active subscription for an owner.
     Restricted to users belonging to that owner or system admins (future).
     """
-    user = user_service.get_user_by_auth_id(x_auth_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if user.owner_id != owner_id:
+    if authenticated_owner_id != owner_id:
         raise HTTPException(
             status_code=403, detail="Not authorized to view this subscription"
         )
@@ -73,20 +64,15 @@ def get_owner_subscription(
 @inject
 def create_subscription(
     subscription_data: SubscriptionCreate,
-    x_auth_id: str = Header(..., alias="X-Auth-ID"),
+    user: User = Depends(get_authenticated_user),
     subscription_service: SubscriptionService = Depends(
         Provide[Container.subscription_service]
     ),
-    user_service: UserService = Depends(Provide[Container.user_service]),
 ):
     """
     Subscribe owner to a plan.
     Requires ADMIN role.
     """
-    user = user_service.get_user_by_auth_id(x_auth_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
     if user.owner_id != subscription_data.owner_id:
         raise HTTPException(
             status_code=403,
@@ -108,12 +94,13 @@ def create_subscription(
 @inject
 def cancel_subscription(
     subscription_id: str,
+    owner_id: str = Depends(get_authenticated_owner_id),
     subscription_service: SubscriptionService = Depends(
         Provide[Container.subscription_service]
     ),
 ):
     """Cancel a subscription."""
-    subscription = subscription_service.cancel_subscription(subscription_id)
+    subscription = subscription_service.cancel_subscription(subscription_id, owner_id)
     if not subscription:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found"

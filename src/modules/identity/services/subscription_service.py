@@ -59,24 +59,25 @@ class SubscriptionService:
             logger.info(
                 f"Owner {subscription_data.owner_id} already has an active subscription: {active_sub.subscription_id}. Cancelling it."
             )
-            self.cancel_subscription(active_sub.subscription_id)
+            self.cancel_subscription(active_sub.subscription_id, active_sub.owner_id)
 
         data = subscription_data.model_dump()
         # Default status is TRIAL from model, or we can set based on plan logic
         return self.subscription_repository.create(data)
 
-    def cancel_subscription(self, subscription_id: str) -> Optional[Subscription]:
+    def cancel_subscription(self, subscription_id: str, owner_id: str) -> Optional[Subscription]:
         """
         Cancel a subscription.
 
         Args:
             subscription_id: ID of the subscription
+            owner_id: ID of the owner
 
         Returns:
             Updated Subscription instance or None
         """
-        logger.info(f"Canceling subscription: {subscription_id}")
-        return self.subscription_repository.cancel_subscription(subscription_id)
+        logger.info(f"Canceling subscription: {subscription_id} for owner {owner_id}")
+        return self.subscription_repository.cancel_subscription(subscription_id, owner_id)
 
     def get_active_subscription(self, owner_id: str) -> Optional[Subscription]:
         """

@@ -100,7 +100,7 @@ class ISubscriptionRepository(IRepository[Subscription], Protocol):
         """Find active subscription for an owner."""
         ...
 
-    def cancel_subscription(self, subscription_id: str) -> Optional[Subscription]:
+    def cancel_subscription(self, subscription_id: str, owner_id: str) -> Optional[Subscription]:
         """Cancel a subscription."""
         ...
 

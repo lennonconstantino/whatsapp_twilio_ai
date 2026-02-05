@@ -73,7 +73,7 @@ class TestPostgresSubscriptionRepository:
         
         cursor.fetchone.side_effect = [canceled_data]
         
-        result = repository.cancel_subscription("01ARZ3NDEKTSV4RRFFQ69G5FAV")
+        result = repository.cancel_subscription("01ARZ3NDEKTSV4RRFFQ69G5FAV", "01ARZ3NDEKTSV4RRFFQ69G5FAV")
         
         assert result.status == SubscriptionStatus.CANCELED
         assert cursor.execute.called

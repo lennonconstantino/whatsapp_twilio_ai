@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Optional
 
+from psycopg2 import sql
+
 from src.core.database.postgres_repository import PostgresRepository
 from src.core.database.postgres_session import PostgresDatabase
 from src.modules.identity.enums.subscription_status import SubscriptionStatus
@@ -28,10 +30,31 @@ class PostgresSubscriptionRepository(
         )
         return subs[0] if subs else None
 
-    def cancel_subscription(self, subscription_id: str) -> Optional[Subscription]:
+    def cancel_subscription(self, subscription_id: str, owner_id: str) -> Optional[Subscription]:
         update_data = {
             "status": SubscriptionStatus.CANCELED.value,
             "canceled_at": datetime.utcnow().isoformat(),
         }
-        return self.update(subscription_id, update_data, id_column="subscription_id")
+        
+        # Custom SQL update to check owner_id
+        set_clauses = [
+            sql.SQL("{} = {}").format(sql.Identifier(k), sql.Placeholder())
+            for k in update_data.keys()
+        ]
+        
+        query = sql.SQL("UPDATE {} SET {} WHERE {} = %s AND {} = %s RETURNING *").format(
+            sql.Identifier(self.table_name),
+            sql.SQL(", ").join(set_clauses),
+            sql.Identifier("subscription_id"),
+            sql.Identifier("owner_id")
+        )
+        
+        # Params: values + subscription_id + owner_id
+        params = tuple(update_data.values()) + (subscription_id, owner_id)
+        
+        result = self._execute_query(query, params, fetch_one=True, commit=True)
+        
+        if result:
+            return self.model_class(**result)
+        return None
 

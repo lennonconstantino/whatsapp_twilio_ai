@@ -124,7 +124,7 @@ def test_cancel_subscription(repository, mock_client, mock_subscription_data):
     mock_query.execute.return_value = mock_response
 
     # Execute
-    subscription = repository.cancel_subscription("01ARZ3NDEKTSV4RRFFQ69G5FAV")
+    subscription = repository.cancel_subscription("01ARZ3NDEKTSV4RRFFQ69G5FAV", "01ARZ3NDEKTSV4RRFFQ69G5FAW")
 
     # Verify
     assert subscription is not None
@@ -135,4 +135,5 @@ def test_cancel_subscription(repository, mock_client, mock_subscription_data):
     mock_query.update.assert_called_once()
     args, _ = mock_query.update.call_args
     assert args[0]["status"] == SubscriptionStatus.CANCELED.value
-    mock_query.eq.assert_called_with("subscription_id", "01ARZ3NDEKTSV4RRFFQ69G5FAV")
+    mock_query.eq.assert_any_call("subscription_id", "01ARZ3NDEKTSV4RRFFQ69G5FAV")
+    mock_query.eq.assert_any_call("owner_id", "01ARZ3NDEKTSV4RRFFQ69G5FAW")

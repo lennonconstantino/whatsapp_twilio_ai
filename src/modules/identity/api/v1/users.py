@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel, EmailStr
 
 from src.core.di.container import Container
-from src.core.security import get_current_owner_id, get_current_user_id
+from src.core.security import get_current_user_id
+from src.modules.identity.api.dependencies import get_authenticated_owner_id
 from src.modules.identity.dtos.user_dto import UserCreateDTO
 from src.modules.identity.models.user import User, UserCreate, UserUpdate
 from src.modules.identity.services.user_service import UserService
@@ -92,7 +93,7 @@ def get_user(
 @router.get("/", response_model=List[User])
 @inject
 def list_users(
-    owner_id: str = Depends(get_current_owner_id),
+    owner_id: str = Depends(get_authenticated_owner_id),
     user_service: UserService = Depends(Provide[Container.user_service]),
 ):
     """List users by owner."""

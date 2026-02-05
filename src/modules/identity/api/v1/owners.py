@@ -4,8 +4,8 @@ from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.core.di.container import Container
-from src.core.security import get_current_owner_id
 from src.core.utils.custom_ulid import generate_ulid
+from src.modules.identity.api.dependencies import get_authenticated_owner_id
 from src.modules.identity.dtos.owner_dto import OwnerCreateDTO, OwnerUpdateDTO
 from src.modules.identity.dtos.register_dto import RegisterOrganizationDTO
 from src.modules.identity.dtos.user_dto import UserCreateDTO
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/owners", tags=["Owners"])
 @inject
 def get_owner(
     owner_id: str,
-    token_owner_id: str = Depends(get_current_owner_id),
+    token_owner_id: str = Depends(get_authenticated_owner_id),
     owner_service: OwnerService = Depends(Provide[Container.owner_service]),
 ):
     """Get owner by ID."""
@@ -83,7 +83,7 @@ def register_organization(
 def update_owner(
     owner_id: str,
     owner_data: OwnerUpdateDTO,
-    token_owner_id: str = Depends(get_current_owner_id),
+    token_owner_id: str = Depends(get_authenticated_owner_id),
     owner_service: OwnerService = Depends(Provide[Container.owner_service]),
 ):
     """Update owner details."""

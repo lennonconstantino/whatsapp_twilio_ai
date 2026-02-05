@@ -51,12 +51,13 @@ class SupabaseSubscriptionRepository(
 
         return None
 
-    def cancel_subscription(self, subscription_id: str) -> Optional[Subscription]:
+    def cancel_subscription(self, subscription_id: str, owner_id: str) -> Optional[Subscription]:
         """
         Cancel a subscription.
 
         Args:
             subscription_id: ID of the subscription
+            owner_id: ID of the owner (for security)
 
         Returns:
             Updated Subscription instance or None
@@ -65,4 +66,20 @@ class SupabaseSubscriptionRepository(
             "status": SubscriptionStatus.CANCELED.value,
             "canceled_at": datetime.utcnow().isoformat(),
         }
-        return self.update(subscription_id, update_data, id_column="subscription_id")
+        
+        # Use custom update to include owner_id check
+        try:
+            result = (
+                self.client.table(self.table_name)
+                .update(update_data)
+                .eq("subscription_id", subscription_id)
+                .eq("owner_id", owner_id)
+                .execute()
+            )
+            
+            if result.data:
+                return self.model_class(**result.data[0])
+            return None
+        except Exception as e:
+            logger.error(f"Error canceling subscription {subscription_id}", error=str(e))
+            raise
