@@ -1,5 +1,6 @@
 
 import uuid
+from typing import Dict, Any
 
 from src.core.utils.exceptions import DuplicateError
 from src.core.queue.service import QueueService
@@ -44,6 +45,47 @@ class TwilioWebhookService:
         self.queue_service.register_handler(
             "transcribe_audio", self.audio_processor.handle_audio_transcription_task
         )
+        self.queue_service.register_handler(
+            "process_twilio_event", self.handle_webhook_event_task
+        )
+
+    async def enqueue_webhook_event(
+        self, payload: TwilioWhatsAppPayload
+    ) -> TwilioWebhookResponseDTO:
+        """
+        Enqueue the raw webhook event for async processing.
+        Returns immediate 200 OK to Twilio.
+        """
+        # Determine owner_id from AccountSid (fast check, no DB if possible, but currently resolver needs DB)
+        # Note: We can pass payload to queue and let worker resolve owner.
+        # But QueueService.enqueue takes optional owner_id.
+        # For now, we'll let the worker resolve the owner to avoid DB hit here.
+        
+        await self.queue_service.enqueue(
+            "process_twilio_event",
+            payload.model_dump(by_alias=True),
+            correlation_id=payload.message_sid or str(uuid.uuid4())
+        )
+        
+        return TwilioWebhookResponseDTO(
+            success=True,
+            message="Event received and enqueued",
+            conv_id=None,
+            msg_id=None
+        )
+
+    async def handle_webhook_event_task(self, payload_dict: Dict[str, Any]):
+        """
+        Worker handler for processing the raw webhook event.
+        Rehydrates payload and calls process_webhook logic.
+        """
+        try:
+            # Rehydrate payload
+            payload = TwilioWhatsAppPayload(**payload_dict)
+            await self.process_webhook(payload)
+        except Exception as e:
+            logger.error("Failed to process webhook event task", error=str(e))
+            raise # Let queue retry
 
     async def process_webhook(
         self, payload: TwilioWhatsAppPayload

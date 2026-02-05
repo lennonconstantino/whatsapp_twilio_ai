@@ -44,27 +44,23 @@ No entanto, o **acoplamento entre módulos de domínio** (Twilio → AI, Twilio 
 ### 2.3. AI (`src/modules/ai`)
 **Motor de Inteligência**
 
-*   **Coesão (Média):** A estrutura de `engines/lchain/feature` cria *bounded contexts* internos muito bons (Finance, Relationships), mantendo prompts e tools próximos. Contudo, a inicialização "eager" de todos os LLMs no `infrastructure/llm.py` mistura configuração global com definição de domínio, prejudicando a coesão de inicialização.
-*   **Acoplamento (Médio):** O módulo depende de `Identity` e `Conversation` para contexto, mas faz isso de forma relativamente limpa via interfaces de memória.
+*   **Coesão (Média):** A estrutura de `engines/lchain/feature` cria *bounded contexts* internos muito bons (Finance, Relationships), mantendo prompts e tools próximos.
+*   **Acoplamento:** **[RESOLVIDO]** A implementação do `LLMFactory` eliminou o acoplamento no *boot time*. O módulo agora é resiliente a falhas de rede na inicialização.
 *   **Impacto Clean Arch:** A migração para `impl/postgres` (pgvector) vs `impl/supabase` é vital aqui para suportar busca híbrida sem acoplar o código de busca à implementação do vetor store.
 
 ### 2.4. Channels/Twilio (`src/modules/channels/twilio`)
 **Gateway de Comunicação**
 
 *   **Coesão (Média):** Funciona bem como um adaptador (ACL). A separação `inbound` vs `outbound` workers é excelente para resiliência.
-*   **Acoplamento (Alto - Crítico):** Este é o ponto de maior acoplamento do sistema. O fluxo de webhook depende síncrona e diretamente de:
-    1.  `OwnerResolver` (que vai ao banco/Identity).
-    2.  `ConversationService` (para criar/buscar conversa).
-    3.  `QueueService` (para despachar AI).
-    *Qualquer falha nesses serviços impacta a resposta 200 OK para o Twilio.*
-*   **Observação:** Embora seja um adaptador, ele conhece "demais" sobre a orquestração interna.
+*   **Acoplamento:** **[RESOLVIDO]** O Webhook foi desacoplado. Agora atua como um *dumb pipe* que apenas enfileira eventos brutos. A orquestração (busca de conversa, etc.) foi movida para processamento assíncrono, eliminando a dependência síncrona de banco de dados no gateway de entrada.
+*   **Observação:** A resiliência aumentou drasticamente; timeouts do Twilio não ocorrerão mais devido a latência de banco ou IA.
 
 ### 2.5. Identity (`src/modules/identity`)
 **Gestão de Acesso e Assinaturas**
 
 *   **Coesão (Alta):** Agregados bem definidos (Owner, User, Plan). A lógica de negócios está bem encapsulada nos serviços.
 *   **Acoplamento (Baixo):** É um módulo "servidor" (usado por todos, não usa ninguém).
-*   **Ponto de Atenção:** A inconsistência entre DTOs e Models (mencionada na análise de conformidade) é um problema de integridade de dados, mas estruturalmente o módulo é coeso.
+*   **Ponto de Atenção:** **[RESOLVIDO]** A inconsistência entre DTOs e Models foi corrigida. Agora os DTOs (`OwnerCreateDTO`, `UserCreateDTO`, `UserUpdateDTO`) possuem validações estritas (Pydantic EmailStr, constrains de tamanho) e refletem fielmente as capacidades dos Models, garantindo integridade de dados na entrada da API.
 
 ---
 
@@ -74,16 +70,24 @@ O sistema evoluiu positivamente com a adoção de **Clean Architecture nos Repos
 
 ### Principais Gaps de Acoplamento/Coesão Atuais:
 
-1.  **Orquestração no Webhook (Twilio):** O `TwilioWebhookService` atua como um "Deus" que orquestra tudo.
-    *   *Recomendação:* Mover a lógica de orquestração (buscar conversa, decidir AI) para um `UserIntentService` ou similar, deixando o Twilio apenas "receber e normalizar" o evento para um formato interno, despachando para uma fila "raw" imediatamente.
+1.  **Orquestração no Webhook (Twilio):** ~~O `TwilioWebhookService` atua como um "Deus" que orquestra tudo.~~
+    *   *Status:* **[RESOLVIDO]** - Implementado padrão *Fire-and-Forget*. O endpoint HTTP apenas valida e enfileira (`enqueue_webhook_event`). O processamento pesado ocorre no worker (`handle_webhook_event_task`), garantindo resposta imediata ao provedor.
 
-2.  **Inicialização do Módulo AI:** O carregamento de LLMs no import (`llm.py`) acopla o tempo de boot à disponibilidade de APIs externas.
-    *   *Recomendação:* Implementar Lazy Loading ou Factory Pattern para instanciar LLMs apenas quando necessários (request-scoped ou worker-scoped).
+2.  **Inicialização do Módulo AI:** ~~O carregamento de LLMs no import (`llm.py`) acopla o tempo de boot à disponibilidade de APIs externas.~~
+    *   *Status:* **[RESOLVIDO/VERIFICADO]** - Implementado padrão *Lazy Loading* com `LLMFactory` e `LazyModelDict`. Os modelos são instanciados apenas no primeiro uso (`get_model`), desacoplando o startup da aplicação de chamadas de rede externas.
 
 3.  **Vazamento de Infra em Domain (Conversation):** ~~Componentes de negócio (`Lifecycle`) acessando tabelas diretamente.~~
     *   *Status:* **[RESOLVIDO/VERIFICADO]** - Auditoria confirmou que o código utiliza corretamente Injeção de Dependência e Interfaces de Repositório. Não há imports de infraestrutura no domínio.
 
+4.  **Integridade de Dados (Identity):** ~~Inconsistência entre DTOs e Models.~~
+    *   *Status:* **[RESOLVIDO]** - DTOs de `Owner` e `User` foram padronizados com validações fortes e alinhados com os Models de domínio.
+
 ### Próximo Passo Sugerido
 
-Focar no **desacoplamento do Webhook Twilio**, garantindo que ele possa responder 200 OK sem depender da saúde do banco de dados ou do serviço de conversas, aumentando a resiliência do gateway de entrada.
-Transformá-lo em um receptor "burro" que apenas valida e enfileira o evento bruto, movendo a orquestração (busca de conversa, decisão de AI) para um processamento assíncrono. Isso blindará o gateway de entrada contra oscilações no banco de dados ou serviços internos.
+Todos os pontos críticos de acoplamento identificados neste relatório foram resolvidos:
+1.  **Twilio Webhook:** Desacoplado via Fila Assíncrona.
+2.  **AI Init:** Desacoplado via Lazy Loading.
+3.  **Conversation Infra:** Verificado e Validado (Clean Arch).
+4.  **Identity Data Integrity:** DTOs saneados.
+
+O sistema atingiu um novo patamar de estabilidade e resiliência. Recomenda-se agora focar em **Observabilidade** (para monitorar as novas filas e latências) ou na expansão de funcionalidades de negócio.

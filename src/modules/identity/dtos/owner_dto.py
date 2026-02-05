@@ -6,8 +6,8 @@ from pydantic import BaseModel, EmailStr, Field
 class OwnerCreateDTO(BaseModel):
     """DTO for creating an owner."""
 
-    name: str
-    email: str
+    name: str = Field(..., min_length=1, max_length=255)
+    email: EmailStr
 
     def __repr__(self) -> str:
         return f"OwnerCreateDTO(name={self.name}, email={self.email})"

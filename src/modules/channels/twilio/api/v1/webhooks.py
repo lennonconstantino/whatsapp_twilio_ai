@@ -30,19 +30,20 @@ async def handle_inbound_message(
     Handle inbound messages from Twilio.
 
     This endpoint receives webhooks when a message is sent to a Twilio number.
-    It processes the message asynchronously (AI response) to avoid Twilio timeouts.
+    It enqueues the raw event for async processing to ensure immediate 200 OK.
     """
     logger.info(
-        "Received inbound message",
+        "Received inbound message (Async Enqueue)",
         from_number=payload.from_number,
         to_number=payload.to_number,
         message_sid=payload.message_sid,
     )
 
     try:
-        return await service.process_webhook(payload)
+        # Now fully async - just enqueue and return
+        return await service.enqueue_webhook_event(payload)
     except Exception as e:
-        logger.error("Error processing inbound message", error=str(e))
+        logger.error("Error enqueuing inbound message", error=str(e))
         # Don't raise HTTPException to avoid Twilio retries
         return TwilioWebhookResponseDTO(success=False, message=f"Error: {str(e)}")
 
@@ -58,18 +59,19 @@ async def handle_outbound_message(
     Handle outbound messages from Twilio.
 
     This endpoint receives webhooks when a message is sent to a Twilio number.
-    It processes the message asynchronously (AI response) to avoid Twilio timeouts.
+    It enqueues the raw event for async processing.
     """
     logger.info(
-        "Received outbound message",
+        "Received outbound message (Async Enqueue)",
         from_number=payload.from_number,
         to_number=payload.to_number,
         message_sid=payload.message_sid,
     )
 
     try:
-        return await service.process_webhook(payload)
+        # Now fully async - just enqueue and return
+        return await service.enqueue_webhook_event(payload)
     except Exception as e:
-        logger.error("Error processing outbound message", error=str(e))
+        logger.error("Error enqueuing outbound message", error=str(e))
         # Don't raise HTTPException to avoid Twilio retries
         return TwilioWebhookResponseDTO(success=False, message=f"Error: {str(e)}")

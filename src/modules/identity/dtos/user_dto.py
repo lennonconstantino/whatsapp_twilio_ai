@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, EmailStr, Field
 
 from src.core.utils.custom_ulid import is_valid_ulid
 from src.modules.identity.enums.user_role import UserRole
@@ -15,6 +15,7 @@ class UserCreateDTO(BaseModel):
     last_name: Optional[str] = None
     role: UserRole = UserRole.USER
     phone: Optional[str] = None
+    email: Optional[EmailStr] = None
     auth_id: Optional[str] = None
 
     model_config = ConfigDict(use_enum_values=True)
@@ -28,4 +29,22 @@ class UserCreateDTO(BaseModel):
         return v.upper()
 
     def __repr__(self) -> str:
-        return f"UserCreateDTO(owner_id={self.owner_id}, role={self.role}, phone={self.phone})"
+        return f"UserCreateDTO(owner_id={self.owner_id}, role={self.role}, phone={self.phone}, email={self.email})"
+
+
+class UserUpdateDTO(BaseModel):
+    """DTO for updating a user."""
+
+    profile_name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    role: Optional[UserRole] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    preferences: Optional[Dict[str, Any]] = None
+    active: Optional[bool] = None
+
+    model_config = ConfigDict(use_enum_values=True)
+
+    def __repr__(self) -> str:
+        return f"UserUpdateDTO(role={self.role}, phone={self.phone}, email={self.email})"
