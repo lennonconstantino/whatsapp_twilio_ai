@@ -95,8 +95,12 @@ class TestMemoryIntegrationFlow(unittest.TestCase):
             {"content": "O usuário mora em São Paulo", "metadata": {}}
         ]
         
-        # Chamada com Query
-        result = self.service.get_context(self.session_id, query="Onde eu moro?")
+        # Chamada com Query e owner_id (obrigatório para busca vetorial)
+        result = self.service.get_context(
+            self.session_id, 
+            query="Onde eu moro?",
+            owner_id="test_owner_123"
+        )
         
         # Validação
         if settings.memory.enable_hybrid_retrieval:

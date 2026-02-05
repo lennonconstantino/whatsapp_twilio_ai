@@ -22,23 +22,58 @@ EMAIL_REGEX = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
 CPF_REGEX = re.compile(r'\b\d{3}\.\d{3}\.\d{3}-\d{2}\b')
 PHONE_REGEX = re.compile(r'\b\+?[1-9]\d{1,14}\b') 
 
+def mask_pii(text: str) -> str:
+    """
+    Mask PII (Email, CPF, Phone) in a string.
+    Only applies masking if running in PRODUCTION environment.
+    """
+    # Check environment
+    if settings.api.environment != "production":
+        return text
+
+    if not text:
+        return text
+        
+    # Mask Email
+    text = EMAIL_REGEX.sub('[EMAIL_REDACTED]', text)
+    # Mask CPF
+    text = CPF_REGEX.sub('[CPF_REDACTED]', text)
+    # Mask Phone (simple heuristic)
+    # We apply phone masking more broadly here as it's for content/logs
+    # But we should be careful about things that look like numbers but aren't phones.
+    # For simplicity and safety in logs, we mask sequences that look like phones
+    # provided they are long enough.
+    # However, strict phone regex might be too aggressive for simple numbers.
+    # Let's stick to the regex but maybe valid phone length (8+ digits)
+    # The regex \b\+?[1-9]\d{1,14}\b matches numbers from 2 to 15 digits.
+    # Let's refine it to 8-15 digits to avoid masking short IDs.
+    # Also handle + correctly by matching it before the boundary check or ensuring boundary logic
+    # + is non-word, digit is word. \b matches between them.
+    phone_strict = re.compile(r'(?:\+)?\b[1-9]\d{7,14}\b')
+    text = phone_strict.sub('[PHONE_REDACTED]', text)
+    
+    return text
+
 class PIIMaskingProcessor:
     """
     Structlog processor that masks PII (Email, CPF, Phone) in log events.
     """
     def __call__(self, logger: Any, method_name: str, event_dict: Dict[str, Any]) -> Dict[str, Any]:
+        # Skip processing if not in production
+        if settings.api.environment != "production":
+            return event_dict
+
         for key, value in event_dict.items():
             if isinstance(value, str):
+                # Use the helper function, but with key-based exclusions for phone
                 # Mask Email
                 value = EMAIL_REGEX.sub('[EMAIL_REDACTED]', value)
                 # Mask CPF
                 value = CPF_REGEX.sub('[CPF_REDACTED]', value)
-                # Mask Phone (be careful with IDs, but this regex expects 10-15 digits)
-                # We can be more conservative or specific if needed.
-                # For now, let's skip phone masking on keys that look like IDs
+                
+                # Mask Phone with context awareness
                 if 'id' not in key.lower() and 'uuid' not in key.lower():
                      if PHONE_REGEX.search(value):
-                        # Simple heuristic: if it looks like a phone and key suggests it
                         if any(k in key.lower() for k in ['phone', 'mobile', 'celular', 'telefone', 'whatsapp', 'from', 'to']):
                              value = PHONE_REGEX.sub('[PHONE_REDACTED]', value)
                 

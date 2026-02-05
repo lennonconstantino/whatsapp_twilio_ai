@@ -12,6 +12,7 @@ from typing import Optional
 from langchain_core.messages import AIMessage
 
 from src.core.utils import get_logger
+from src.core.utils.logging import mask_pii
 from src.modules.ai.ai_result.enums.ai_result_type import AIResultType
 from src.modules.ai.ai_result.services.ai_result_service import AIResultService
 from src.modules.ai.engines.lchain.core.models.agent_context import \
@@ -83,6 +84,11 @@ class AILogThoughtService:
             metadata: Additional metadata.
         """
         try:
+            # Mask PII in inputs/outputs before persisting
+            user_input = mask_pii(user_input)
+            output = mask_pii(output)
+            error_msg = mask_pii(error_msg) if error_msg else None
+            
             # Use msg_id from context if available (preferred as it maps to messages table PK)
             # Otherwise fallback to correlation_id (which might be Twilio SID and cause FK error if not in messages table)
             msg_id_to_use = (
@@ -101,14 +107,14 @@ class AILogThoughtService:
                         "status": "success",
                         "input": user_input,
                         "output": output,
-                        "message": json.dumps(
+                        "message": mask_pii(json.dumps(
                             message.tool_calls, indent=2, ensure_ascii=False
-                        ),
+                        )),
                         "history": self._serialize_history(history),
                         "metadata": {
                             "id": message.id,
                             "type": message.type,
-                            "content": message.content,
+                            "content": mask_pii(message.content) if isinstance(message.content, str) else message.content,
                             "tool_calls": message.tool_calls,
                             "usage_metadata": message.usage_metadata,
                         },
@@ -125,13 +131,13 @@ class AILogThoughtService:
                         "status": "error",
                         "input": user_input,
                         "error": error_msg,
-                        "message": (
+                        "message": mask_pii(
                             message.content if message.content != "" else "calling tool"
                         ),
                         "metadata": {
                             "id": message.id,
                             "type": message.type,
-                            "content": message.content,
+                            "content": mask_pii(message.content) if isinstance(message.content, str) else message.content,
                             "response_metadata": message.response_metadata,
                             "additional_kwargs": message.additional_kwargs,
                             "usage_metadata": message.usage_metadata,

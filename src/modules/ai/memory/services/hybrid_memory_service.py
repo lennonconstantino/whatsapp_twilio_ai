@@ -99,13 +99,15 @@ class HybridMemoryService(MemoryInterface):
         
         # 4. Semantic Search (L3)
         if query and self.vector_repo:
+            if not owner_id:
+                logger.error("Memory retrieval L3 requires owner_id for security isolation. Skipping vector search.")
+                # We skip L3 search to prevent cross-tenant data leakage
+                return context_messages
+
             try:
                 retrieval_filter: Dict[str, Any] = {}
-                if owner_id:
-                    retrieval_filter["owner_id"] = owner_id
-                else:
-                    logger.warning("Memory retrieval L3 without owner_id! This might cause cross-tenant leakage if not handled by Row Level Security.")
-
+                retrieval_filter["owner_id"] = owner_id
+                
                 if user_id:
                     retrieval_filter["user_id"] = user_id
                 
