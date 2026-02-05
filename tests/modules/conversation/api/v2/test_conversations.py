@@ -24,12 +24,17 @@ class TestConversationApiV2:
         # Override the dependency for authentication
         app.dependency_overrides[get_current_owner_id] = lambda: VALID_OWNER_ID
         
+        # Ensure debug is False so that exception handlers return JSON instead of traceback
+        original_debug = app.debug
+        app.debug = False
+        
         # Override the container provider
         with container.conversation_service.override(mock_service):
-            yield TestClient(app)
+            yield TestClient(app, raise_server_exceptions=False)
         
         # Clean up
         app.dependency_overrides = {}
+        app.debug = original_debug
 
     @pytest.fixture
     def mock_conversation(self):
@@ -87,8 +92,23 @@ class TestConversationApiV2:
         
         response = client.post("/conversation/v2/conversations/", json=payload)
         
+        if response.status_code != 500:
+             print(f"Unexpected status code: {response.status_code}")
+             print(f"Response body: {response.text}")
+
         assert response.status_code == 500
-        assert "Database error" in response.json()["detail"]
+        
+        try:
+            data = response.json()
+        except Exception:
+            print(f"Failed to parse JSON. Response text: {response.text}")
+            raise
+
+        # The global handler returns a standardized message, not the raw exception details
+        assert data["code"] == "INTERNAL_ERROR"
+        # We check that it doesn't leak "Database error" if we want to be strict,
+        # but the current handler returns "An unexpected error occurred."
+        assert "An unexpected error occurred" in response.json()["detail"]
 
     def test_get_conversation_success(self, client, mock_service, mock_conversation):
         mock_service.get_conversation_by_id.return_value = mock_conversation
@@ -222,4 +242,12 @@ class TestConversationApiV2:
         )
         
         assert response.status_code == 500
-        assert "Close error" in response.json()["detail"]
+        try:
+            data = response.json()
+        except Exception:
+            print(f"Failed to parse JSON. Response text: {response.text}")
+            raise
+
+        # The global handler returns a standardized message
+        assert data["code"] == "INTERNAL_ERROR"
+        assert "An unexpected error occurred" in data["detail"]

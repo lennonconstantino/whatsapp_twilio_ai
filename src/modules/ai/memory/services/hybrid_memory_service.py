@@ -117,7 +117,8 @@ class HybridMemoryService(MemoryInterface):
 
                 if settings.memory.enable_hybrid_retrieval:
                     semantic_results = self.vector_repo.hybrid_search_relevant(
-                        query,
+                        owner_id=owner_id,
+                        query=query,
                         limit=top_k,
                         match_threshold=match_threshold,
                         filter=retrieval_filter or None,
@@ -128,7 +129,8 @@ class HybridMemoryService(MemoryInterface):
                     )
                 else:
                     semantic_results = self.vector_repo.vector_search_relevant(
-                        query,
+                        owner_id=owner_id,
+                        query=query,
                         limit=top_k,
                         match_threshold=match_threshold,
                         filter=retrieval_filter or None,

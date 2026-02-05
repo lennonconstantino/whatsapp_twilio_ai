@@ -32,7 +32,7 @@ class TestPostgresVectorMemoryRepository(unittest.TestCase):
         repo = PostgresVectorMemoryRepository(mock_db)
         
         # Act
-        results = repo.hybrid_search_relevant("query", limit=5)
+        results = repo.hybrid_search_relevant("owner_id", "query", limit=5)
         
         # Assert
         self.assertEqual(len(results), 1)
@@ -54,7 +54,7 @@ class TestPostgresVectorMemoryRepository(unittest.TestCase):
         self.assertTrue(params[1].startswith("[")) # Vector string
         self.assertEqual(params[2], 5) # limit
         self.assertEqual(params[3], 0.5) # default match_threshold
-        self.assertEqual(params[4], "{}") # default filter
+        self.assertEqual(params[4], '{"owner_id": "owner_id"}') # default filter with owner_id
         
     @patch("src.modules.ai.memory.repositories.impl.postgres.vector_memory_repository.OpenAIEmbeddings")
     def test_text_search_relevant(self, mock_embeddings_cls):
@@ -119,7 +119,7 @@ class TestPostgresVectorMemoryRepository(unittest.TestCase):
         repo = PostgresVectorMemoryRepository(mock_db)
         
         # Act
-        results = repo.vector_search_relevant("query", limit=2)
+        results = repo.vector_search_relevant("owner_id", "query", limit=2)
         
         # Assert
         self.assertEqual(len(results), 1)
@@ -172,12 +172,12 @@ class TestPostgresVectorMemoryRepository(unittest.TestCase):
         repo = PostgresVectorMemoryRepository(mock_db)
         
         # Should not raise
-        results = repo.vector_search_relevant("query")
+        results = repo.vector_search_relevant("owner_id", "query")
         self.assertEqual(results, [])
         
         # Check disable logic if function missing
         mock_cursor.execute.side_effect = Exception("function match_message_embeddings does not exist")
-        repo.vector_search_relevant("query")
+        repo.vector_search_relevant("owner_id", "query")
         self.assertTrue(repo._disabled)
 
 if __name__ == '__main__':

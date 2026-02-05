@@ -54,12 +54,12 @@ class SupabaseVectorMemoryRepository(VectorMemoryRepository):
             return OpenAIEmbeddings(model="text-embedding-3-small")
 
     def search_relevant(
-        self, query: str, limit: int = 5, filter: Optional[Dict] = None
+        self, owner_id: str, query: str, limit: int = 5, filter: Optional[Dict] = None
     ) -> List[Dict[str, Any]]:
         """
         Search for relevant documents using semantic similarity.
         """
-        return self.vector_search_relevant(query, limit=limit, match_threshold=None, filter=filter)
+        return self.vector_search_relevant(owner_id, query, limit=limit, match_threshold=None, filter=filter)
 
     def add_texts(
         self,
@@ -83,6 +83,7 @@ class SupabaseVectorMemoryRepository(VectorMemoryRepository):
 
     def vector_search_relevant(
         self,
+        owner_id: str,
         query: str,
         *,
         limit: int = 10,
@@ -93,8 +94,12 @@ class SupabaseVectorMemoryRepository(VectorMemoryRepository):
             return []
 
         try:
+            # Enforce owner_id in filter
+            final_filter = (filter or {}).copy()
+            final_filter["owner_id"] = owner_id
+
             if match_threshold is None:
-                docs = self.vector_store.similarity_search(query, k=limit, filter=filter)
+                docs = self.vector_store.similarity_search(query, k=limit, filter=final_filter)
                 return [{"content": d.page_content, "metadata": d.metadata} for d in docs]
 
             query_embedding = self.embeddings.embed_query(query)
@@ -102,7 +107,7 @@ class SupabaseVectorMemoryRepository(VectorMemoryRepository):
                 "query_embedding": query_embedding,
                 "match_threshold": float(match_threshold),
                 "match_count": int(limit),
-                "filter": filter or {},
+                "filter": final_filter,
             }
             result = self.client.rpc("match_message_embeddings", params).execute()
             data = result.data or []
@@ -123,6 +128,7 @@ class SupabaseVectorMemoryRepository(VectorMemoryRepository):
 
     def hybrid_search_relevant(
         self,
+        owner_id: str,
         query: str,
         *,
         limit: int = 10,
@@ -138,12 +144,17 @@ class SupabaseVectorMemoryRepository(VectorMemoryRepository):
 
         try:
             query_embedding = self.embeddings.embed_query(query)
+            
+            # Enforce owner_id in filter
+            final_filter = (filter or {}).copy()
+            final_filter["owner_id"] = owner_id
+            
             params = {
                 "query_text": query,
                 "query_embedding": query_embedding,
                 "match_count": int(limit),
                 "match_threshold": float(match_threshold),
-                "filter": filter or {},
+                "filter": final_filter,
                 "weight_vec": float(weight_vector),
                 "weight_text": float(weight_text),
                 "rrf_k": int(rrf_k),

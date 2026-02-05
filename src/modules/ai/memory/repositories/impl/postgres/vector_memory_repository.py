@@ -42,9 +42,9 @@ class PostgresVectorMemoryRepository(VectorMemoryRepository):
         return "[" + ",".join(f"{float(x):.8f}" for x in embedding) + "]"
 
     def search_relevant(
-        self, query: str, limit: int = 5, filter: Optional[Dict] = None
+        self, owner_id: str, query: str, limit: int = 5, filter: Optional[Dict] = None
     ) -> List[Dict[str, Any]]:
-        return self.vector_search_relevant(query, limit=limit, match_threshold=None, filter=filter)
+        return self.vector_search_relevant(owner_id, query, limit=limit, match_threshold=None, filter=filter)
 
     def add_texts(
         self,
@@ -102,6 +102,7 @@ class PostgresVectorMemoryRepository(VectorMemoryRepository):
 
     def vector_search_relevant(
         self,
+        owner_id: str,
         query: str,
         *,
         limit: int = 10,
@@ -114,7 +115,12 @@ class PostgresVectorMemoryRepository(VectorMemoryRepository):
             query_embedding = self.embeddings.embed_query(query)
             vec = self._vector_literal(query_embedding)
             threshold = float(match_threshold) if match_threshold is not None else 0.0
-            payload = json.dumps(filter or {})
+            
+            # Enforce owner_id in filter
+            final_filter = (filter or {}).copy()
+            final_filter["owner_id"] = owner_id
+            
+            payload = json.dumps(final_filter)
             sql_query = (
                 "SELECT content, metadata, similarity "
                 "FROM app.match_message_embeddings(%s::extensions.vector(1536), %s, %s, %s::jsonb)"
@@ -145,6 +151,7 @@ class PostgresVectorMemoryRepository(VectorMemoryRepository):
 
     def hybrid_search_relevant(
         self,
+        owner_id: str,
         query: str,
         *,
         limit: int = 10,
@@ -161,7 +168,12 @@ class PostgresVectorMemoryRepository(VectorMemoryRepository):
         try:
             query_embedding = self.embeddings.embed_query(query)
             vec = self._vector_literal(query_embedding)
-            payload = json.dumps(filter or {})
+            
+            # Enforce owner_id in filter
+            final_filter = (filter or {}).copy()
+            final_filter["owner_id"] = owner_id
+            
+            payload = json.dumps(final_filter)
 
             sql_query = (
                 "SELECT content, metadata, similarity, score "

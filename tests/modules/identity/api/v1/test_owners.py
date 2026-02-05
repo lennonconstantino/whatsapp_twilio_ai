@@ -119,10 +119,12 @@ class TestOwnerAPI:
             "Registration failed"
         )
 
-        with pytest.raises(HTTPException) as exc:
+        # The controller no longer catches Exception, so it should bubble up.
+        # We expect the raw Exception here since we are testing the function directly.
+        with pytest.raises(Exception) as exc:
             register_organization(data=dto, identity_service=mock_identity_service)
 
-        assert exc.value.status_code == 400
+        assert str(exc.value) == "Registration failed"
 
     def test_update_owner_success(self, mock_owner_service, mock_owner):
         """Test updating owner successfully."""

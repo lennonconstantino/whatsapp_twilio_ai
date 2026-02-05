@@ -10,12 +10,13 @@ class VectorMemoryRepository(ABC):
 
     @abstractmethod
     def search_relevant(
-        self, query: str, limit: int = 5, filter: Optional[Dict] = None
+        self, owner_id: str, query: str, limit: int = 5, filter: Optional[Dict] = None
     ) -> List[Dict[str, Any]]:
         """
         Search for relevant documents using semantic similarity.
         
         Args:
+            owner_id: ID of the owner (Tenant) - MANDATORY for security.
             query: The search query string.
             limit: Maximum number of results to return.
             filter: Optional metadata filter.
@@ -28,6 +29,7 @@ class VectorMemoryRepository(ABC):
     @abstractmethod
     def hybrid_search_relevant(
         self,
+        owner_id: str,
         query: str,
         *,
         limit: int = 10,
@@ -42,6 +44,7 @@ class VectorMemoryRepository(ABC):
         Search for relevant documents using Hybrid Search (Vector + FTS) with RRF fusion.
 
         Args:
+            owner_id: ID of the owner (Tenant) - MANDATORY for security.
             query: The search query string.
             limit: Maximum number of results to return.
             match_threshold: Minimum similarity score threshold for vector search.
@@ -59,6 +62,7 @@ class VectorMemoryRepository(ABC):
     @abstractmethod
     def vector_search_relevant(
         self,
+        owner_id: str,
         query: str,
         *,
         limit: int = 15,
@@ -69,6 +73,7 @@ class VectorMemoryRepository(ABC):
         Search for relevant documents with more control options.
         
         Args:
+            owner_id: ID of the owner (Tenant) - MANDATORY for security.
             query: The search query string.
             limit: Maximum number of results to return.
             match_threshold: Minimum similarity score threshold.

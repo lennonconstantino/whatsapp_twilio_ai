@@ -31,11 +31,11 @@ class TestSupabaseVectorMemoryRepository:
         mock_doc.metadata = {"role": "user"}
         mock_vector_store.similarity_search.return_value = [mock_doc]
         
-        results = repository.search_relevant("query")
+        results = repository.search_relevant("owner_id", "query")
         
         assert len(results) == 1
         assert results[0]["content"] == "Test content"
-        mock_vector_store.similarity_search.assert_called_once_with("query", k=5, filter=None)
+        mock_vector_store.similarity_search.assert_called_once_with("query", k=5, filter={"owner_id": "owner_id"})
 
     def test_search_relevant_disables_on_missing_rpc(self, repository, mock_vector_store_cls):
         mock_vector_store = mock_vector_store_cls.return_value
@@ -43,8 +43,8 @@ class TestSupabaseVectorMemoryRepository:
             "{'code': 'PGRST202', 'message': 'Could not find the function public.match_message_embeddings(query_embedding) in the schema cache'}"
         )
 
-        first = repository.search_relevant("query")
-        second = repository.search_relevant("query")
+        first = repository.search_relevant("owner_id", "query")
+        second = repository.search_relevant("owner_id", "query")
 
         assert first == []
         assert second == []
@@ -71,7 +71,7 @@ class TestSupabaseVectorMemoryRepository:
         ]
         mock_client.rpc.return_value.execute.return_value = mock_response
 
-        results = repository.vector_search_relevant("query", limit=5, match_threshold=0.8)
+        results = repository.vector_search_relevant("owner_id", "query", limit=5, match_threshold=0.8)
 
         assert len(results) == 1
         assert results[0]["content"] == "Match"
@@ -83,7 +83,7 @@ class TestSupabaseVectorMemoryRepository:
                 "query_embedding": [0.1, 0.2],
                 "match_threshold": 0.8,
                 "match_count": 5,
-                "filter": {}
+                "filter": {"owner_id": "owner_id"}
             }
         )
 
@@ -98,7 +98,7 @@ class TestSupabaseVectorMemoryRepository:
         ]
         mock_client.schema.return_value.rpc.return_value.execute.return_value = mock_response
 
-        results = repository.hybrid_search_relevant("query")
+        results = repository.hybrid_search_relevant("owner_id", "query")
 
         assert len(results) == 1
         assert results[0]["content"] == "Hybrid Match"
@@ -112,7 +112,7 @@ class TestSupabaseVectorMemoryRepository:
                 "query_embedding": [0.1, 0.2],
                 "match_count": 10,
                 "match_threshold": 0.5,
-                "filter": {},
+                "filter": {"owner_id": "owner_id"},
                 "weight_vec": 1.5,
                 "weight_text": 1.0,
                 "rrf_k": 60,
@@ -123,7 +123,7 @@ class TestSupabaseVectorMemoryRepository:
     def test_hybrid_search_exception(self, repository, mock_client):
         mock_client.schema.return_value.rpc.side_effect = Exception("Supabase Error")
         
-        results = repository.hybrid_search_relevant("query")
+        results = repository.hybrid_search_relevant("owner_id", "query")
         
         assert results == []
 
