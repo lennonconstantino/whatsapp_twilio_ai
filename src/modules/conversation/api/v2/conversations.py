@@ -68,7 +68,7 @@ class ConversationListResponse(BaseModel):
 
 @router.post("/", response_model=ConversationResponse, status_code=201)
 @inject
-async def create_conversation(
+def create_conversation(
     conversation_data: ConversationCreateDTO,
     owner_id: str = Depends(get_current_owner_id),
     service: ConversationService = Depends(
@@ -102,7 +102,7 @@ async def create_conversation(
 
 @router.get("/{conv_id}", response_model=ConversationResponse)
 @inject
-async def get_conversation(
+def get_conversation(
     conv_id: str,
     owner_id: str = Depends(get_current_owner_id),
     service: ConversationService = Depends(
@@ -122,7 +122,7 @@ async def get_conversation(
 
 @router.get("/", response_model=ConversationListResponse)
 @inject
-async def list_conversations(
+def list_conversations(
     limit: int = Query(100, ge=1, le=1000),
     owner_id: str = Depends(get_current_owner_id),
     service: ConversationService = Depends(
@@ -140,7 +140,7 @@ async def list_conversations(
 
 @router.get("/{conv_id}/messages", response_model=List[MessageResponse])
 @inject
-async def get_conversation_messages(
+def get_conversation_messages(
     conv_id: str,
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
@@ -165,7 +165,7 @@ async def get_conversation_messages(
 
 @router.post("/{conv_id}/messages", response_model=MessageResponse, status_code=201)
 @inject
-async def add_message(
+def add_message(
     conv_id: str,
     message_data: MessageCreateDTO,
     owner_id: str = Depends(get_current_owner_id),
@@ -195,7 +195,7 @@ async def add_message(
 
 @router.post("/{conv_id}/close", response_model=ConversationResponse)
 @inject
-async def close_conversation(
+def close_conversation(
     conv_id: str,
     status: ConversationStatus,
     reason: str = Query(..., description="Reason for closure"),

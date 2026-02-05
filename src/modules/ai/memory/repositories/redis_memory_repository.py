@@ -134,5 +134,33 @@ class RedisMemoryRepository(MemoryInterface):
         except Exception as e:
             logger.error(f"Error adding message to Redis for {session_id}: {e}")
 
+    def add_messages_bulk(self, session_id: str, messages: List[Dict[str, Any]]) -> None:
+        """
+        Appends multiple messages to the Redis list in a single pipeline.
+        """
+        if self._disabled:
+            self._maybe_reenable()
+        if self._disabled:
+            return
+
+        if not messages:
+            return
+
+        key = self._get_key(session_id)
+        try:
+            # Serialize all messages first
+            json_msgs = [json.dumps(msg) for msg in messages]
+            
+            with self.redis.pipeline() as pipe:
+                # Use *json_msgs to push all at once
+                pipe.rpush(key, *json_msgs)
+                pipe.ltrim(key, -self.max_messages, -1)
+                pipe.expire(key, self.ttl_seconds)
+                pipe.execute()
+        except redis.exceptions.ConnectionError as e:
+            self._disable(str(e))
+        except Exception as e:
+            logger.error(f"Error adding bulk messages to Redis for {session_id}: {e}")
+
     def _get_key(self, session_id: str) -> str:
         return f"ai:memory:{session_id}"

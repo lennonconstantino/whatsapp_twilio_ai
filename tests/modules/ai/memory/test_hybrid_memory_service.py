@@ -51,7 +51,8 @@ class TestHybridMemoryService(unittest.TestCase):
         self.message_repo.find_recent_by_conversation.assert_called_once_with(self.session_id, 10)
         
         # Verify Populate Redis
-        self.redis_repo.add_message.assert_called_once_with(self.session_id, expected_format[0])
+        # Changed to add_messages_bulk
+        self.redis_repo.add_messages_bulk.assert_called_once_with(self.session_id, expected_format)
 
     def test_get_context_miss_redis_miss_db(self):
         # Arrange
@@ -64,6 +65,7 @@ class TestHybridMemoryService(unittest.TestCase):
         # Assert
         self.assertEqual(result, [])
         self.redis_repo.add_message.assert_not_called()
+        self.redis_repo.add_messages_bulk.assert_not_called()
 
 if __name__ == '__main__':
     unittest.main()

@@ -92,8 +92,7 @@ class HybridMemoryService(MemoryInterface):
                     # 3. Populate Redis (Read-Through)
                     # Optimization: Only populate if list is not empty
                     if agent_messages:
-                        for msg in agent_messages:
-                            self.redis_repo.add_message(session_id, msg)
+                        self.redis_repo.add_messages_bulk(session_id, agent_messages)
             except Exception as e:
                 logger.error(f"Error reading from DB for session {session_id}: {e}")
         

@@ -129,3 +129,36 @@ class TestRedisMemoryRepository(unittest.TestCase):
         self.repo.add_message(self.session_id, message)
 
         self.assertEqual(self.mock_redis.pipeline.call_count, 1)
+
+    def test_add_messages_bulk_success(self):
+        # Arrange
+        messages = [
+            {"role": "user", "content": "Msg 1"},
+            {"role": "assistant", "content": "Msg 2"}
+        ]
+        pipeline_mock = MagicMock()
+        self.mock_redis.pipeline.return_value.__enter__.return_value = pipeline_mock
+        
+        # Act
+        self.repo.add_messages_bulk(self.session_id, messages)
+        
+        # Assert
+        key = f"ai:memory:{self.session_id}"
+        json_msgs = [json.dumps(m) for m in messages]
+        # Check if rpush was called with unpacked args
+        pipeline_mock.rpush.assert_called_once_with(key, *json_msgs)
+        pipeline_mock.ltrim.assert_called_once_with(key, -50, -1)
+        pipeline_mock.expire.assert_called_once_with(key, self.ttl)
+        pipeline_mock.execute.assert_called_once()
+
+    def test_add_messages_bulk_empty(self):
+        # Arrange
+        messages = []
+        pipeline_mock = MagicMock()
+        self.mock_redis.pipeline.return_value.__enter__.return_value = pipeline_mock
+        
+        # Act
+        self.repo.add_messages_bulk(self.session_id, messages)
+        
+        # Assert
+        pipeline_mock.rpush.assert_not_called()

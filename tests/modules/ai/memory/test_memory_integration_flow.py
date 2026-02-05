@@ -51,16 +51,19 @@ class TestMemoryIntegrationFlow(unittest.TestCase):
         self.message_repo.find_recent_by_conversation.assert_called_once()
         
         # Verifica se tentou popular o Redis
-        self.redis_repo.add_message.assert_called_once()
-        args, _ = self.redis_repo.add_message.call_args
+        # Changed to add_messages_bulk
+        self.redis_repo.add_messages_bulk.assert_called_once()
+        args, _ = self.redis_repo.add_messages_bulk.call_args
         self.assertEqual(args[0], self.session_id)
-        self.assertEqual(args[1]["content"], "Mensagem Persistida")
+        # args[1] is the list of messages
+        self.assertEqual(len(args[1]), 1)
+        self.assertEqual(args[1][0]["content"], "Mensagem Persistida")
 
         # --- Passo 3: Simular Estado Pós-População (Redis agora tem dados) ---
         
         # Agora configuramos o mock do Redis para retornar o que foi "salvo"
         # Na vida real, o Redis teria persistido. Aqui simulamos o efeito colateral.
-        saved_msg = args[1]
+        saved_msg = args[1][0]
         self.redis_repo.get_context.return_value = [saved_msg]
         
         # Resetamos o mock do DB para garantir que NÃO será chamado
