@@ -38,8 +38,8 @@ No entanto, o **acoplamento entre módulos de domínio** (Twilio → AI, Twilio 
 
 *   **Mudança Crítica (Remoção V1):** A exclusão de `api/v1` eliminou código morto e rotas duplicadas. O módulo agora é puramente V2, focado em componentes ricos (`Lifecycle`, `Finder`, `Closer`).
 *   **Coesão (Melhorada):** A separação entre `services` (orquestração) e `components` (regras de negócio isoladas) na V2 aumentou a coesão funcional. O uso de `impl/` para repositórios limpou a lógica de persistência.
-*   **Acoplamento:** Ainda existe vazamento de detalhes de infraestrutura para o domínio (ex: `Lifecycle` conhecendo detalhes de tabela para histórico).
-*   **Veredito:** O módulo está mais leve e focado. O próximo passo é isolar totalmente o `Lifecycle` da persistência direta.
+*   **Acoplamento:** **[AUDITADO/RESOLVIDO]** A suspeita de vazamento de infraestrutura no `ConversationLifecycle` foi investigada e descartada. O componente interage estritamente via interface `ConversationRepository` e DTOs, sem dependências diretas de drivers de banco (Supabase/Postgres).
+*   **Veredito:** O módulo está leve, focado e em conformidade com Clean Architecture.
 
 ### 2.3. AI (`src/modules/ai`)
 **Motor de Inteligência**
@@ -80,9 +80,10 @@ O sistema evoluiu positivamente com a adoção de **Clean Architecture nos Repos
 2.  **Inicialização do Módulo AI:** O carregamento de LLMs no import (`llm.py`) acopla o tempo de boot à disponibilidade de APIs externas.
     *   *Recomendação:* Implementar Lazy Loading ou Factory Pattern para instanciar LLMs apenas quando necessários (request-scoped ou worker-scoped).
 
-3.  **Vazamento de Infra em Domain (Conversation):** Componentes de negócio (`Lifecycle`) acessando tabelas diretamente.
-    *   *Recomendação:* Reforçar o uso estrito de Interfaces de Repositório, proibindo imports de clientes de banco (Supabase/SQLAlchemy) dentro de `src/modules/*/components` ou `services`.
+3.  **Vazamento de Infra em Domain (Conversation):** ~~Componentes de negócio (`Lifecycle`) acessando tabelas diretamente.~~
+    *   *Status:* **[RESOLVIDO/VERIFICADO]** - Auditoria confirmou que o código utiliza corretamente Injeção de Dependência e Interfaces de Repositório. Não há imports de infraestrutura no domínio.
 
 ### Próximo Passo Sugerido
 
 Focar no **desacoplamento do Webhook Twilio**, garantindo que ele possa responder 200 OK sem depender da saúde do banco de dados ou do serviço de conversas, aumentando a resiliência do gateway de entrada.
+Transformá-lo em um receptor "burro" que apenas valida e enfileira o evento bruto, movendo a orquestração (busca de conversa, decisão de AI) para um processamento assíncrono. Isso blindará o gateway de entrada contra oscilações no banco de dados ou serviços internos.

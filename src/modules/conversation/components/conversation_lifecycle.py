@@ -4,7 +4,7 @@ Responsible for state transitions and expiration management.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 from src.core.utils import get_logger
 from src.core.utils.exceptions import ConcurrencyError
