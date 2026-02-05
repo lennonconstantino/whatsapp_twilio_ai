@@ -102,7 +102,7 @@ def ulid_to_timestamp(ulid: str) -> datetime:
 
     try:
         ulid_obj = ULID.from_str(ulid)
-        return ulid_obj.timestamp().datetime
+        return ulid_obj.datetime
     except ValueError as e:
         raise ValueError(f"Invalid ULID format: {ulid}") from e
 
@@ -122,6 +122,6 @@ def ulid_to_unix_ms(ulid: str) -> int:
 
     try:
         ulid_obj = ULID.from_str(ulid)
-        return int(ulid_obj.timestamp().timestamp * 1000)
+        return int(ulid_obj.timestamp * 1000)
     except ValueError as e:
         raise ValueError(f"Invalid ULID format: {ulid}") from e
