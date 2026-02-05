@@ -18,6 +18,7 @@ from .core.config import settings
 from .core.di.container import Container
 from .core.utils import get_logger
 from .core.observability import setup_observability
+from .core.api.exception_handlers import setup_exception_handlers
 from .modules.channels.twilio.api import router as twilio_router
 from .modules.conversation.api import router as conversation_router
 from .modules.identity.api import router as identity_router
@@ -59,6 +60,9 @@ app = FastAPI(
 
 # Setup Observability
 setup_observability(app)
+
+# Setup Exception Handlers
+setup_exception_handlers(app)
 
 # Attach container to app
 app.container = container

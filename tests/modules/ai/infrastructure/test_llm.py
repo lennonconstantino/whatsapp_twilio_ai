@@ -28,8 +28,8 @@ class TestLLMFactory:
         
         mock_chat_cls = MagicMock()
         
-        # Patch the provider map specifically
-        with patch.dict("src.modules.ai.infrastructure.llm._PROVIDER_MAP", {"openai": mock_chat_cls}):
+        # Patch the class directly since we use local imports
+        with patch("langchain_openai.ChatOpenAI", mock_chat_cls):
             # Should create instance
             model = factory.get_model(key)
             
@@ -47,7 +47,7 @@ class TestLLMFactory:
         key = "openai/gpt-4-turbo-custom"
         mock_chat_cls = MagicMock()
         
-        with patch.dict("src.modules.ai.infrastructure.llm._PROVIDER_MAP", {"openai": mock_chat_cls}):
+        with patch("langchain_openai.ChatOpenAI", mock_chat_cls):
             # Should create instance via inference
             model = factory.get_model(key)
             

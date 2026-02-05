@@ -7,13 +7,43 @@ import logging
 import sys
 from typing import Any
 
+import re
+from typing import Any, Dict
+
 import structlog
 
 from src.core.config import settings
 
 import os
 import colorama
-import structlog
+
+# Regex patterns for PII
+EMAIL_REGEX = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
+CPF_REGEX = re.compile(r'\b\d{3}\.\d{3}\.\d{3}-\d{2}\b')
+PHONE_REGEX = re.compile(r'\b\+?[1-9]\d{1,14}\b') 
+
+class PIIMaskingProcessor:
+    """
+    Structlog processor that masks PII (Email, CPF, Phone) in log events.
+    """
+    def __call__(self, logger: Any, method_name: str, event_dict: Dict[str, Any]) -> Dict[str, Any]:
+        for key, value in event_dict.items():
+            if isinstance(value, str):
+                # Mask Email
+                value = EMAIL_REGEX.sub('[EMAIL_REDACTED]', value)
+                # Mask CPF
+                value = CPF_REGEX.sub('[CPF_REDACTED]', value)
+                # Mask Phone (be careful with IDs, but this regex expects 10-15 digits)
+                # We can be more conservative or specific if needed.
+                # For now, let's skip phone masking on keys that look like IDs
+                if 'id' not in key.lower() and 'uuid' not in key.lower():
+                     if PHONE_REGEX.search(value):
+                        # Simple heuristic: if it looks like a phone and key suggests it
+                        if any(k in key.lower() for k in ['phone', 'mobile', 'celular', 'telefone', 'whatsapp', 'from', 'to']):
+                             value = PHONE_REGEX.sub('[PHONE_REDACTED]', value)
+                
+                event_dict[key] = value
+        return event_dict
 
 # Inicializar colorama
 # Se FORCE_COLOR=true, forçamos strip=False para manter cores mesmo em arquivos/pipes
@@ -119,6 +149,7 @@ def configure_logging():
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.UnicodeDecoder(),
+        PIIMaskingProcessor(),
     ]
     
     # Escolher renderizador baseado no ambiente

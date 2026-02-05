@@ -1,23 +1,11 @@
 from typing import Any, Dict, Optional, List
 import os
 from langchain_core.language_models import BaseChatModel
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_groq import ChatGroq
-from langchain_ollama import ChatOllama
-from langchain_openai import ChatOpenAI
 
 from src.core.utils.logging import get_logger
 from src.core.config import settings
 
 logger = get_logger(__name__)
-
-# Provider mapping
-_PROVIDER_MAP = {
-    "openai": ChatOpenAI,
-    "google": ChatGoogleGenerativeAI,
-    "groq": ChatGroq,
-    "ollama": ChatOllama,
-}
 
 # Static configuration for known models
 MODEL_CONFIGS = [
@@ -117,12 +105,25 @@ class LLMFactory:
         extra_params = {k: v for k, v in config.items() 
                        if k not in ["provider", "model_name", "temperature"]}
 
-        if provider not in _PROVIDER_MAP:
+        model_class = None
+        
+        if provider == "openai":
+            from langchain_openai import ChatOpenAI
+            model_class = ChatOpenAI
+        elif provider == "google":
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            model_class = ChatGoogleGenerativeAI
+        elif provider == "groq":
+            from langchain_groq import ChatGroq
+            model_class = ChatGroq
+        elif provider == "ollama":
+            from langchain_ollama import ChatOllama
+            model_class = ChatOllama
+        else:
             raise ValueError(
-                f"Unsupported provider: {provider}. Supported: {list(_PROVIDER_MAP.keys())}"
+                f"Unsupported provider: {provider}. Supported: openai, google, groq, ollama"
             )
 
-        model_class = _PROVIDER_MAP[provider]
         params = {"model": model_name}
 
         if temperature is not None:
