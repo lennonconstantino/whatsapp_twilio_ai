@@ -9,11 +9,6 @@ from langchain_openai import ChatOpenAI
 from src.core.utils.logging import get_logger
 from src.core.config import settings
 
-from dotenv import load_dotenv
-
-# Load env variables if not already loaded
-_ = load_dotenv()
-
 logger = get_logger(__name__)
 
 # Provider mapping

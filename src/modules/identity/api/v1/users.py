@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel, EmailStr
 
 from src.core.di.container import Container
+from src.core.security import get_current_owner_id, get_current_user_id
 from src.modules.identity.dtos.user_dto import UserCreateDTO
 from src.modules.identity.models.user import User, UserCreate, UserUpdate
 from src.modules.identity.services.user_service import UserService
@@ -22,11 +23,11 @@ class UserSyncRequest(BaseModel):
 @router.get("/me", response_model=User)
 @inject
 def get_current_user_profile(
-    x_auth_id: str = Header(..., alias="X-Auth-ID"),
+    auth_id: str = Depends(get_current_user_id),
     user_service: UserService = Depends(Provide[Container.user_service]),
 ):
     """Get profile of the currently logged-in user."""
-    user = user_service.get_user_by_auth_id(x_auth_id)
+    user = user_service.get_user_by_auth_id(auth_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -91,7 +92,7 @@ def get_user(
 @router.get("/", response_model=List[User])
 @inject
 def list_users(
-    owner_id: str = Query(..., description="Filter by Owner ID"),
+    owner_id: str = Depends(get_current_owner_id),
     user_service: UserService = Depends(Provide[Container.user_service]),
 ):
     """List users by owner."""

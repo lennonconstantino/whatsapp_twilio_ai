@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from src.core.di.container import Container
+from src.core.security import get_current_owner_id
 from src.core.utils import get_logger
 from src.modules.conversation.dtos.conversation_dto import \
     ConversationCreateDTO
@@ -67,6 +68,7 @@ class ConversationListResponse(BaseModel):
 @inject
 async def create_conversation(
     conversation_data: ConversationCreateDTO,
+    owner_id: str = Depends(get_current_owner_id),
     service: ConversationService = Depends(
         Provide[Container.conversation_service]
     ),
@@ -74,6 +76,12 @@ async def create_conversation(
     """
     Create or get an active conversation (V2).
     """
+    if conversation_data.owner_id != owner_id:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Not authorized to create conversation for owner {conversation_data.owner_id}",
+        )
+
     try:
         conversation = service.get_or_create_conversation(
             owner_id=conversation_data.owner_id,
@@ -94,6 +102,7 @@ async def create_conversation(
 @inject
 async def get_conversation(
     conv_id: str,
+    owner_id: str = Depends(get_current_owner_id),
     service: ConversationService = Depends(
         Provide[Container.conversation_service]
     ),
@@ -103,14 +112,17 @@ async def get_conversation(
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
+    if conversation.owner_id != owner_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this conversation")
+
     return ConversationResponse.model_validate(conversation)
 
 
 @router.get("/", response_model=ConversationListResponse)
 @inject
 async def list_conversations(
-    owner_id: str = Query(..., description="Owner ID"),
     limit: int = Query(100, ge=1, le=1000),
+    owner_id: str = Depends(get_current_owner_id),
     service: ConversationService = Depends(
         Provide[Container.conversation_service]
     ),
@@ -130,6 +142,7 @@ async def get_conversation_messages(
     conv_id: str,
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
+    owner_id: str = Depends(get_current_owner_id),
     service: ConversationService = Depends(
         Provide[Container.conversation_service]
     ),
@@ -139,6 +152,9 @@ async def get_conversation_messages(
     conversation = service.get_conversation_by_id(conv_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+    if conversation.owner_id != owner_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this conversation")
 
     messages = service.get_conversation_messages(conv_id, limit, offset)
 
@@ -150,6 +166,7 @@ async def get_conversation_messages(
 async def add_message(
     conv_id: str,
     message_data: MessageCreateDTO,
+    owner_id: str = Depends(get_current_owner_id),
     service: ConversationService = Depends(
         Provide[Container.conversation_service]
     ),
@@ -159,6 +176,9 @@ async def add_message(
     conversation = service.get_conversation_by_id(conv_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+    if conversation.owner_id != owner_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this conversation")
 
     # Ensure conv_id matches
     message_data.conv_id = conv_id
@@ -177,6 +197,7 @@ async def close_conversation(
     conv_id: str,
     status: ConversationStatus,
     reason: str = Query(..., description="Reason for closure"),
+    owner_id: str = Depends(get_current_owner_id),
     service: ConversationService = Depends(
         Provide[Container.conversation_service]
     ),
@@ -185,6 +206,9 @@ async def close_conversation(
     conversation = service.get_conversation_by_id(conv_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+    if conversation.owner_id != owner_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this conversation")
 
     try:
         closed = service.close_conversation(

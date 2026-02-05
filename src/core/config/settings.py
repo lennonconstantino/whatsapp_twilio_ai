@@ -3,12 +3,8 @@ Configuration module for the Owner project.
 Handles environment variables and application settings.
 """
 
-from dotenv import load_dotenv
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-# Load .env file immediately
-load_dotenv()
 
 
 class ConversationSettings(BaseSettings):
@@ -136,6 +132,18 @@ class SecuritySettings(BaseSettings):
     )
 
     model_config = SettingsConfigDict(env_prefix="")
+    
+    @field_validator("secret_key")
+    @classmethod
+    def validate_secret_key(cls, v: str, info) -> str:
+        # We can't easily access other settings here (like api.environment) 
+        # because SecuritySettings is nested.
+        # But we can check if it is the default value.
+        # Ideally we check environment, but BaseSettings validation is per-model.
+        # We will do a check in the main Settings validator or just warn here.
+        # However, for now, let's just allow it but we will add a check in main Settings.
+        return v
+
 
 
 class LogSettings(BaseSettings):
@@ -302,6 +310,29 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )
+
+    @field_validator("security")
+    @classmethod
+    def validate_security(cls, v: SecuritySettings, info) -> SecuritySettings:
+        # Access 'api' settings is hard here because validation order.
+        # But we can check environment variable directly or assume defaults.
+        # A better approach is to check this in the root validator or __init__.
+        # For simplicity and robustness, we will check against the default value
+        # and raise error if we are likely in production (heuristic or explicit env check).
+        
+        # We can't access 'api.environment' easily inside a field validator for 'security'
+        # if 'api' hasn't been validated yet or isn't passed to this validator.
+        # So we'll use a model_validator for the whole Settings class.
+        return v
+
+    @model_validator(mode="after")
+    def check_production_security(self) -> "Settings":
+        if self.api.environment == "production":
+            if self.security.secret_key == "change-me-in-production":
+                raise ValueError(
+                    "CRITICAL: SECRET_KEY must be changed in production environment!"
+                )
+        return self
 
 
 # Global settings instance

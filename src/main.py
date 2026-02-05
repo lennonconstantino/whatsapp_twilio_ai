@@ -5,7 +5,8 @@ Main FastAPI application.
 from dotenv import load_dotenv
 
 # Carrega variáveis de ambiente ANTES de qualquer outro import que use settings
-load_dotenv()
+# load_dotenv() - Moved to explicit initialization or entry point check
+
 
 from contextlib import asynccontextmanager
 
@@ -101,6 +102,7 @@ if not is_production:
 
 
 if __name__ == "__main__":
+    load_dotenv()
     import uvicorn
 
     uvicorn.run(
