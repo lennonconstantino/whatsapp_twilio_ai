@@ -13,7 +13,12 @@ class PostgresDatabase:
         # Register adapters for JSON serialization
         register_adapter(dict, Json)
         
-        self._pool = ThreadedConnectionPool(minconn=minconn, maxconn=maxconn, dsn=dsn)
+        self._pool = ThreadedConnectionPool(
+            minconn=minconn, 
+            maxconn=maxconn, 
+            dsn=dsn,
+            options="-c search_path=app,extensions,public"
+        )
 
     @contextmanager
     def connection(self) -> Iterator:

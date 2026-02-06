@@ -29,12 +29,19 @@ class PostgresRepository(Generic[T]):
 
         Args:
             db: PostgresDatabase instance (pool/connection manager)
-            table_name: Name of the database table
+            table_name: Name of the database table (supports "schema.table" format)
             model_class: Pydantic model class (for return types)
         """
         self.db = db
         self.table_name = table_name
         self.model_class = model_class
+
+        # Handle schema qualification
+        if "." in table_name:
+            schema, table = table_name.split(".", 1)
+            self.table_identifier = sql.Identifier(schema, table)
+        else:
+            self.table_identifier = sql.Identifier(table_name)
 
     def _execute_query(
         self,
@@ -95,7 +102,7 @@ class PostgresRepository(Generic[T]):
         values = data.values()
 
         query = sql.SQL("INSERT INTO {} ({}) VALUES ({}) RETURNING *").format(
-            sql.Identifier(self.table_name),
+            self.table_identifier,
             sql.SQL(", ").join(map(sql.Identifier, columns)),
             sql.SQL(", ").join(sql.Placeholder() * len(columns)),
         )
@@ -113,7 +120,7 @@ class PostgresRepository(Generic[T]):
         Find a record by ID using raw SELECT.
         """
         query = sql.SQL("SELECT * FROM {} WHERE {} = %s").format(
-            sql.Identifier(self.table_name), sql.Identifier(id_column)
+            self.table_identifier, sql.Identifier(id_column)
         )
 
         result = self._execute_query(query, (id_value,), fetch_one=True)
@@ -148,7 +155,7 @@ class PostgresRepository(Generic[T]):
         ]
 
         query = sql.SQL("UPDATE {} SET {} WHERE ").format(
-            sql.Identifier(self.table_name),
+            self.table_identifier,
             sql.SQL(", ").join(set_clauses),
         ) + where_clause + sql.SQL(" RETURNING *")
 
@@ -168,7 +175,7 @@ class PostgresRepository(Generic[T]):
         Delete a record using raw DELETE.
         """
         query = sql.SQL("DELETE FROM {} WHERE {} = %s").format(
-            sql.Identifier(self.table_name), sql.Identifier(id_column)
+            self.table_identifier, sql.Identifier(id_column)
         )
 
         rowcount = self._execute_query(query, (id_value,), commit=True)
@@ -195,7 +202,7 @@ class PostgresRepository(Generic[T]):
         limit_clause = sql.SQL(" LIMIT %s")
 
         query = (
-            sql.SQL("SELECT * FROM {}").format(sql.Identifier(self.table_name))
+            sql.SQL("SELECT * FROM {}").format(self.table_identifier)
             + where_clause
             + limit_clause
         )
@@ -229,7 +236,7 @@ class PostgresRepository(Generic[T]):
 
         query = (
             sql.SQL("SELECT COUNT(*) as count FROM {}").format(
-                sql.Identifier(self.table_name)
+                self.table_identifier
             )
             + where_clause
         )
@@ -250,7 +257,7 @@ class PostgresRepository(Generic[T]):
             select_clause = sql.SQL("*")
 
         query = sql.SQL("SELECT {} FROM {}").format(
-            select_clause, sql.Identifier(self.table_name)
+            select_clause, self.table_identifier
         )
 
         params = []

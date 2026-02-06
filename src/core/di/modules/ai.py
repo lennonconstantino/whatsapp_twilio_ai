@@ -69,11 +69,14 @@ class AIContainer(containers.DeclarativeContainer):
     )
 
     # AI Result Repositories
-    ai_result_repository = providers.Selector(
-        core.db_backend,
-        supabase=providers.Factory(SupabaseAIResultRepository, client=core.supabase_session),
-        postgres=providers.Factory(PostgresAIResultRepository, db=core.postgres_db),
-    )
+    # FORCED POSTGRES: To bypass Supabase PostgREST schema cache issues with feature_id type change
+    ai_result_repository = providers.Factory(PostgresAIResultRepository, db=core.postgres_db)
+    
+    # ai_result_repository = providers.Selector(
+    #     core.db_backend,
+    #     supabase=providers.Factory(SupabaseAIResultRepository, client=core.supabase_session),
+    #     postgres=providers.Factory(PostgresAIResultRepository, db=core.postgres_db),
+    # )
 
     # Finance Repositories
     expense_repository = providers.Selector(

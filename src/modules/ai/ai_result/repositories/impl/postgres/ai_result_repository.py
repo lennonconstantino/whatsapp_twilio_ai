@@ -13,7 +13,7 @@ from src.modules.ai.ai_result.repositories.ai_result_repository import (
 
 class PostgresAIResultRepository(PostgresRepository[AIResult], AIResultRepository):
     def __init__(self, db: PostgresDatabase):
-        super().__init__(db, "ai_results", AIResult)
+        super().__init__(db, "app.ai_results", AIResult)
 
     def find_by_message(self, msg_id: str, limit: int = 100) -> List[AIResult]:
         return self.find_by({"msg_id": msg_id}, limit=limit)
