@@ -10,6 +10,7 @@ load_dotenv()
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.core.di.container import Container
+from src.core.config import settings
 from src.core.utils import get_logger
 from src.modules.billing.enums.billing_period import BillingPeriod
 from src.modules.billing.enums.feature_type import FeatureType
@@ -21,6 +22,14 @@ logger = get_logger(__name__)
 def seed_plans():
     """Seed plan data."""
     try:
+        if settings.database.backend == "supabase":
+            # Check for Supabase Service Role Key to bypass RLS
+            if settings.supabase.service_key:
+                logger.info("Using Supabase Service Role Key for seeding (Bypassing RLS)...")
+                settings.supabase.key = settings.supabase.service_key
+            else:
+                logger.warning("SUPABASE_SERVICE_KEY not found. Using Anon Key (might fail due to RLS).")
+
         # Initialize Container
         container = Container()
         

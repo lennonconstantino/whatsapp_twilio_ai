@@ -295,7 +295,12 @@ async def seed_twilio_accounts(twilio_repo: TwilioAccountRepository, owners):
             logger.info(f"Twilio account for owner {data['owner_id']} already exists")
             accounts.append(existing)
         else:
-            account = await twilio_repo.create(data)
+            # Create account
+            # Note: SupabaseTwilioAccountRepository.create is synchronous (inherited from SupabaseRepository)
+            # unless overridden. The base create is sync.
+            account = twilio_repo.create(data)
+            if asyncio.iscoroutine(account):
+                account = await account
             logger.info(f"Created Twilio account for owner {data['owner_id']}")
             accounts.append(account)
 
@@ -426,6 +431,15 @@ async def seed_sample_conversations(
 async def main():
     """Main seed function."""
     logger.info("Starting seed process...")
+    
+    if settings.database.backend == "supabase":
+        # Check for Supabase Service Role Key to bypass RLS
+        if settings.supabase.service_key:
+            logger.info("Using Supabase Service Role Key for seeding (Bypassing RLS)...")
+            settings.supabase.key = settings.supabase.service_key
+        else:
+            logger.warning("SUPABASE_SERVICE_KEY not found. Using Anon Key (might fail due to RLS).")
+
 
     try:
         # Initialize Container

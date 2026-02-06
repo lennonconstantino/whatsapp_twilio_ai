@@ -64,13 +64,22 @@ class DatabaseConnection:
             )
         try:
             self._validate_supabase_settings()
+            
+            # Use Service Key if available (Backend should use Service Role to bypass RLS)
+            # Otherwise fall back to Anon Key
+            api_key = settings.supabase.service_key or settings.supabase.key
+            key_type = "SERVICE_KEY" if settings.supabase.service_key else "ANON_KEY"
+            
+            if not api_key:
+                 raise RuntimeError("No Supabase API key found (neither SERVICE_KEY nor KEY)")
+
             options = ClientOptions(schema=settings.supabase.db_schema)
             self._client = create_client(
-                settings.supabase.url, settings.supabase.key, options=options
+                settings.supabase.url, api_key, options=options
             )
             self._session = SupabaseSession(self._client)
             logger.info(
-                f"Successfully connected to Supabase (schema={settings.supabase.db_schema})"
+                f"Successfully connected to Supabase (schema={settings.supabase.db_schema}, key_type={key_type})"
             )
         except Exception as e:
             logger.error(f"Failed to connect to Supabase: {e}")

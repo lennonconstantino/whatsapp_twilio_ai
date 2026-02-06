@@ -3,7 +3,7 @@ Configuration module for the Owner project.
 Handles environment variables and application settings.
 """
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -85,7 +85,9 @@ class SupabaseSettings(BaseSettings):
     url: str | None = Field(default=None, description="Supabase project URL")
     key: str | None = Field(default=None, description="Supabase anon key")
     service_key: str | None = Field(
-        default=None, description="Supabase service role key"
+        default=None, 
+        description="Supabase service role key",
+        validation_alias=AliasChoices("SUPABASE_SERVICE_KEY", "SUPABASE_SERVICE_ROLE_KEY")
     )
     db_schema: str = Field(
         default="public", description="Default database schema (e.g. public, app)"

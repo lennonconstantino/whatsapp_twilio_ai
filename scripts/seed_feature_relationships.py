@@ -26,6 +26,14 @@ logger = get_logger(__name__)
 
 def get_repositories():
     """Get repositories from DI container."""
+    if settings.database.backend == "supabase":
+        # Check for Supabase Service Role Key to bypass RLS
+        if settings.supabase.service_key:
+            logger.info("Using Supabase Service Role Key for seeding (Bypassing RLS)...")
+            settings.supabase.key = settings.supabase.service_key
+        else:
+            logger.warning("SUPABASE_SERVICE_KEY not found. Using Anon Key (might fail due to RLS).")
+
     container = Container()
     container.wire(modules=[__name__])
     
