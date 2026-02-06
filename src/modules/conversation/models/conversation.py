@@ -1,11 +1,23 @@
+import json
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, BeforeValidator
+from typing_extensions import Annotated
 
 from src.core.utils.custom_ulid import is_valid_ulid, validate_ulid_field
 from src.modules.conversation.enums.conversation_status import \
     ConversationStatus
+
+
+def parse_json_dict(v: Any) -> Dict[str, Any]:
+    """Parse dictionary from string (JSON) if necessary."""
+    if isinstance(v, str):
+        try:
+            return json.loads(v)
+        except json.JSONDecodeError:
+            return {}
+    return v
 
 
 class Conversation(BaseModel):
@@ -27,8 +39,8 @@ class Conversation(BaseModel):
     phone_number: Optional[str] = None
     agent_id: Optional[str] = None
     handoff_at: Optional[datetime] = None
-    context: Dict[str, Any] = Field(default_factory=dict)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    context: Annotated[Dict[str, Any], BeforeValidator(parse_json_dict)] = Field(default_factory=dict)
+    metadata: Annotated[Dict[str, Any], BeforeValidator(parse_json_dict)] = Field(default_factory=dict)
     version: int = 1  # Optimistic Locking
 
     model_config = ConfigDict(from_attributes=True, use_enum_values=True, extra="ignore")

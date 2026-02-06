@@ -63,6 +63,9 @@ class PlanService:
         if not feature:
             raise ValueError(f"Feature {feature_key} not found")
             
+        # Check if feature already exists in plan
+        existing_feature = self.plan_features_repo.find_by_plan_and_feature(plan_id, feature.feature_id)
+        
         data = {
             "plan_id": plan_id,
             "feature_id": feature.feature_id,
@@ -70,6 +73,14 @@ class PlanService:
             "config_value": config or {},
             "is_enabled": True
         }
+        
+        if existing_feature:
+            # Update existing feature configuration
+            return self.plan_features_repo.update(
+                id_value=existing_feature.plan_feature_id,
+                data=data,
+                id_column="plan_feature_id"
+            )
         
         return self.plan_features_repo.create(data)
 

@@ -3,7 +3,7 @@ PostgreSQL implementation of the Repository Pattern using asyncpg.
 """
 
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
-import re
+import json
 
 from src.core.utils import get_logger
 from src.core.database.postgres_async_session import AsyncPostgresDatabase
@@ -106,7 +106,11 @@ class PostgresAsyncRepository(Generic[T]):
 
     async def create(self, data: Dict[str, Any]) -> Optional[T]:
         columns = data.keys()
-        values = data.values()
+        # Automatically serialize dicts to JSON strings for asyncpg
+        values = [
+            json.dumps(v) if isinstance(v, dict) else v 
+            for v in data.values()
+        ]
 
         query = sql.SQL("INSERT INTO {} ({}) VALUES ({}) RETURNING *").format(
             self.table_identifier,
@@ -145,16 +149,22 @@ class PostgresAsyncRepository(Generic[T]):
 
         where_clause = sql.SQL("{} = %s").format(self._id(id_column))
         
-        params_list = list(data.values())
+        # Serialize dicts to JSON strings
+        params_list = [
+            json.dumps(v) if isinstance(v, dict) else v 
+            for v in data.values()
+        ]
         params_list.append(id_value)
 
         if current_version is not None:
             if "version" not in data:
                 data = {**data, "version": current_version + 1}
                 # Update params list with new version value if we added it
-                # Wait, data.values() order matters.
-                # Let's reconstruct params carefully.
-                params_list = list(data.values()) # Re-grab values including version
+                # We need to re-serialize because data changed
+                params_list = [
+                    json.dumps(v) if isinstance(v, dict) else v 
+                    for v in data.values()
+                ]
                 params_list.append(id_value)
             
             where_clause = where_clause + sql.SQL(" AND version = %s")

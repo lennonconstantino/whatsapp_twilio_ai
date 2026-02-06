@@ -43,6 +43,11 @@ class TwilioWebhookMessageHandler:
             if isinstance(message.metadata, dict):
                 user_id = message.metadata.get("user_id")
 
+            # Safe serialization for timestamp
+            timestamp_str = None
+            if message.timestamp:
+                timestamp_str = message.timestamp.isoformat()
+
             await self.queue_service.enqueue(
                 task_name="generate_embedding",
                 payload={
@@ -53,7 +58,7 @@ class TwilioWebhookMessageHandler:
                         "owner_id": message.owner_id,
                         "user_id": user_id,
                         "role": "user" if message.message_owner == MessageOwner.USER else "assistant",
-                        "timestamp": message.timestamp.isoformat() if message.timestamp else None
+                        "timestamp": timestamp_str
                     }
                 },
                 owner_id=message.owner_id

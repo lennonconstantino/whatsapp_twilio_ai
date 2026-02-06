@@ -156,7 +156,7 @@ class PostgresConversationRepository(PostgresAsyncRepository[Conversation], Conv
         return [self.model_class(**r) for r in rows]
 
     async def find_expired_candidates(self, limit: int = 100) -> List[Conversation]:
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc)
         statuses = [s.value for s in ConversationStatus.active_statuses()]
         query = sql.SQL(
             "SELECT * FROM conversations "
@@ -170,6 +170,16 @@ class PostgresConversationRepository(PostgresAsyncRepository[Conversation], Conv
     async def find_idle_candidates(
         self, idle_threshold_iso: str, limit: int = 100
     ) -> List[Conversation]:
+        # Ensure we pass datetime to asyncpg, not string
+        if isinstance(idle_threshold_iso, str):
+            try:
+                threshold_dt = datetime.fromisoformat(idle_threshold_iso)
+            except ValueError:
+                # Handle 'Z' if not supported by current python version's fromisoformat
+                threshold_dt = datetime.fromisoformat(idle_threshold_iso.replace('Z', '+00:00'))
+        else:
+            threshold_dt = idle_threshold_iso
+
         statuses = [s.value for s in ConversationStatus.active_statuses()]
         query = sql.SQL(
             "SELECT * FROM conversations "
@@ -177,7 +187,7 @@ class PostgresConversationRepository(PostgresAsyncRepository[Conversation], Conv
             "LIMIT %s"
         )
         
-        rows = await self._execute_query(query, (statuses, idle_threshold_iso, limit), fetch_all=True)
+        rows = await self._execute_query(query, (statuses, threshold_dt, limit), fetch_all=True)
         return [self.model_class(**r) for r in rows]
 
     async def cleanup_expired_conversations(self, limit: int = 100) -> int:
@@ -267,7 +277,7 @@ class PostgresConversationRepository(PostgresAsyncRepository[Conversation], Conv
         )
 
     async def update_timestamp(self, conv_id: str) -> Optional[Conversation]:
-        data = {"updated_at": datetime.now(timezone.utc).isoformat()}
+        data = {"updated_at": datetime.now(timezone.utc)}
         return await self.update(conv_id, data, id_column="conv_id")
 
     async def update_status(
@@ -292,14 +302,14 @@ class PostgresConversationRepository(PostgresAsyncRepository[Conversation], Conv
 
         update_data: Dict[str, Any] = {
             "status": to_status.value,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc),
         }
         if ended_at or to_status in ConversationStatus.closed_statuses():
             update_data["ended_at"] = (
                 ended_at or datetime.now(timezone.utc)
-            ).isoformat()
+            )
         if expires_at:
-            update_data["expires_at"] = expires_at.isoformat()
+            update_data["expires_at"] = expires_at
 
         updated = await self.update(
             conv_id,

@@ -8,6 +8,14 @@ from src.modules.billing.repositories.impl.supabase.plan_version_repository impo
 from src.modules.billing.repositories.impl.supabase.subscription_repository import SupabaseSubscriptionRepository
 from src.modules.billing.repositories.impl.supabase.subscription_event_repository import SupabaseSubscriptionEventRepository
 
+from src.modules.billing.repositories.impl.postgres.features_catalog_repository import PostgresFeaturesCatalogRepository
+from src.modules.billing.repositories.impl.postgres.feature_usage_repository import PostgresFeatureUsageRepository
+from src.modules.billing.repositories.impl.postgres.plan_repository import PostgresPlanRepository
+from src.modules.billing.repositories.impl.postgres.plan_feature_repository import PostgresPlanFeatureRepository
+from src.modules.billing.repositories.impl.postgres.plan_version_repository import PostgresPlanVersionRepository
+from src.modules.billing.repositories.impl.postgres.subscription_repository import PostgresSubscriptionRepository
+from src.modules.billing.repositories.impl.postgres.subscription_event_repository import PostgresSubscriptionEventRepository
+
 from src.modules.billing.services.features_catalog_service import FeaturesCatalogService
 from src.modules.billing.services.feature_usage_service import FeatureUsageService
 from src.modules.billing.services.plan_service import PlanService
@@ -23,14 +31,48 @@ class BillingContainer(containers.DeclarativeContainer):
     
     core = providers.DependenciesContainer()
 
-    # Repositories (Supabase)
-    features_catalog_repository = providers.Factory(SupabaseFeaturesCatalogRepository, client=core.supabase_client)
-    feature_usage_repository = providers.Factory(SupabaseFeatureUsageRepository, client=core.supabase_client)
-    plan_repository = providers.Factory(SupabasePlanRepository, client=core.supabase_client)
-    plan_feature_repository = providers.Factory(SupabasePlanFeatureRepository, client=core.supabase_client)
-    plan_version_repository = providers.Factory(SupabasePlanVersionRepository, client=core.supabase_client)
-    subscription_repository = providers.Factory(SupabaseSubscriptionRepository, client=core.supabase_client)
-    subscription_event_repository = providers.Factory(SupabaseSubscriptionEventRepository, client=core.supabase_client)
+    # Repositories
+    features_catalog_repository = providers.Selector(
+        core.db_backend,
+        supabase=providers.Factory(SupabaseFeaturesCatalogRepository, client=core.supabase_client),
+        postgres=providers.Factory(PostgresFeaturesCatalogRepository, db=core.postgres_db),
+    )
+
+    feature_usage_repository = providers.Selector(
+        core.db_backend,
+        supabase=providers.Factory(SupabaseFeatureUsageRepository, client=core.supabase_client),
+        postgres=providers.Factory(PostgresFeatureUsageRepository, db=core.postgres_db),
+    )
+
+    plan_repository = providers.Selector(
+        core.db_backend,
+        supabase=providers.Factory(SupabasePlanRepository, client=core.supabase_client),
+        postgres=providers.Factory(PostgresPlanRepository, db=core.postgres_db),
+    )
+
+    plan_feature_repository = providers.Selector(
+        core.db_backend,
+        supabase=providers.Factory(SupabasePlanFeatureRepository, client=core.supabase_client),
+        postgres=providers.Factory(PostgresPlanFeatureRepository, db=core.postgres_db),
+    )
+
+    plan_version_repository = providers.Selector(
+        core.db_backend,
+        supabase=providers.Factory(SupabasePlanVersionRepository, client=core.supabase_client),
+        postgres=providers.Factory(PostgresPlanVersionRepository, db=core.postgres_db),
+    )
+
+    subscription_repository = providers.Selector(
+        core.db_backend,
+        supabase=providers.Factory(SupabaseSubscriptionRepository, client=core.supabase_client),
+        postgres=providers.Factory(PostgresSubscriptionRepository, db=core.postgres_db),
+    )
+
+    subscription_event_repository = providers.Selector(
+        core.db_backend,
+        supabase=providers.Factory(SupabaseSubscriptionEventRepository, client=core.supabase_client),
+        postgres=providers.Factory(PostgresSubscriptionEventRepository, db=core.postgres_db),
+    )
 
     # Services
     features_catalog_service = providers.Factory(

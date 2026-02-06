@@ -1,22 +1,31 @@
+from typing import Any, Dict, Optional, Annotated
 from datetime import datetime
-from typing import Any, Dict, Optional
+import json
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, BeforeValidator
 
 from src.core.utils.custom_ulid import is_valid_ulid, validate_ulid_field
 from src.modules.conversation.enums.message_direction import MessageDirection
 from src.modules.conversation.enums.message_owner import MessageOwner
 from src.modules.conversation.enums.message_type import MessageType
 
+def parse_json_dict(v: Any) -> Dict[str, Any]:
+    """Parse dictionary from string (JSON) if necessary."""
+    if isinstance(v, str):
+        try:
+            return json.loads(v)
+        except json.JSONDecodeError:
+            return {}
+    return v
 
 class Message(BaseModel):
     """
     Message entity with ULID.
     """
 
-    msg_id: Optional[str] = None  # Changed from int to str (ULID)
-    conv_id: str  # Changed to ULID
-    owner_id: str  # Added: ULID (denormalized from conversation)
+    msg_id: Optional[str] = None  # ULID
+    conv_id: str  # ULID
+    owner_id: str  # ULID (denormalized from conversation)
     correlation_id: Optional[str] = None  # Trace ID
     from_number: str
     to_number: str
@@ -27,7 +36,7 @@ class Message(BaseModel):
     message_owner: MessageOwner = MessageOwner.USER
     message_type: MessageType = MessageType.TEXT
     content: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Annotated[Dict[str, Any], BeforeValidator(parse_json_dict)] = Field(default_factory=dict)
 
     model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 

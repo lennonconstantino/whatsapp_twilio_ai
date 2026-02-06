@@ -113,8 +113,8 @@ class ConversationFinder:
             "to_number": to_number,
             "channel": channel,
             "status": ConversationStatus.PENDING.value,
-            "started_at": now.isoformat(),
-            "expires_at": expires_at.isoformat(),
+            "started_at": now,
+            "expires_at": expires_at,
             "context": {},
             "metadata": new_metadata,
         }

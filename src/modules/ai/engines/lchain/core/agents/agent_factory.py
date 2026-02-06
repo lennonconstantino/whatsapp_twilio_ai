@@ -42,6 +42,14 @@ class AgentFactory:
             if feature_name in ["default", "finance_agent", None, ""]:
                 logger.info(f"Feature '{feature_name}' not found, defaulting to 'finance'")
                 provider = self.agents_registry.get("finance")
+            # Fallback for 'ai_chat_assistant' to 'generic_agent' or 'finance' (if generic not avail)
+            # Since we don't have a specific 'ai_chat_assistant' agent implemented yet, 
+            # we can map it to 'finance' for now as it seems to be the main agent, 
+            # OR we should implement a GenericAgent.
+            # Given available agents are ['finance', 'finance_agent', 'relationships'], let's map to finance.
+            elif feature_name == "ai_chat_assistant":
+                 logger.info(f"Feature '{feature_name}' not found, defaulting to 'finance'")
+                 provider = self.agents_registry.get("finance")
             
         if not provider:
             valid_keys = list(self.agents_registry.keys())

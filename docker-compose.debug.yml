@@ -1,5 +1,5 @@
 services:
-  postgres-container:
+  postgres:
     image: pgvector/pgvector:pg16
     env_file:
       - .env
@@ -13,11 +13,11 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
       - ./scripts/docker_postgres_init.sh:/docker-entrypoint-initdb.d/init.sh
       - ./migrations:/opt/migrations
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -50,7 +50,8 @@ services:
     env_file:
       - .env     
     environment:
-      DATABASE_URL: postgresql://user:password@postgres-container:5432/owner_db    
+      DATABASE_BACKEND: postgres
+      DATABASE_URL: postgresql://user:password@postgres:5432/owner_db
       QUEUE_BACKEND: bullmq
       QUEUE_REDIS_URL: redis://redis:6379/0
       API_DEBUG: "True"
@@ -76,16 +77,14 @@ services:
     volumes:
       - ./src:/app/src
     depends_on:
-      postgres-container:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # command: python -m src.core.queue.worker
     ports:
-      - "5678:5678"
-    # command: python -m debugpy --listen 0.0.0.0:5678 --wait-for-client -m src.core.queue.worker     
-    command: python -m debugpy --listen 0.0.0.0:5678 -m src.core.queue.worker
-    
+      - "5678:5678"  # ← ADICIONAR: Porta do debugpy, # porta diferente para cada serviço
+    command: python -m debugpy --listen 0.0.0.0:5678 --wait-for-client -m src.core.queue.worker 
+
   # Task Scheduler
   scheduler:
     build:
@@ -97,7 +96,8 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://user:password@postgres-container:5432/owner_db
+      DATABASE_BACKEND: postgres
+      DATABASE_URL: postgresql://user:password@postgres:5432/owner_db
       QUEUE_BACKEND: bullmq
       QUEUE_REDIS_URL: redis://redis:6379/0      
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -117,7 +117,7 @@ services:
     volumes:
       - ./src:/app/src
     depends_on:
-      postgres-container:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -134,7 +134,8 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://user:password@postgres-container:5432/owner_db
+      DATABASE_BACKEND: postgres
+      DATABASE_URL: postgresql://user:password@postgres:5432/owner_db
       QUEUE_BACKEND: bullmq
       QUEUE_REDIS_URL: redis://redis:6379/0
       API_HOST: 0.0.0.0
@@ -161,7 +162,7 @@ services:
       - ./src:/app/src
       - ./scripts:/app/scripts
     depends_on:
-      postgres-container:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -182,7 +183,7 @@ services:
     ports:
       - "5050:80"
     depends_on:
-      - postgres-container
+      - postgres
     profiles:
       - tools
   # Observability
@@ -252,4 +253,3 @@ volumes:
 networks:
   whatsapp_twilio_ai:
     driver: bridge
-    

@@ -16,59 +16,17 @@ logger = get_logger(__name__)
 class PostgresSubscriptionRepository(PostgresRepository[Subscription], ISubscriptionRepository):
     model = Subscription
 
-    def find_by_owner(self, owner_id: str) -> Optional[Subscription]:
-        try:
-            # Usually want active or latest
-            query = sql.SQL("""
-                SELECT * FROM {table}
-                WHERE owner_id = %s
-                ORDER BY created_at DESC
-                LIMIT 1
-            """).format(table=sql.Identifier(self.table_name))
+    def __init__(self, db):
+        super().__init__(db, "subscriptions", Subscription)
 
-            result = self._execute_query(query, (owner_id,), fetch_one=True)
-            
-            if result:
-                return self.model_class(**result)
-            return None
-        except Exception as e:
-            logger.error("find_by_owner_failed", owner_id=owner_id, error=str(e))
-            raise BillingRepositoryError(f"Failed to find subscription for owner {owner_id}", original_error=e)
+    def find_by_owner(self, owner_id: str) -> Optional[Subscription]:
+        return super().find_by_owner(owner_id)
 
     def find_by_stripe_subscription_id(self, stripe_subscription_id: str) -> Optional[Subscription]:
-        try:
-            # JSONB query for Postgres: metadata @> '{"stripe_subscription_id": "..."}'
-            query = sql.SQL("""
-                SELECT * FROM {table}
-                WHERE metadata @> %s::jsonb
-                LIMIT 1
-            """).format(table=sql.Identifier(self.table_name))
-            
-            import json
-            param = json.dumps({"stripe_subscription_id": stripe_subscription_id})
-            
-            result = self._execute_query(query, (param,), fetch_one=True)
-            
-            if result:
-                return self.model_class(**result)
-            return None
-        except Exception as e:
-            logger.error("find_by_stripe_subscription_id_failed", stripe_subscription_id=stripe_subscription_id, error=str(e))
-            raise BillingRepositoryError(f"Failed to find subscription by stripe id {stripe_subscription_id}", original_error=e)
+        return super().find_by_stripe_subscription_id(stripe_subscription_id)
 
     def find_pending_cancellations(self) -> List[Subscription]:
-        try:
-            query = sql.SQL("""
-                SELECT * FROM {table}
-                WHERE status = %s
-            """).format(table=sql.Identifier(self.table_name))
-            
-            results = self._execute_query(query, (SubscriptionStatus.PENDING_CANCELLATION,), fetch_all=True)
-            
-            return [self.model_class(**row) for row in results]
-        except Exception as e:
-            logger.error("find_pending_cancellations_failed", error=str(e))
-            raise BillingRepositoryError("Failed to find pending cancellations", original_error=e)
+        return super().find_pending_cancellations()
 
     def find_expiring_trials(self, days_before: int) -> List[Subscription]:
         try:

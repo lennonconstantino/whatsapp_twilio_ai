@@ -12,6 +12,7 @@ pyjwt==2.9.0
 # Database
 supabase==2.9.0
 psycopg2-binary==2.9.9
+asyncpg==0.31.0
 
 # Twilio
 twilio==9.3.7
@@ -70,3 +71,6 @@ opentelemetry-instrumentation-fastapi==0.43b0
 opentelemetry-instrumentation-logging==0.43b0
 opentelemetry-instrumentation-httpx==0.43b0
 opentelemetry-instrumentation-requests==0.43b0
+
+# debug
+debugpy>=1.8.0

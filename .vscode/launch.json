@@ -41,6 +41,21 @@
                 "--local"
             ],
             "envFile": "${workspaceFolder}/.env"
-        }
+        },
+        {
+            "name": "Python: Attach to Worker Container",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 5678
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}",
+                    "remoteRoot": "/app"
+                }
+            ]
+        }        
     ]
 }

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from src.modules.conversation.enums.conversation_status import ConversationStatus
 from src.modules.conversation.models.conversation import Conversation
@@ -72,7 +72,7 @@ class ConversationRepository(ABC):
 
     @abstractmethod
     async def find_idle_candidates(
-        self, idle_threshold_iso: str, limit: int = 100
+        self, idle_threshold_iso: Union[str, datetime], limit: int = 100
     ) -> List[Conversation]:
         """Find conversations that have been idle since before the threshold."""
         pass

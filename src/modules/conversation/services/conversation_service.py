@@ -126,7 +126,7 @@ class ConversationService:
 
         # Persist message
         message_data = message_create.model_dump(mode="json")
-        message_data["timestamp"] = datetime.now(timezone.utc).isoformat()
+        message_data["timestamp"] = datetime.now(timezone.utc)
 
         try:
             message = await self.message_repo.create(message_data)
@@ -358,8 +358,8 @@ class ConversationService:
         
         data = {
             "agent_id": agent_id,
-            "handoff_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
+            "handoff_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
         }
         
         updated = await self.conversation_repo.update(

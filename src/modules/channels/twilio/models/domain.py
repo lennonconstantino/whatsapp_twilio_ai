@@ -1,10 +1,21 @@
 import json
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, BeforeValidator
+from typing_extensions import Annotated
 
 from src.core.utils.custom_ulid import is_valid_ulid
+
+
+def parse_phone_numbers(v: Any) -> List[str]:
+    """Parse phone numbers from string (JSON) if necessary."""
+    if isinstance(v, str):
+        try:
+            return json.loads(v)
+        except json.JSONDecodeError:
+            return []
+    return v
 
 
 class TwilioAccount(BaseModel):
@@ -17,7 +28,7 @@ class TwilioAccount(BaseModel):
     owner_id: str  # Changed to ULID
     account_sid: str
     auth_token: str
-    phone_numbers: List[str] = Field(default_factory=list)
+    phone_numbers: Annotated[List[str], BeforeValidator(parse_phone_numbers)] = Field(default_factory=list)
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

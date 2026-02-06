@@ -16,6 +16,6 @@ END
 $$;
 
 -- Garantir permissões
-GRANT anon TO "user";
-GRANT authenticated TO "user";
-GRANT service_role TO "user";
+-- GRANT anon TO "user";
+-- GRANT authenticated TO "user";
+-- GRANT service_role TO "user";

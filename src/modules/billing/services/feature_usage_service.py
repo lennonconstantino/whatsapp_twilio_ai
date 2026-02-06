@@ -275,7 +275,7 @@ class FeatureUsageService:
             # For now, we'll fetch individually or assume usage has feature info if ORM is smart,
             # but repository pattern usually returns model only.
             # Let's assume usage.feature_id is available.
-            feature = self.catalog_service.catalog_repo.find_by_id(usage.feature_id)
+            feature = self.catalog_service.catalog_repo.find_by_id(usage.feature_id, id_column="feature_id")
             if not feature:
                 continue
             

@@ -212,7 +212,7 @@ class ConversationLifecycle:
 
         updated = await self.repository.update(
             conversation.conv_id,
-            {"expires_at": new_expires.isoformat()},
+            {"expires_at": new_expires},
             id_column="conv_id",
             current_version=conversation.version,
         )
@@ -244,7 +244,7 @@ class ConversationLifecycle:
             {
                 "user_id": new_user_id,
                 "context": context,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc),
             },
             id_column="conv_id",
             current_version=conversation.version,
@@ -275,7 +275,7 @@ class ConversationLifecycle:
             {
                 "status": ConversationStatus.PROGRESS.value,
                 "context": context,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc),
             },
             id_column="conv_id",
             current_version=conversation.version,
@@ -326,7 +326,7 @@ class ConversationLifecycle:
         """
         threshold = datetime.now(timezone.utc) - timedelta(minutes=idle_minutes)
         candidates = await self.repository.find_idle_candidates(
-            threshold.isoformat(), limit=limit
+            threshold, limit=limit
         )
         processed = 0
 

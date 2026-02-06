@@ -98,9 +98,9 @@ CREATE TRIGGER update_features_updated_at
 
 COMMENT ON TABLE features IS 'Features/functions that can be enabled per owner';
 COMMENT ON COLUMN features.owner_id IS 'ULID reference to parent owner';
-COMMENT ON COLUMN features.config_json IS 'Feature-specific configuration in JSON format';
-COMMENT ON INDEX idx_features_config_gin IS 'GIN index for efficient JSONB queries (containment, key existence)';
-COMMENT ON INDEX idx_features_config_enabled IS 'Partial index for enabled flag in config_json';
+-- COMMENT ON COLUMN features.config_json IS 'Feature-specific configuration in JSON format';
+-- COMMENT ON INDEX idx_features_config_gin IS 'GIN index for efficient JSONB queries (containment, key existence)';
+-- COMMENT ON INDEX idx_features_config_enabled IS 'Partial index for enabled flag in config_json';
 
 -- ============================================================================
 -- 4. PLANS TABLE (Depends on: nothing - standalone)

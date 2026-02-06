@@ -39,9 +39,9 @@ class PostgresRepository(Generic[T]):
         # Handle schema qualification
         if "." in table_name:
             schema, table = table_name.split(".", 1)
-            self.table_identifier = sql.Identifier(schema, table)
+            self.table_identifier = sql.SQL('"{}"."{}"').format(sql.SQL(schema), sql.SQL(table))
         else:
-            self.table_identifier = sql.Identifier(table_name)
+            self.table_identifier = sql.SQL('"{}"').format(sql.SQL(table_name))
 
     def _execute_query(
         self,
