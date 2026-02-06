@@ -19,12 +19,13 @@ class TestAILogThoughtService:
     def agent_context(self):
         return AgentContext(
             feature="test_feature",
-            feature_id=1,
+            feature_id="01HRZ32M1X6Z4P5R7W8K9A0M1N",
             correlation_id="corr_123",
             msg_id="msg_123",
             owner_id="owner_123",
             user_input="hello",
-            channel="whatsapp"
+            channel="whatsapp",
+            session_id="session_123"
         )
 
     def test_log_agent_thought_tool(self, service, mock_ai_result_service, agent_context):
@@ -72,7 +73,7 @@ class TestAILogThoughtService:
         # Context without msg_id
         context = AgentContext(
             feature="f1", 
-            feature_id=1,
+            feature_id="01HRZ32M1X6Z4P5R7W8K9A0M1N",
             correlation_id="corr_999",
             owner_id="owner_123",
             user_input="in",

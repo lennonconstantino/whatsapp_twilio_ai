@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timezone
-from unittest.mock import ANY, MagicMock, Mock
+import pytest
+from unittest.mock import ANY, MagicMock, Mock, AsyncMock
 
 from dotenv import load_dotenv
 
@@ -22,10 +23,11 @@ from src.modules.conversation.services.conversation_service import \
 logger = get_logger(__name__)
 
 
-def test_complete_conversation_lifecycle():
+@pytest.mark.asyncio
+async def test_complete_conversation_lifecycle():
     # 1. Setup Mocks
-    repo = MagicMock()
-    msg_repo = MagicMock()
+    repo = AsyncMock()
+    msg_repo = AsyncMock()
     closure = MagicMock()  # Mock closure detector logic
 
     # Real components for integration test
@@ -77,7 +79,7 @@ def test_complete_conversation_lifecycle():
     repo.create.return_value = pending_conv
 
     # --- Step 1: Create Conversation ---
-    conv = service.get_or_create_conversation(
+    conv = await service.get_or_create_conversation(
         owner_id=owner_id,
         from_number=from_number,
         to_number=to_number,
@@ -101,7 +103,7 @@ def test_complete_conversation_lifecycle():
     # Mock find_by_id for reload
     repo.find_by_id.return_value = pending_conv
 
-    service.add_message(conv, user_msg)
+    await service.add_message(conv, user_msg)
 
     # Assert message was added
     msg_repo.create.assert_called()
@@ -112,7 +114,7 @@ def test_complete_conversation_lifecycle():
     # actually add_message logic for USER message in PENDING doesn't
     # change status unless configured.
 
-    conv = service.get_conversation_by_id(conv.conv_id)
+    conv = await service.get_conversation_by_id(conv.conv_id)
     assert conv.status == ConversationStatus.PENDING.value
 
     # --- Step 3: Agent Message (PENDING -> PROGRESS) ---
@@ -133,7 +135,7 @@ def test_complete_conversation_lifecycle():
     repo.update_status.return_value = progress_conv
     repo.find_by_id.return_value = progress_conv  # Return new state after reload
 
-    service.add_message(conv, agent_msg)
+    await service.add_message(conv, agent_msg)
 
     # Verify status transition call
     repo.update_status.assert_called_with(
@@ -145,7 +147,7 @@ def test_complete_conversation_lifecycle():
         ended_at=None,
     )
 
-    conv = service.get_conversation_by_id(conv.conv_id)
+    conv = await service.get_conversation_by_id(conv.conv_id)
     assert conv.status == ConversationStatus.PROGRESS.value
     assert "accepted_by" in conv.context
     assert conv.context["accepted_by"]["agent_type"] == MessageOwner.AGENT.value
@@ -159,7 +161,7 @@ def test_complete_conversation_lifecycle():
     idle_conv = create_conv_mock(ConversationStatus.IDLE_TIMEOUT)
     repo.update_status.return_value = idle_conv
 
-    processed_count = service.process_idle_conversations(idle_minutes=-1)
+    processed_count = await service.process_idle_conversations(idle_minutes=-1)
 
     logger.info("Processed idle conversations", count=processed_count)
     assert processed_count == 1
@@ -176,7 +178,7 @@ def test_complete_conversation_lifecycle():
 
     # Update our local view
     repo.find_by_id.return_value = idle_conv
-    conv = service.get_conversation_by_id(conv.conv_id)
+    conv = await service.get_conversation_by_id(conv.conv_id)
     assert conv.status == ConversationStatus.IDLE_TIMEOUT.value
 
     # --- Step 5: User Message Reactivation (IDLE_TIMEOUT -> PROGRESS) ---
@@ -197,7 +199,7 @@ def test_complete_conversation_lifecycle():
     repo.update_status.return_value = reactivated_conv
     repo.find_by_id.return_value = reactivated_conv
 
-    service.add_message(conv, user_msg2)
+    await service.add_message(conv, user_msg2)
 
     # Verify reactivation call
     repo.update_status.assert_called_with(
@@ -209,7 +211,7 @@ def test_complete_conversation_lifecycle():
         expires_at=None,
     )
 
-    conv = service.get_conversation_by_id(conv.conv_id)
+    conv = await service.get_conversation_by_id(conv.conv_id)
     assert conv.status == ConversationStatus.PROGRESS.value
     assert "reactivated_from_idle" in conv.context
 
@@ -220,7 +222,7 @@ def test_complete_conversation_lifecycle():
     repo.update_status.return_value = closed_conv
     repo.find_by_id.return_value = closed_conv
 
-    service.close_conversation(conv, ConversationStatus.AGENT_CLOSED)
+    await service.close_conversation(conv, ConversationStatus.AGENT_CLOSED)
 
     # Verify close call
     repo.update_status.assert_called_with(
@@ -232,5 +234,5 @@ def test_complete_conversation_lifecycle():
         expires_at=None,
     )
 
-    conv = service.get_conversation_by_id(conv.conv_id)
+    conv = await service.get_conversation_by_id(conv.conv_id)
     assert conv.status == ConversationStatus.AGENT_CLOSED.value

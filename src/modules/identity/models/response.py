@@ -3,7 +3,7 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from src.modules.identity.models.owner import Owner
-from src.modules.identity.models.subscription import (Subscription,
+from src.modules.billing.models.subscription import (Subscription,
                                                       SubscriptionWithPlan)
 from src.modules.identity.models.user import User
 

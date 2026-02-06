@@ -41,6 +41,10 @@ run_sql "$MIGRATIONS_DIR/004_create_search_functions.sql"
 run_sql "$MIGRATIONS_DIR/006_usage_examples.sql"
 run_sql "$MIGRATIONS_DIR/007_security_policies.sql"
 run_sql "$MIGRATIONS_DIR/008_fix_ai_results_id.sql"
+run_sql "$MIGRATIONS_DIR/009_saas_multitenant.sql"
+run_sql "$MIGRATIONS_DIR/010_register_organization_rpc.sql"
+run_sql "$MIGRATIONS_DIR/011_fix_ai_results_feature_fk.sql"
+run_sql "$MIGRATIONS_DIR/012_recreate_ai_results.sql"
 
 # 4. Features (iterar sobre diretório)
 if [ -d "$MIGRATIONS_DIR/feature" ]; then

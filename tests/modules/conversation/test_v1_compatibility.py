@@ -2,9 +2,9 @@
 Compatibility tests: Verifying V2 Service behaves like V1 Service.
 Integration tests using real V2 components with mocked repositories.
 """
-import unittest
+import pytest
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, ANY
+from unittest.mock import MagicMock, ANY, AsyncMock
 
 from src.core.utils.exceptions import ConcurrencyError
 from src.modules.conversation.dtos.message_dto import MessageCreateDTO
@@ -18,13 +18,17 @@ from src.modules.conversation.components.conversation_finder import Conversation
 from src.modules.conversation.components.conversation_lifecycle import ConversationLifecycle
 from src.modules.conversation.components.conversation_closer import ConversationCloser
 
-class TestV1Compatibility(unittest.TestCase):
-    def setUp(self):
+@pytest.mark.asyncio
+class TestV1Compatibility:
+    @pytest.fixture(autouse=True)
+    def setup(self):
         # Mock Repositories
-        self.mock_repo = MagicMock()
-        self.mock_message_repo = MagicMock()
+        self.mock_repo = AsyncMock()
+        self.mock_message_repo = AsyncMock()
         
         # Real Components
+        # Finder and Lifecycle need repo which is AsyncMock now.
+        # But Finder/Lifecycle might expect some methods.
         self.finder = ConversationFinder(self.mock_repo)
         self.lifecycle = ConversationLifecycle(self.mock_repo)
         self.closer = ConversationCloser(closure_keywords=["encerrar"])
@@ -51,13 +55,13 @@ class TestV1Compatibility(unittest.TestCase):
             version=1
         )
 
-    def test_get_or_create_existing_active(self):
+    async def test_get_or_create_existing_active(self):
         """V1 Compat: Test retrieving an existing active conversation."""
         # Setup
         self.mock_repo.find_active_by_session_key.return_value = self.mock_conv
         
         # Execute
-        result = self.service.get_or_create_conversation(
+        result = await self.service.get_or_create_conversation(
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAW",
             from_number="+5511999999999",
             to_number="+5511888888888",
@@ -65,10 +69,10 @@ class TestV1Compatibility(unittest.TestCase):
         )
         
         # Verify
-        self.assertEqual(result.conv_id, self.mock_conv.conv_id)
+        assert result.conv_id == self.mock_conv.conv_id
         self.mock_repo.create.assert_not_called()
 
-    def test_get_or_create_none_creates_new(self):
+    async def test_get_or_create_none_creates_new(self):
         """V1 Compat: Test creating new conversation when none exists."""
         # Setup
         self.mock_repo.find_active_by_session_key.return_value = None
@@ -85,7 +89,7 @@ class TestV1Compatibility(unittest.TestCase):
         self.mock_repo.create.return_value = new_conv
         
         # Execute
-        result = self.service.get_or_create_conversation(
+        result = await self.service.get_or_create_conversation(
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAW",
             from_number="+5511999999999",
             to_number="+5511888888888",
@@ -93,14 +97,14 @@ class TestV1Compatibility(unittest.TestCase):
         )
         
         # Verify
-        self.assertEqual(result.conv_id, "01ARZ3NDEKTSV4RRFFQ69G5FB1")
+        assert result.conv_id == "01ARZ3NDEKTSV4RRFFQ69G5FB1"
         self.mock_repo.create.assert_called_once()
 
-    def test_add_message_reactivates_idle(self):
+    async def test_add_message_reactivates_idle(self):
         """V1 Compat: Test that adding a message reactivates an IDLE_TIMEOUT conversation."""
         # Setup
         self.mock_conv.status = ConversationStatus.IDLE_TIMEOUT.value
-        self.mock_repo.update.return_value = self.mock_conv
+        self.mock_repo.update_status.return_value = self.mock_conv
         
         message_dto = MessageCreateDTO(
             conv_id=self.mock_conv.conv_id,
@@ -125,17 +129,15 @@ class TestV1Compatibility(unittest.TestCase):
         )
         
         # Execute
-        self.service.add_message(self.mock_conv, message_dto)
+        await self.service.add_message(self.mock_conv, message_dto)
         
         # Verify
         self.mock_repo.update_status.assert_called()
         call_args = self.mock_repo.update_status.call_args
-        self.assertEqual(call_args[0][0], self.mock_conv.conv_id)
-        self.assertEqual(call_args[0][1], ConversationStatus.PROGRESS)
-        # V2 stores history in separate table, not context
-        # self.assertIn("transition_history", call_args[0][1]["context"])
+        assert call_args[0][0] == self.mock_conv.conv_id
+        assert call_args[0][1] == ConversationStatus.PROGRESS
 
-    def test_add_message_agent_accepts_pending(self):
+    async def test_add_message_agent_accepts_pending(self):
         """V1 Compat: Test that agent message transitions PENDING to PROGRESS."""
         # Setup
         self.mock_conv.status = ConversationStatus.PENDING.value
@@ -164,20 +166,20 @@ class TestV1Compatibility(unittest.TestCase):
         )
         
         # Execute
-        self.service.add_message(self.mock_conv, message_dto)
+        await self.service.add_message(self.mock_conv, message_dto)
         
         # Verify
         self.mock_repo.update_status.assert_called()
         call_args = self.mock_repo.update_status.call_args
-        self.assertEqual(call_args[0][1], ConversationStatus.PROGRESS)
+        assert call_args[0][1] == ConversationStatus.PROGRESS
 
-    def test_close_conversation_success(self):
+    async def test_close_conversation_success(self):
         """V1 Compat: Test successful conversation closure."""
         # Setup
         self.mock_repo.update_status.return_value = self.mock_conv
         
         # Execute
-        self.service.close_conversation(
+        await self.service.close_conversation(
             self.mock_conv,
             ConversationStatus.AGENT_CLOSED,
             initiated_by="agent",
@@ -187,11 +189,9 @@ class TestV1Compatibility(unittest.TestCase):
         # Verify
         self.mock_repo.update_status.assert_called()
         call_args = self.mock_repo.update_status.call_args
-        self.assertEqual(call_args[0][1], ConversationStatus.AGENT_CLOSED)
-        # V2 stores history in separate table
-        # self.assertEqual(call_args[0][1]["context"]["last_status_change"]["reason"], "done")
+        assert call_args[0][1] == ConversationStatus.AGENT_CLOSED
 
-    def test_auto_close_detection(self):
+    async def test_auto_close_detection(self):
         """V1 Compat: Test auto-closing when intent detected."""
         # Setup
         self.mock_repo.update_status.return_value = self.mock_conv
@@ -221,7 +221,7 @@ class TestV1Compatibility(unittest.TestCase):
         self.mock_message_repo.create.return_value = msg_created
         
         # Execute
-        self.service.add_message(self.mock_conv, message_dto)
+        await self.service.add_message(self.mock_conv, message_dto)
         
         # Verify
         update_calls = self.mock_repo.update_status.call_args_list
@@ -231,7 +231,4 @@ class TestV1Compatibility(unittest.TestCase):
                 found_closure = True
                 break
         
-        self.assertTrue(found_closure, "Should have closed conversation")
-
-if __name__ == "__main__":
-    unittest.main()
+        assert found_closure, "Should have closed conversation"

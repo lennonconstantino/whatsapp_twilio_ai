@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 
 from twilio.base.exceptions import TwilioRestException
 from twilio.rest import Client as TwilioClient
+from starlette.concurrency import run_in_threadpool
 
 from src.core.config import settings
 from src.core.utils import get_logger
@@ -34,7 +35,7 @@ class TwilioService:
         self.twilio_repo = twilio_repo
         self._clients: Dict[str, TwilioClient] = {}
 
-    def _get_client(self, owner_id: str) -> Optional[TwilioClient]:
+    async def _get_client(self, owner_id: str) -> Optional[TwilioClient]:
         """
         Get or create Twilio client for an owner.
 
@@ -49,7 +50,7 @@ class TwilioService:
             return self._clients[owner_id]
 
         # Get account from database
-        account = self.twilio_repo.find_by_owner(owner_id)
+        account = await self.twilio_repo.find_by_owner(owner_id)
         if not account:
             logger.warning(f"No Twilio account found for owner {owner_id}")
 
@@ -97,7 +98,7 @@ class TwilioService:
             direction=MessageDirection.OUTBOUND.value,
         )
 
-    def send_message(
+    async def send_message(
         self,
         owner_id: str,
         from_number: str,
@@ -125,7 +126,7 @@ class TwilioService:
                 owner_id, from_number, to_number, body, media_url
             )
 
-        client = self._get_client(owner_id)
+        client = await self._get_client(owner_id)
         if not client:
             logger.error("Cannot send message: no Twilio client", owner_id=owner_id)
             return None
@@ -150,7 +151,11 @@ class TwilioService:
                 if i == 0 and media_url:
                     message_params["media_url"] = [media_url]
 
-                message = client.messages.create(**message_params)
+                # Run blocking Twilio call in threadpool
+                def _send():
+                    return client.messages.create(**message_params)
+                
+                message = await run_in_threadpool(_send)
 
                 if i == 0:
                     first_message = message
@@ -186,7 +191,7 @@ class TwilioService:
             )
             return None
 
-    def get_message_status(
+    async def get_message_status(
         self, owner_id: str, message_sid: str
     ) -> Optional[TwilioMessageResult]:
         """
@@ -199,12 +204,15 @@ class TwilioService:
         Returns:
             TwilioMessageResult object or None
         """
-        client = self._get_client(owner_id)
+        client = await self._get_client(owner_id)
         if not client:
             return None
 
         try:
-            message = client.messages(message_sid).fetch()
+            def _fetch():
+                return client.messages(message_sid).fetch()
+                
+            message = await run_in_threadpool(_fetch)
 
             return TwilioMessageResult(
                 sid=message.sid,

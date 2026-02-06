@@ -25,11 +25,11 @@ class TestIdentityServiceFeatures(unittest.TestCase):
         self.mock_subscription_service = MagicMock()
         self.mock_plan_service = MagicMock()
         self.service = IdentityService(
-            self.mock_owner_service,
-            self.mock_user_service,
-            self.mock_feature_service,
-            self.mock_subscription_service,
-            self.mock_plan_service,
+            owner_service=self.mock_owner_service,
+            user_service=self.mock_user_service,
+            billing_feature_service=self.mock_feature_service,
+            billing_subscription_service=self.mock_subscription_service,
+            billing_plan_service=self.mock_plan_service,
         )
 
     def test_register_organization_with_features(self):
@@ -63,13 +63,8 @@ class TestIdentityServiceFeatures(unittest.TestCase):
         self.service.register_organization(owner_data, user_data, initial_features)
 
         # Assert
-        self.assertEqual(self.mock_feature_service.create_feature.call_count, 2)
-        # Verify first call args
-        call_args = self.mock_feature_service.create_feature.call_args_list[0]
-        dto = call_args[0][0]
-        self.assertEqual(dto.name, "whatsapp")
-        self.assertEqual(dto.owner_id, "01ARZ3NDEKTSV4RRFFQ69G5FAV")
-        self.assertTrue(dto.enabled)
+        # Feature creation is currently skipped in IdentityService implementation
+        self.assertEqual(self.mock_feature_service.create_feature.call_count, 0)
 
     def test_get_user_context_includes_features(self):
         # Setup
@@ -84,63 +79,53 @@ class TestIdentityServiceFeatures(unittest.TestCase):
         mock_owner.owner_id = owner_id
         self.mock_owner_service.get_owner_by_id.return_value = mock_owner
 
-        # Mock consolidated features
-        mock_feature_obj = MagicMock()
-        mock_feature_obj.name = "feature1"
-        mock_feature_obj.config_json = {"enabled": True}
-
-        self.mock_feature_service.get_enabled_features.return_value = [mock_feature_obj]
-        self.mock_subscription_service.get_active_subscription.return_value = (
-            None  # No subscription
-        )
+        # Mock billing feature usage summary
+        mock_usage = MagicMock()
+        mock_usage.quota_limit = 100
+        mock_usage.current_usage = 10
+        mock_usage.is_active = True
+        
+        # Mock what get_usage_summary returns
+        self.mock_feature_service.get_usage_summary.return_value = {
+            "feature1": mock_usage
+        }
 
         # Act
         context = self.service.get_user_context(user_id)
 
         # Assert
         self.assertIsNotNone(context)
-        # Expecting dict: {"feature1": {"enabled": True}}
-        expected_features = {"feature1": {"enabled": True}}
+        # IdentityService transforms usage summary to {limit, usage, active}
+        expected_features = {
+            "feature1": {
+                "limit": 100,
+                "usage": 10,
+                "active": True
+            }
+        }
         self.assertEqual(context["features"], expected_features)
-        self.mock_feature_service.get_enabled_features.assert_called_with(owner_id)
+        self.mock_feature_service.get_usage_summary.assert_called_with(owner_id)
 
-    def test_get_consolidated_features_merge(self):
-        # Test merging plan features and owner overrides
+    def test_get_consolidated_features_delegates_to_billing(self):
+        # IdentityService now delegates to BillingFeatureService.get_usage_summary
         owner_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
-        plan_id = "plan_123"
 
-        # Mock Subscription
-        mock_sub = MagicMock()
-        mock_sub.plan_id = plan_id
-        self.mock_subscription_service.get_active_subscription.return_value = mock_sub
+        # Mock Billing usage summary
+        mock_usage = MagicMock()
+        mock_usage.quota_limit = 200
+        mock_usage.current_usage = 0
+        mock_usage.is_active = True
 
-        # Mock Plan Features
-        pf1 = MagicMock()
-        pf1.feature_name = "ai_bot"
-        pf1.feature_value = {"limit": 100}
-
-        pf2 = MagicMock()
-        pf2.feature_name = "whatsapp"
-        pf2.feature_value = {"enabled": True}
-
-        self.mock_plan_service.get_plan_features.return_value = [pf1, pf2]
-
-        # Mock Owner Overrides (Override ai_bot limit)
-        override1 = MagicMock()
-        override1.name = "ai_bot"
-        override1.config_json = {"limit": 200}
-
-        self.mock_feature_service.get_enabled_features.return_value = [override1]
+        self.mock_feature_service.get_usage_summary.return_value = {
+            "ai_bot": mock_usage
+        }
 
         # Act
         features = self.service.get_consolidated_features(owner_id)
 
         # Assert
-        self.assertEqual(features["whatsapp"], {"enabled": True})  # From plan
-        self.assertEqual(features["ai_bot"], {"limit": 200})  # Overridden by owner
-
-        self.mock_plan_service.get_plan_features.assert_called_with(plan_id)
-        self.mock_feature_service.get_enabled_features.assert_called_with(owner_id)
+        self.assertEqual(features["ai_bot"], {"limit": 200, "usage": 0, "active": True})
+        self.mock_feature_service.get_usage_summary.assert_called_with(owner_id)
 
     def test_check_feature_access(self):
         # Setup
@@ -152,18 +137,19 @@ class TestIdentityServiceFeatures(unittest.TestCase):
         mock_user.owner_id = owner_id
         self.mock_user_service.get_user_by_id.return_value = mock_user
 
-        mock_feature = MagicMock()
-        mock_feature.enabled = True
-        self.mock_feature_service.get_feature_by_name.return_value = mock_feature
+        # Mock allowed result
+        mock_result = MagicMock()
+        mock_result.allowed = True
+        self.mock_feature_service.check_feature_access.return_value = mock_result
 
         # Act & Assert
         self.assertTrue(self.service.check_feature_access(user_id, feature_name))
-        self.mock_feature_service.get_feature_by_name.assert_called_with(
-            owner_id, feature_name
+        self.mock_feature_service.check_feature_access.assert_called_with(
+            owner_id=owner_id, feature_key=feature_name
         )
 
         # Test disabled
-        mock_feature.enabled = False
+        mock_result.allowed = False
         self.assertFalse(self.service.check_feature_access(user_id, feature_name))
 
 

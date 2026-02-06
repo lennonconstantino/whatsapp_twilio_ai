@@ -20,11 +20,11 @@ class TwilioWebhookOwnerResolver:
         self.twilio_account_service = twilio_account_service
         self.identity_service = identity_service
 
-    def resolve_owner_id(self, payload: TwilioWhatsAppPayload) -> str:
+    async def resolve_owner_id(self, payload: TwilioWhatsAppPayload) -> str:
         """
         Resolve the Owner ID (Tenant) based on the To number or Account SID.
         """
-        account = self.twilio_account_service.resolve_account(
+        account = await self.twilio_account_service.resolve_account(
             to_number=payload.to_number, account_sid=payload.account_sid
         )
 

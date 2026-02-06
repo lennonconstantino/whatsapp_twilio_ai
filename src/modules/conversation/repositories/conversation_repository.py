@@ -13,26 +13,26 @@ class ConversationRepository(ABC):
     """
 
     @abstractmethod
-    def create(self, data: Dict[str, Any]) -> Optional[Conversation]:
+    async def create(self, data: Dict[str, Any]) -> Optional[Conversation]:
         """Create a new conversation."""
         pass
 
     @abstractmethod
-    def find_active_by_session_key(
+    async def find_active_by_session_key(
         self, owner_id: str, session_key: str
     ) -> Optional[Conversation]:
         """Find active conversation by session key."""
         pass
 
     @abstractmethod
-    def find_active_by_owner(
+    async def find_active_by_owner(
         self, owner_id: str, limit: int = 100
     ) -> List[Conversation]:
         """Find all active conversations for an owner."""
         pass
 
     @abstractmethod
-    def find_by_status(
+    async def find_by_status(
         self,
         owner_id: str,
         status: ConversationStatus,
@@ -43,33 +43,33 @@ class ConversationRepository(ABC):
         pass
 
     @abstractmethod
-    def find_all_by_session_key(
+    async def find_all_by_session_key(
         self, owner_id: str, session_key: str, limit: int = 10
     ) -> List[Conversation]:
         """Find all conversations for a session key (including closed ones)."""
         pass
 
     @abstractmethod
-    def find_expired_candidates(self, limit: int = 100) -> List[Conversation]:
+    async def find_expired_candidates(self, limit: int = 100) -> List[Conversation]:
         """Find active conversations that have passed their expiration time."""
         pass
 
     @abstractmethod
-    def find_idle_candidates(
+    async def find_idle_candidates(
         self, idle_threshold_iso: str, limit: int = 100
     ) -> List[Conversation]:
         """Find conversations that have been idle since before the threshold."""
         pass
 
     @abstractmethod
-    def update_context(
+    async def update_context(
         self, conv_id: str, context: dict, expected_version: Optional[int] = None
     ) -> Optional[Conversation]:
         """Update conversation context."""
         pass
 
     @abstractmethod
-    def update_timestamp(self, conv_id: str) -> Optional[Conversation]:
+    async def update_timestamp(self, conv_id: str) -> Optional[Conversation]:
         """Update conversation timestamp."""
         pass
 
@@ -80,14 +80,14 @@ class ConversationRepository(ABC):
         pass
 
     @abstractmethod
-    def find_by_session_key(
+    async def find_by_session_key(
         self, owner_id: str, from_number: str, to_number: str
     ) -> Optional[Conversation]:
         """Find active conversation by calculating session key."""
         pass
 
     @abstractmethod
-    def update_status(
+    async def update_status(
         self,
         conv_id: str,
         status: ConversationStatus,
@@ -102,12 +102,12 @@ class ConversationRepository(ABC):
         pass
 
     @abstractmethod
-    def cleanup_expired_conversations(self, limit: int = 100) -> int:
+    async def cleanup_expired_conversations(self, limit: int = 100) -> int:
         """Process expiration for expired conversations."""
         pass
 
     @abstractmethod
-    def close_by_message_policy(
+    async def close_by_message_policy(
         self,
         conv: Conversation,
         *,
@@ -120,13 +120,13 @@ class ConversationRepository(ABC):
 
     # Methods that might be duplicates but exist in Supabase implementation
     # Included for compatibility
-    def find_idle_conversations(
+    async def find_idle_conversations(
         self, idle_minutes: int, limit: int = 100
     ) -> List[Conversation]:
         """Find idle conversations (optional implementation)."""
         # Default implementation could be raising NotImplementedError or bridging to find_idle_candidates
         raise NotImplementedError("find_idle_conversations not implemented")
 
-    def find_expired_conversations(self, limit: int = 100) -> List[Conversation]:
+    async def find_expired_conversations(self, limit: int = 100) -> List[Conversation]:
         """Find expired conversations (alias for find_expired_candidates)."""
-        return self.find_expired_candidates(limit)
+        return await self.find_expired_candidates(limit)

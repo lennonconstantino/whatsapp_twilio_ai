@@ -49,7 +49,7 @@ class ConversationService:
         self.lifecycle = lifecycle
         self.closer = closer
 
-    def get_or_create_conversation(
+    async def get_or_create_conversation(
         self,
         owner_id: str,
         from_number: str,
@@ -63,7 +63,7 @@ class ConversationService:
         Handles expiration logic if an 'active' conversation is actually expired.
         """
         # 1. Try to find active conversation
-        conversation = self.finder.find_active(owner_id, from_number, to_number)
+        conversation = await self.finder.find_active(owner_id, from_number, to_number)
 
         if conversation:
             # 2. Check validity (expiration)
@@ -81,7 +81,7 @@ class ConversationService:
 
                 # Close if needed
                 if not is_closed:
-                    self.lifecycle.transition_to(
+                    await self.lifecycle.transition_to(
                         conversation,
                         ConversationStatus.EXPIRED,
                         reason="expired_before_new",
@@ -89,7 +89,7 @@ class ConversationService:
                     )
 
                 # Create new linked conversation
-                return self.finder.create_new(
+                return await self.finder.create_new(
                     owner_id,
                     from_number,
                     to_number,
@@ -102,8 +102,8 @@ class ConversationService:
             return conversation
 
         # 3. No active found, create new (checking history for context)
-        last_conv = self.finder.find_last_conversation(owner_id, from_number, to_number)
-        return self.finder.create_new(
+        last_conv = await self.finder.find_last_conversation(owner_id, from_number, to_number)
+        return await self.finder.create_new(
             owner_id,
             from_number,
             to_number,
@@ -113,7 +113,7 @@ class ConversationService:
             previous_conversation=last_conv,
         )
 
-    def add_message(
+    async def add_message(
         self, conversation: Conversation, message_create: MessageCreateDTO
     ) -> Message:
         """
@@ -129,7 +129,7 @@ class ConversationService:
         message_data["timestamp"] = datetime.now(timezone.utc).isoformat()
 
         try:
-            message = self.message_repo.create(message_data)
+            message = await self.message_repo.create(message_data)
         except DuplicateError:
             logger.warning(
                 "Duplicate message in add_message (V2)", conv_id=conversation.conv_id
@@ -141,7 +141,7 @@ class ConversationService:
 
         if closure_result.should_close:
             logger.info("Closure intent detected", conv_id=conversation.conv_id)
-            self._handle_transition_with_retry(
+            await self._handle_transition_with_retry(
                 conversation,
                 closure_result.suggested_status or ConversationStatus.USER_CLOSED,
                 reason="user_intent_detected",
@@ -163,7 +163,7 @@ class ConversationService:
                 expires_at = datetime.now(timezone.utc) + timedelta(
                     minutes=settings.conversation.expiration_minutes
                 )
-                self._handle_transition_with_retry(
+                await self._handle_transition_with_retry(
                     conversation,
                     ConversationStatus.PROGRESS,
                     reason="agent_acceptance",
@@ -172,26 +172,26 @@ class ConversationService:
                 )
 
                 # Update context with acceptance info
-                self._update_acceptance_context(conversation, message_create)
+                await self._update_acceptance_context(conversation, message_create)
 
         elif message_create.message_owner == MessageOwner.USER.value:
             # USER message
             if current_status == ConversationStatus.IDLE_TIMEOUT:
                 # Reactivation: IDLE -> PROGRESS
-                self._handle_transition_with_retry(
+                await self._handle_transition_with_retry(
                     conversation,
                     ConversationStatus.PROGRESS,
                     reason="user_reactivation",
                     initiated_by="user",
                 )
-                self._update_reactivation_context(conversation)
+                await self._update_reactivation_context(conversation)
 
         # Update timestamp to prevent idle timeout (for any message)
-        self.conversation_repo.update_timestamp(conversation.conv_id)
+        await self.conversation_repo.update_timestamp(conversation.conv_id)
 
         return message
     
-    def _handle_transition_with_retry(
+    async def _handle_transition_with_retry(
         self,
         conversation: Conversation,
         new_status: ConversationStatus,
@@ -207,7 +207,7 @@ class ConversationService:
         
         for attempt in range(max_retries):
             try:
-                self.lifecycle.transition_to(
+                await self.lifecycle.transition_to(
                     current_conv,
                     new_status,
                     reason,
@@ -224,7 +224,7 @@ class ConversationService:
                         error=str(e)
                     )
                     # Reload conversation data
-                    current_conv = self.conversation_repo.find_by_id(
+                    current_conv = await self.conversation_repo.find_by_id(
                         conversation.conv_id, id_column="conv_id"
                     )
                     if not current_conv:
@@ -242,7 +242,7 @@ class ConversationService:
                     # Re-raise the last error if needed by caller
                     raise
 
-    def close_conversation(
+    async def close_conversation(
         self,
         conversation: Conversation,
         status: ConversationStatus,
@@ -252,9 +252,9 @@ class ConversationService:
         """
         Explicitly close a conversation.
         """
-        return self.lifecycle.transition_to(conversation, status, reason, initiated_by)
+        return await self.lifecycle.transition_to(conversation, status, reason, initiated_by)
 
-    def close_conversation_with_priority(
+    async def close_conversation_with_priority(
         self,
         conversation: Conversation,
         status: ConversationStatus,
@@ -264,30 +264,30 @@ class ConversationService:
         """
         Close a conversation respecting status priority.
         """
-        return self.lifecycle.transition_to_with_priority(
+        return await self.lifecycle.transition_to_with_priority(
             conversation, status, reason, initiated_by
         )
 
-    def process_expired_conversations(self, limit: int = 100) -> int:
+    async def process_expired_conversations(self, limit: int = 100) -> int:
         """
         Process expired conversations (PENDING -> EXPIRED, PROGRESS -> EXPIRED).
         """
-        return self.lifecycle.process_expirations(limit)
+        return await self.lifecycle.process_expirations(limit)
 
-    def process_idle_conversations(self, idle_minutes: int, limit: int = 100) -> int:
+    async def process_idle_conversations(self, idle_minutes: int, limit: int = 100) -> int:
         """
         Process idle conversations (PROGRESS -> IDLE_TIMEOUT).
         """
-        return self.lifecycle.process_idle_timeouts(idle_minutes, limit)
+        return await self.lifecycle.process_idle_timeouts(idle_minutes, limit)
 
-    def extend_expiration(
+    async def extend_expiration(
         self, conversation: Conversation, additional_minutes: Optional[int] = None
     ) -> Conversation:
         """Extend conversation expiration time."""
         minutes = additional_minutes or settings.conversation.expiration_minutes
-        return self.lifecycle.extend_expiration(conversation, minutes)
+        return await self.lifecycle.extend_expiration(conversation, minutes)
 
-    def transfer_conversation(
+    async def transfer_conversation(
         self, conversation: Conversation, new_user_id: str, reason: str
     ) -> Conversation:
         """Transfer conversation to another agent with retry on concurrency conflicts."""
@@ -298,7 +298,7 @@ class ConversationService:
         
         for attempt in range(max_retries):
             try:
-                return self.lifecycle.transfer_owner(current_conv, new_user_id, reason)
+                return await self.lifecycle.transfer_owner(current_conv, new_user_id, reason)
             except ConcurrencyError as e:
                 if attempt < max_retries - 1:
                     logger.warning(
@@ -308,7 +308,7 @@ class ConversationService:
                         error=str(e)
                     )
                     # Reload conversation data
-                    current_conv = self.conversation_repo.find_by_id(
+                    current_conv = await self.conversation_repo.find_by_id(
                         conversation.conv_id, id_column="conv_id"
                     )
                     if not current_conv:
@@ -323,27 +323,27 @@ class ConversationService:
         
         raise RuntimeError("Transfer failed after maximum retries")
 
-    def escalate_conversation(
+    async def escalate_conversation(
         self, conversation: Conversation, supervisor_id: str, reason: str
     ) -> Conversation:
         """Escalate conversation to supervisor."""
-        return self.lifecycle.escalate(conversation, supervisor_id, reason)
+        return await self.lifecycle.escalate(conversation, supervisor_id, reason)
 
-    def request_handoff(
+    async def request_handoff(
         self, conversation: Conversation, reason: str = "user_request"
     ) -> Conversation:
         """
         Transition conversation to HUMAN_HANDOFF state.
         This stops automatic bot responses.
         """
-        return self.lifecycle.transition_to(
+        return await self.lifecycle.transition_to(
             conversation,
             ConversationStatus.HUMAN_HANDOFF,
             reason=reason,
             initiated_by="system",  # Or user/agent depending on caller
         )
 
-    def assign_agent(
+    async def assign_agent(
         self, conversation: Conversation, agent_id: str
     ) -> Conversation:
         """
@@ -362,7 +362,7 @@ class ConversationService:
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
-        updated = self.conversation_repo.update(
+        updated = await self.conversation_repo.update(
             conversation.conv_id,
             data,
             id_column="conv_id",
@@ -374,7 +374,7 @@ class ConversationService:
              
         return updated
 
-    def release_to_bot(
+    async def release_to_bot(
         self, conversation: Conversation, reason: str = "agent_release"
     ) -> Conversation:
         """
@@ -383,7 +383,7 @@ class ConversationService:
         """
         # We might want to keep agent_id for history, or clear it.
         # For now, just transition state.
-        return self.lifecycle.transition_to(
+        return await self.lifecycle.transition_to(
             conversation,
             ConversationStatus.PROGRESS,
             reason=reason,
@@ -391,37 +391,37 @@ class ConversationService:
         )
 
 
-    def get_conversation_by_id(self, conv_id: str) -> Optional[Conversation]:
+    async def get_conversation_by_id(self, conv_id: str) -> Optional[Conversation]:
         """Get conversation by ID."""
-        return self.conversation_repo.find_by_id(conv_id, id_column="conv_id")
+        return await self.conversation_repo.find_by_id(conv_id, id_column="conv_id")
 
-    def get_active_conversations(
+    async def get_active_conversations(
         self, owner_id: str, limit: int = 100
     ) -> List[Conversation]:
         """Get active conversations for an owner."""
-        return self.conversation_repo.find_active_by_owner(owner_id, limit)
+        return await self.conversation_repo.find_active_by_owner(owner_id, limit)
 
-    def get_handoff_conversations(
+    async def get_handoff_conversations(
         self, owner_id: str, agent_id: Optional[str] = None, limit: int = 100
     ) -> List[Conversation]:
         """
         Get conversations in HUMAN_HANDOFF status.
         Optional filter by agent_id.
         """
-        return self.conversation_repo.find_by_status(
+        return await self.conversation_repo.find_by_status(
             owner_id=owner_id,
             status=ConversationStatus.HUMAN_HANDOFF,
             agent_id=agent_id,
             limit=limit
         )
 
-    def get_conversation_messages(
+    async def get_conversation_messages(
         self, conv_id: str, limit: int = 100, offset: int = 0
     ) -> List[Message]:
         """Get messages for a conversation."""
-        return self.message_repo.find_by_conversation(conv_id, limit, offset)
+        return await self.message_repo.find_by_conversation(conv_id, limit, offset)
 
-    def _update_acceptance_context(
+    async def _update_acceptance_context(
         self, conversation: Conversation, message_create: MessageCreateDTO
     ):
         """Helper to update context when agent accepts."""
@@ -432,9 +432,9 @@ class ConversationService:
             "agent_type": message_create.message_owner,
             "user_id": getattr(message_create, "user_id", None),
         }
-        self.conversation_repo.update_context(conversation.conv_id, context)
+        await self.conversation_repo.update_context(conversation.conv_id, context)
 
-    def _update_reactivation_context(self, conversation: Conversation):
+    async def _update_reactivation_context(self, conversation: Conversation):
         """Helper to update context on reactivation."""
         context = conversation.context or {}
         context = context.copy()
@@ -442,4 +442,4 @@ class ConversationService:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "triggered_by": "user",
         }
-        self.conversation_repo.update_context(conversation.conv_id, context)
+        await self.conversation_repo.update_context(conversation.conv_id, context)

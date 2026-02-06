@@ -29,7 +29,7 @@ class TwilioContainer(containers.DeclarativeContainer):
     twilio_account_repository = providers.Selector(
         core.db_backend,
         supabase=providers.Factory(SupabaseTwilioAccountRepository, client=core.supabase_session),
-        postgres=providers.Factory(PostgresTwilioAccountRepository, db=core.postgres_db),
+        postgres=providers.Factory(PostgresTwilioAccountRepository, db=core.postgres_async_db),
     )
 
     # Services

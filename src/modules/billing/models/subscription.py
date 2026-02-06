@@ -4,6 +4,7 @@ from typing import Any, Optional, Dict
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.modules.billing.enums.subscription_status import SubscriptionStatus
+from src.modules.billing.models.plan import Plan
 
 
 class SubscriptionBase(BaseModel):
@@ -45,3 +46,7 @@ class Subscription(SubscriptionBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SubscriptionWithPlan(Subscription):
+    plan: Plan

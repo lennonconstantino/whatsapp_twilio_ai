@@ -2,6 +2,7 @@ from dependency_injector import containers, providers
 from src.core.config.settings import settings
 from src.core.database.session import DatabaseConnection
 from src.core.database.postgres_session import PostgresDatabase
+from src.core.database.postgres_async_session import AsyncPostgresDatabase
 from src.core.queue.service import QueueService
 
 class CoreContainer(containers.DeclarativeContainer):
@@ -20,6 +21,13 @@ class CoreContainer(containers.DeclarativeContainer):
 
     postgres_db = providers.Singleton(
         PostgresDatabase,
+        dsn=settings.database.url,
+        minconn=settings.database.pool_min_conn,
+        maxconn=settings.database.pool_max_conn,
+    )
+
+    postgres_async_db = providers.Singleton(
+        AsyncPostgresDatabase,
         dsn=settings.database.url,
         minconn=settings.database.pool_min_conn,
         maxconn=settings.database.pool_max_conn,

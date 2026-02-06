@@ -17,7 +17,7 @@ class TwilioAccountService:
     def __init__(self, twilio_account_repo: TwilioAccountRepository):
         self.repo = twilio_account_repo
 
-    def resolve_account(
+    async def resolve_account(
         self, to_number: Optional[str], account_sid: Optional[str]
     ) -> Optional[TwilioAccount]:
         """
@@ -36,16 +36,16 @@ class TwilioAccountService:
 
         # 1. Try by Account SID
         if account_sid:
-            account = self.repo.find_by_account_sid(account_sid)
+            account = await self.repo.find_by_account_sid(account_sid)
 
         # 2. Try by Phone Number
         if not account and normalized_to_number:
-            account = self.repo.find_by_phone_number(normalized_to_number)
+            account = await self.repo.find_by_phone_number(normalized_to_number)
 
         # 3. Fallback to default from settings (Development only)
         if getattr(settings.api, "environment", "production") == "development":
             if not account and getattr(settings.twilio, "account_sid", None):
-                account = self.repo.find_by_account_sid(settings.twilio.account_sid)
+                account = await self.repo.find_by_account_sid(settings.twilio.account_sid)
 
         if not account:
             logger.warning(

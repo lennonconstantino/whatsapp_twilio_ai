@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 from src.main import app, container
 from src.modules.conversation.models.conversation import Conversation
@@ -17,7 +17,7 @@ OTHER_OWNER_ID = "01ARZ3NDEKTSV4RRFFQ69G5FA3"
 class TestConversationApiV2:
     @pytest.fixture
     def mock_service(self):
-        return MagicMock()
+        return AsyncMock()
 
     @pytest.fixture
     def client(self, mock_service):

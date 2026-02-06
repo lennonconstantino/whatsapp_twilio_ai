@@ -12,6 +12,8 @@ def mock_services():
         "agent_factory": MagicMock(),
         "queue_service": AsyncMock(),
         "message_handler": AsyncMock(),
+        "feature_usage_service": MagicMock(),
+        "features_catalog_service": MagicMock(),
     }
 
 @pytest.fixture
@@ -21,6 +23,8 @@ def processor(mock_services):
         agent_factory=mock_services["agent_factory"],
         queue_service=mock_services["queue_service"],
         message_handler=mock_services["message_handler"],
+        feature_usage_service=mock_services["feature_usage_service"],
+        features_catalog_service=mock_services["features_catalog_service"],
     )
 
 @pytest.fixture
@@ -69,9 +73,14 @@ async def test_handle_ai_response_success(processor, mock_services, payload, own
     mock_user = MagicMock()
     mock_user.model_dump.return_value = {"id": "user_1"}
     
-    # Mock feature
-    mock_feature = MagicMock()
-    mock_feature.name = "finance"
+    # Mock feature usage
+    mock_usage = MagicMock()
+    mock_usage.is_active = True
+    
+    # Mock feature catalog object
+    mock_feature_obj = MagicMock()
+    mock_feature_obj.feature_key = "finance"
+    mock_feature_obj.feature_id = "feat_123"
     
     # Mock agent
     mock_agent = MagicMock()
@@ -84,11 +93,13 @@ async def test_handle_ai_response_success(processor, mock_services, payload, own
     ) as mock_run:
         # Sequence:
         # 1. get_user_by_phone
-        # 2. get_active_feature
-        # 3. agent.run
+        # 2. get_usage_summary
+        # 3. get_feature_by_key
+        # 4. agent.run
         mock_run.side_effect = [
             mock_user,
-            mock_feature,
+            {"finance": mock_usage},
+            mock_feature_obj,
             "AI Response Text"
         ]
         
@@ -136,9 +147,14 @@ async def test_handle_ai_response_persists_profile_name_and_injects_context(proc
     mock_user.user_id = "user_1"
     mock_user.model_dump.return_value = {"user_id": "user_1", "profile_name": None}
 
-    mock_feature = MagicMock()
-    mock_feature.name = "finance"
-    mock_feature.feature_id = 123
+    # Mock feature usage
+    mock_usage = MagicMock()
+    mock_usage.is_active = True
+    
+    # Mock feature catalog object
+    mock_feature_obj = MagicMock()
+    mock_feature_obj.feature_key = "finance"
+    mock_feature_obj.feature_id = "feat_123"
 
     mock_agent = MagicMock()
     mock_agent.run = MagicMock()
@@ -148,10 +164,17 @@ async def test_handle_ai_response_persists_profile_name_and_injects_context(proc
         "src.modules.channels.twilio.services.webhook.ai_processor.run_in_threadpool",
         new_callable=AsyncMock,
     ) as mock_run:
+        # Sequence:
+        # 1. get_user_by_phone
+        # 2. get_usage_summary
+        # 3. get_feature_by_key
+        # 4. update_user_profile_name (since profile name detected)
+        # 5. agent.run
         mock_run.side_effect = [
             mock_user,
-            mock_feature,
-            mock_user,
+            {"finance": mock_usage},
+            mock_feature_obj,
+            mock_user, # update_user_profile_name returns updated user
             "AI Response Text",
         ]
 
@@ -163,11 +186,13 @@ async def test_handle_ai_response_persists_profile_name_and_injects_context(proc
             correlation_id="corr_1",
         )
 
-        assert mock_run.call_args_list[2].args[0] == mock_services["identity_service"].update_user_profile_name
-        assert mock_run.call_args_list[2].args[1] == "user_1"
-        assert mock_run.call_args_list[2].args[2] == "Lennon"
+        # Call 4 (index 3) is update_user_profile_name
+        assert mock_run.call_args_list[3].args[0] == mock_services["identity_service"].update_user_profile_name
+        assert mock_run.call_args_list[3].args[1] == "user_1"
+        assert mock_run.call_args_list[3].args[2] == "Lennon"
 
-        agent_call = mock_run.call_args_list[3]
+        # Call 5 (index 4) is agent.run
+        agent_call = mock_run.call_args_list[4]
         assert agent_call.args[0] == mock_agent.run
         assert "profile_name: Lennon" in agent_call.kwargs.get("additional_context", "")
 
@@ -190,9 +215,14 @@ async def test_handle_ai_response_forgets_profile_name(processor, mock_services,
     mock_user.user_id = "user_1"
     mock_user.model_dump.return_value = {"user_id": "user_1", "profile_name": "Lennon"}
 
-    mock_feature = MagicMock()
-    mock_feature.name = "finance"
-    mock_feature.feature_id = 123
+    # Mock feature usage
+    mock_usage = MagicMock()
+    mock_usage.is_active = True
+    
+    # Mock feature catalog object
+    mock_feature_obj = MagicMock()
+    mock_feature_obj.feature_key = "finance"
+    mock_feature_obj.feature_id = "feat_123"
 
     mock_agent = MagicMock()
     mock_agent.run = MagicMock()
@@ -202,10 +232,17 @@ async def test_handle_ai_response_forgets_profile_name(processor, mock_services,
         "src.modules.channels.twilio.services.webhook.ai_processor.run_in_threadpool",
         new_callable=AsyncMock,
     ) as mock_run:
+        # Sequence:
+        # 1. get_user_by_phone
+        # 2. get_usage_summary
+        # 3. get_feature_by_key
+        # 4. clear_user_profile_name
+        # 5. agent.run
         mock_run.side_effect = [
             mock_user,
-            mock_feature,
-            mock_user,
+            {"finance": mock_usage},
+            mock_feature_obj,
+            mock_user, # clear_user_profile_name returns user
             "AI Response Text",
         ]
 
@@ -217,8 +254,8 @@ async def test_handle_ai_response_forgets_profile_name(processor, mock_services,
             correlation_id="corr_1",
         )
 
-        assert mock_run.call_args_list[2].args[0] == mock_services["identity_service"].clear_user_profile_name
-        assert mock_run.call_args_list[2].args[1] == "user_1"
+        assert mock_run.call_args_list[3].args[0] == mock_services["identity_service"].clear_user_profile_name
+        assert mock_run.call_args_list[3].args[1] == "user_1"
 
 @pytest.mark.asyncio
 async def test_handle_ai_response_user_not_found(processor, mock_services, payload, owner_id, conv_id, msg_id):
@@ -227,10 +264,12 @@ async def test_handle_ai_response_user_not_found(processor, mock_services, paylo
         new_callable=AsyncMock,
     ) as mock_run:
         # 1. get_user_by_phone -> None
-        # 2. get_active_feature -> feature
+        # 2. get_usage_summary -> {finance: usage}
+        # 3. get_feature_by_key -> feature
         mock_run.side_effect = [
             None,
-            MagicMock(name="finance")
+            {"finance": MagicMock(is_active=True)},
+            MagicMock(feature_key="finance", feature_id="123")
         ]
         
         await processor.handle_ai_response(

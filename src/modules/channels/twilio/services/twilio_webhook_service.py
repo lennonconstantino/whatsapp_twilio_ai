@@ -94,7 +94,7 @@ class TwilioWebhookService:
         Main entry point for webhook processing.
         """
         # 1. Resolve Owner
-        owner_id = self.owner_resolver.resolve_owner_id(payload)
+        owner_id = await self.owner_resolver.resolve_owner_id(payload)
 
         # 1.5. Validate Owner Plan (Access Control)
         if not payload.local_sender:

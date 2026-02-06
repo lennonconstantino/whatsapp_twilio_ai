@@ -1,6 +1,6 @@
-import unittest
+import pytest
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 
 from src.modules.conversation.models.conversation import (Conversation,
                                                           ConversationStatus)
@@ -8,8 +8,10 @@ from src.modules.conversation.repositories.impl.supabase.conversation_repository
     SupabaseConversationRepository
 
 
-class TestHistoryLogging(unittest.TestCase):
-    def setUp(self):
+@pytest.mark.asyncio
+class TestHistoryLogging:
+    @pytest.fixture(autouse=True)
+    def setup(self):
         self.mock_client = MagicMock()
         self.repo = SupabaseConversationRepository(self.mock_client)
         self.mock_conv = Conversation(
@@ -21,24 +23,46 @@ class TestHistoryLogging(unittest.TestCase):
             started_at=datetime.now(timezone.utc).isoformat(),
             context={},
         )
+        # find_by_id is sync in SupabaseRepository base, but we might need to check if it's async in base
+        # SupabaseRepository.find_by_id is likely sync because it calls client directly without run_in_threadpool in base?
+        # Let's check SupabaseRepository later if needed. But assuming find_by_id is sync for now or handled by repo wrapper.
+        # Actually in SupabaseConversationRepository code: 
+        # current = self.find_by_id(conv_id, id_column="conv_id") inside _update (sync)
+        # So find_by_id is sync.
+        
         self.repo.find_by_id = MagicMock(return_value=self.mock_conv)
-        self.repo.update = MagicMock(return_value=self.mock_conv)
+        
+        # update is async in SupabaseConversationRepository, but the sync logic is in _update.
+        # However, we are testing update_status which calls _update.
+        # _update calls self.find_by_id (mocked above) and super().update
+        # create calls super().create
+        
+        # We need to ensure super().update and super().create don't fail or are mocked if they are complex.
+        # Since we are testing logging, we can rely on mocks on client.
+        
+        # We need to mock model_class for create return
         self.repo.model_class = lambda **kwargs: self.mock_conv
 
-    def test_update_status_logs_history(self):
+    async def test_update_status_logs_history(self):
         mock_table = MagicMock()
         mock_insert = MagicMock()
         mock_execute = MagicMock()
+        mock_update = MagicMock()
 
         self.mock_client.table.return_value = mock_table
         mock_table.insert.return_value = mock_insert
         mock_insert.execute.return_value = mock_execute
+        
+        # Mock update call response
+        mock_table.update.return_value = mock_update
+        mock_update.eq.return_value = mock_update
+        mock_update.execute.return_value = MagicMock(data=[self.mock_conv.model_dump()])
 
         new_status = ConversationStatus.PROGRESS
         initiated_by = "agent"
         reason = "agent_acceptance"
 
-        self.repo.update_status(
+        await self.repo.update_status(
             self.mock_conv.conv_id,
             new_status,
             initiated_by=initiated_by,
@@ -52,36 +76,34 @@ class TestHistoryLogging(unittest.TestCase):
             for call in self.mock_client.table.mock_calls
             if call.args == ("conversation_state_history",)
         ]
-        self.assertTrue(
-            len(history_calls) > 0,
-            "Should have called table('conversation_state_history')",
-        )
+        assert len(history_calls) > 0, "Should have called table('conversation_state_history')"
 
         call_args = mock_table.insert.call_args
-        self.assertIsNotNone(call_args, "Insert should have been called")
+        assert call_args is not None, "Insert should have been called"
 
         history_data = call_args[0][0]
-        self.assertEqual(history_data["conv_id"], self.mock_conv.conv_id)
-        self.assertEqual(
-            history_data["from_status"],
-            ConversationStatus.PENDING.value,
-        )
-        self.assertEqual(
-            history_data["to_status"],
-            ConversationStatus.PROGRESS.value,
-        )
-        self.assertEqual(history_data["changed_by"], "agent")
-        self.assertEqual(history_data["reason"], "agent_acceptance")
-        self.assertIn("metadata", history_data)
+        assert history_data["conv_id"] == self.mock_conv.conv_id
+        assert history_data["from_status"] == ConversationStatus.PENDING.value
+        assert history_data["to_status"] == ConversationStatus.PROGRESS.value
+        assert history_data["changed_by"] == "agent"
+        assert history_data["reason"] == "agent_acceptance"
+        assert "metadata" in history_data
 
-    def test_update_status_sanitizes_changed_by(self):
+    async def test_update_status_sanitizes_changed_by(self):
         mock_table = MagicMock()
         mock_insert = MagicMock()
+        mock_update = MagicMock()
+        
         self.mock_client.table.return_value = mock_table
         mock_table.insert.return_value = mock_insert
         mock_insert.execute.return_value = MagicMock()
+        
+        # Mock update call response
+        mock_table.update.return_value = mock_update
+        mock_update.eq.return_value = mock_update
+        mock_update.execute.return_value = MagicMock(data=[self.mock_conv.model_dump()])
 
-        self.repo.update_status(
+        await self.repo.update_status(
             self.mock_conv.conv_id,
             ConversationStatus.PROGRESS,
             initiated_by="invalid_user_type",
@@ -89,19 +111,12 @@ class TestHistoryLogging(unittest.TestCase):
         )
 
         call_args = mock_table.insert.call_args
-        self.assertIsNotNone(call_args, "Insert should have been called")
+        assert call_args is not None, "Insert should have been called"
         history_data = call_args[0][0]
-        self.assertEqual(
-            history_data["changed_by"],
-            "system",
-            "Should sanitize invalid user type to 'system'",
-        )
-        self.assertEqual(
-            history_data["metadata"]["original_initiated_by"],
-            "invalid_user_type",
-        )
+        assert history_data["changed_by"] == "system", "Should sanitize invalid user type to 'system'"
+        assert history_data["metadata"]["original_initiated_by"] == "invalid_user_type"
 
-    def test_create_logs_history(self):
+    async def test_create_logs_history(self):
         mock_table = MagicMock()
         mock_insert = MagicMock()
         mock_execute = MagicMock()
@@ -128,15 +143,12 @@ class TestHistoryLogging(unittest.TestCase):
             "status": "pending",
         }
 
-        self.repo.create(new_data)
+        await self.repo.create(new_data)
 
         self.mock_client.table.assert_any_call("conversation_state_history")
 
         insert_calls = mock_table.insert.call_args_list
-        self.assertTrue(
-            len(insert_calls) >= 2,
-            "Should have called insert at least twice (create + history)",
-        )
+        assert len(insert_calls) >= 2, "Should have called insert at least twice (create + history)"
 
         history_data = None
         for call in insert_calls:
@@ -147,11 +159,11 @@ class TestHistoryLogging(unittest.TestCase):
                         history_data = data
                         break
 
-        self.assertIsNotNone(history_data, "History log entry not found")
-        self.assertEqual(history_data["conv_id"], created_data["conv_id"])
-        self.assertIsNone(history_data["from_status"])
-        self.assertEqual(history_data["to_status"], "pending")
-        self.assertEqual(history_data["changed_by"], "system")
+        assert history_data is not None, "History log entry not found"
+        assert history_data["conv_id"] == created_data["conv_id"]
+        assert history_data["from_status"] is None
+        assert history_data["to_status"] == "pending"
+        assert history_data["changed_by"] == "system"
 
 
 if __name__ == "__main__":

@@ -1,17 +1,19 @@
 """
 Unit tests for Conversation Finder Component (V2).
 """
-import unittest
+import pytest
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, ANY
+from unittest.mock import MagicMock, ANY, AsyncMock
 
 from src.modules.conversation.enums.conversation_status import ConversationStatus
 from src.modules.conversation.models.conversation import Conversation
 from src.modules.conversation.components.conversation_finder import ConversationFinder
 
-class TestConversationFinder(unittest.TestCase):
-    def setUp(self):
-        self.repo = MagicMock()
+@pytest.mark.asyncio
+class TestConversationFinder:
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.repo = AsyncMock()
         self.finder = ConversationFinder(self.repo)
         
         self.mock_conv = Conversation(
@@ -31,42 +33,42 @@ class TestConversationFinder(unittest.TestCase):
         # Order independence
         key1 = self.finder.calculate_session_key("whatsapp:+123", "whatsapp:+456")
         key2 = self.finder.calculate_session_key("whatsapp:+456", "whatsapp:+123")
-        self.assertEqual(key1, key2)
+        assert key1 == key2
         
         # Normalization
         key3 = self.finder.calculate_session_key("+123", "+456")
-        self.assertEqual(key3, key1)
+        assert key3 == key1
 
-    def test_find_active(self):
+    async def test_find_active(self):
         """Test finding active conversation."""
         self.repo.find_active_by_session_key.return_value = self.mock_conv
         
-        result = self.finder.find_active("OWNER", "+123", "+456")
+        result = await self.finder.find_active("OWNER", "+123", "+456")
         
-        self.assertEqual(result, self.mock_conv)
+        assert result == self.mock_conv
         self.repo.find_active_by_session_key.assert_called_with(
             "OWNER",
             "whatsapp:+123::whatsapp:+456"
         )
 
-    def test_find_last_conversation(self):
+    async def test_find_last_conversation(self):
         """Test finding last conversation."""
         self.repo.find_all_by_session_key.return_value = [self.mock_conv]
         
-        result = self.finder.find_last_conversation("OWNER", "+123", "+456")
+        result = await self.finder.find_last_conversation("OWNER", "+123", "+456")
         
-        self.assertEqual(result, self.mock_conv)
+        assert result == self.mock_conv
         self.repo.find_all_by_session_key.assert_called_with(
             "OWNER",
             "whatsapp:+123::whatsapp:+456",
             limit=1
         )
 
-    def test_create_new(self):
+    async def test_create_new(self):
         """Test creating new conversation."""
         self.repo.create.return_value = self.mock_conv
         
-        result = self.finder.create_new(
+        result = await self.finder.create_new(
             "OWNER",
             "+123",
             "+456",
@@ -74,20 +76,20 @@ class TestConversationFinder(unittest.TestCase):
             metadata={"source": "test"}
         )
         
-        self.assertEqual(result, self.mock_conv)
+        assert result == self.mock_conv
         self.repo.create.assert_called()
         args = self.repo.create.call_args[0][0]
-        self.assertEqual(args["owner_id"], "OWNER")
-        self.assertEqual(args["status"], ConversationStatus.PENDING.value)
-        self.assertEqual(args["metadata"]["source"], "test")
+        assert args["owner_id"] == "OWNER"
+        assert args["status"] == ConversationStatus.PENDING.value
+        assert args["metadata"]["source"] == "test"
 
-    def test_create_new_linked(self):
+    async def test_create_new_linked(self):
         """Test creating new linked conversation."""
         self.repo.create.return_value = self.mock_conv
         prev_conv = self.mock_conv
         prev_conv.ended_at = datetime.now(timezone.utc)
         
-        self.finder.create_new(
+        await self.finder.create_new(
             "OWNER",
             "+123",
             "+456",
@@ -96,8 +98,5 @@ class TestConversationFinder(unittest.TestCase):
         )
         
         args = self.repo.create.call_args[0][0]
-        self.assertEqual(args["metadata"]["previous_conversation_id"], prev_conv.conv_id)
-        self.assertIn("linked_at", args["metadata"])
-
-if __name__ == "__main__":
-    unittest.main()
+        assert args["metadata"]["previous_conversation_id"] == prev_conv.conv_id
+        assert "linked_at" in args["metadata"]

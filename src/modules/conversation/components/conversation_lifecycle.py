@@ -80,7 +80,7 @@ class ConversationLifecycle:
         valid_next_states = self.VALID_TRANSITIONS.get(from_status, [])
         return to_status in valid_next_states
 
-    def transition_to(
+    async def transition_to(
         self,
         conversation: Conversation,
         new_status: ConversationStatus,
@@ -106,7 +106,7 @@ class ConversationLifecycle:
             reason=reason,
         )
 
-        updated_conv = self.repository.update_status(
+        updated_conv = await self.repository.update_status(
             conversation.conv_id,
             new_status,
             initiated_by=initiated_by,
@@ -121,43 +121,10 @@ class ConversationLifecycle:
                 current_version=conversation.version,
             )
 
-        # Log history (could be async/event-driven, but kept inline for now)
-        self._log_transition_history(
-            updated_conv, current_status, new_status, reason, initiated_by
-        )
-
+        # Log history is handled by the repository
         return updated_conv
 
-    def _log_transition_history(
-        self,
-        conversation: Conversation,
-        from_status: ConversationStatus,
-        to_status: ConversationStatus,
-        reason: str,
-        initiated_by: str,
-    ):
-        """Log state transition to history table."""
-        try:
-            history_data = {
-                "conv_id": conversation.conv_id,
-                "from_status": from_status.value,
-                "to_status": to_status.value,
-                "changed_by": initiated_by,
-                "reason": reason,
-                "metadata": {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "context": conversation.context,
-                },
-            }
-            self.repository.log_transition_history(history_data)
-        except Exception as e:
-            logger.error(
-                "Failed to log transition history",
-                error=str(e),
-                conv_id=conversation.conv_id,
-            )
-
-    def transition_to_with_priority(
+    async def transition_to_with_priority(
         self,
         conversation: Conversation,
         status: ConversationStatus,
@@ -178,7 +145,7 @@ class ConversationLifecycle:
 
         # If not closed yet, normal transition
         if not current_status.is_closed():
-            return self.transition_to(conversation, status, reason, initiated_by)
+            return await self.transition_to(conversation, status, reason, initiated_by)
 
         # Define priorities (lower number = higher priority)
         priorities = {
@@ -201,7 +168,7 @@ class ConversationLifecycle:
                 new_status=status.value,
             )
             # Force transition for override
-            return self._force_transition(conversation, status, reason, initiated_by)
+            return await self._force_transition(conversation, status, reason, initiated_by)
 
         logger.info(
             "Ignoring transition request due to lower/equal priority",
@@ -211,7 +178,7 @@ class ConversationLifecycle:
         )
         return conversation
 
-    def _force_transition(
+    async def _force_transition(
         self,
         conversation: Conversation,
         new_status: ConversationStatus,
@@ -219,7 +186,7 @@ class ConversationLifecycle:
         initiated_by: str,
     ) -> Conversation:
         """Force a transition regardless of current state validity."""
-        updated_conv = self.repository.update_status(
+        updated_conv = await self.repository.update_status(
             conversation.conv_id,
             new_status,
             initiated_by=initiated_by,
@@ -234,23 +201,16 @@ class ConversationLifecycle:
                 current_version=conversation.version,
             )
 
-        self._log_transition_history(
-            updated_conv,
-            ConversationStatus(conversation.status),
-            new_status,
-            reason,
-            initiated_by,
-        )
         return updated_conv
 
-    def extend_expiration(
+    async def extend_expiration(
         self, conversation: Conversation, additional_minutes: int
     ) -> Conversation:
         """Extend conversation expiration time."""
         # Use repository method if available, or manual update
         new_expires = datetime.now(timezone.utc) + timedelta(minutes=additional_minutes)
 
-        updated = self.repository.update(
+        updated = await self.repository.update(
             conversation.conv_id,
             {"expires_at": new_expires.isoformat()},
             id_column="conv_id",
@@ -264,7 +224,7 @@ class ConversationLifecycle:
 
         return updated
 
-    def transfer_owner(
+    async def transfer_owner(
         self, conversation: Conversation, new_user_id: str, reason: str
     ) -> Conversation:
         """Transfer conversation to another user/agent."""
@@ -279,7 +239,7 @@ class ConversationLifecycle:
             }
         )
 
-        updated = self.repository.update(
+        updated = await self.repository.update(
             conversation.conv_id,
             {
                 "user_id": new_user_id,
@@ -297,7 +257,7 @@ class ConversationLifecycle:
         
         return updated
     
-    def escalate(
+    async def escalate(
         self, conversation: Conversation, supervisor_id: str, reason: str
     ) -> Conversation:
         """Escalate conversation."""
@@ -310,7 +270,7 @@ class ConversationLifecycle:
             "status": "open",
         }
 
-        updated = self.repository.update(
+        updated = await self.repository.update(
             conversation.conv_id,
             {
                 "status": ConversationStatus.PROGRESS.value,
@@ -328,12 +288,12 @@ class ConversationLifecycle:
         
         return updated
 
-    def process_expirations(self, limit: int = 100) -> int:
+    async def process_expirations(self, limit: int = 100) -> int:
         """
         Process expired conversations.
         Returns count of processed items.
         """
-        candidates = self.repository.find_expired_candidates(limit=limit)
+        candidates = await self.repository.find_expired_candidates(limit=limit)
         processed = 0
 
         for conv in candidates:
@@ -342,7 +302,7 @@ class ConversationLifecycle:
                 if not conv.is_expired():
                     continue
 
-                self.transition_to(
+                await self.transition_to(
                     conv,
                     ConversationStatus.EXPIRED,
                     reason="ttl_expired",
@@ -360,12 +320,12 @@ class ConversationLifecycle:
 
         return processed
 
-    def process_idle_timeouts(self, idle_minutes: int, limit: int = 100) -> int:
+    async def process_idle_timeouts(self, idle_minutes: int, limit: int = 100) -> int:
         """
         Process idle conversations (move from PROGRESS to IDLE_TIMEOUT).
         """
         threshold = datetime.now(timezone.utc) - timedelta(minutes=idle_minutes)
-        candidates = self.repository.find_idle_candidates(
+        candidates = await self.repository.find_idle_candidates(
             threshold.isoformat(), limit=limit
         )
         processed = 0
@@ -377,7 +337,7 @@ class ConversationLifecycle:
                 if conv.status != ConversationStatus.PROGRESS.value:
                     continue
 
-                self.transition_to(
+                await self.transition_to(
                     conv,
                     ConversationStatus.IDLE_TIMEOUT,
                     reason="inactivity_timeout",

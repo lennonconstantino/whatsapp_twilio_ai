@@ -2,14 +2,15 @@ import unittest
 from datetime import datetime
 
 from src.core.utils.custom_ulid import generate_ulid
-from src.modules.identity.enums.subscription_status import SubscriptionStatus
+from src.modules.billing.enums.subscription_status import SubscriptionStatus
+from src.modules.billing.enums.billing_period import BillingPeriod
 from src.modules.identity.models.owner import Owner
-from src.modules.identity.models.plan import Plan
+from src.modules.billing.models.plan import Plan
 from src.modules.identity.models.response import (OwnerWithSubscription,
                                                   RegisterOrganizationRequest,
                                                   RegisterOrganizationResponse,
                                                   UserProfile)
-from src.modules.identity.models.subscription import (Subscription,
+from src.modules.billing.models.subscription import (Subscription,
                                                       SubscriptionWithPlan)
 from src.modules.identity.models.user import User
 
@@ -41,8 +42,8 @@ class TestResponseModels(unittest.TestCase):
             display_name="Test Display",
             description="Desc",
             price_cents=1000,
-            currency="USD",
-            interval="month",
+            # currency="USD",  # Removed as it's not in Plan model
+            billing_period=BillingPeriod.MONTHLY,
             created_at=self.now,
             updated_at=self.now,
         )
@@ -52,7 +53,7 @@ class TestResponseModels(unittest.TestCase):
             owner_id=self.owner_id,
             plan_id=self.plan_id,
             status=SubscriptionStatus.ACTIVE,
-            started_at=self.now,
+            # started_at=self.now, # removed, maybe current_period_start?
             created_at=self.now,
             updated_at=self.now,
         )

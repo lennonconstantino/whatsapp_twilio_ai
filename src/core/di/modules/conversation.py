@@ -24,13 +24,13 @@ class ConversationContainer(containers.DeclarativeContainer):
     conversation_repository = providers.Selector(
         core.db_backend,
         supabase=providers.Factory(SupabaseConversationRepository, client=core.supabase_session),
-        postgres=providers.Factory(PostgresConversationRepository, db=core.postgres_db),
+        postgres=providers.Factory(PostgresConversationRepository, db=core.postgres_async_db),
     )
 
     message_repository = providers.Selector(
         core.db_backend,
         supabase=providers.Factory(SupabaseMessageRepository, client=core.supabase_session),
-        postgres=providers.Factory(PostgresMessageRepository, db=core.postgres_db),
+        postgres=providers.Factory(PostgresMessageRepository, db=core.postgres_async_db),
     )
 
     # Components

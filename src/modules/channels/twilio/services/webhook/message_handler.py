@@ -83,8 +83,7 @@ class TwilioWebhookMessageHandler:
     async def get_or_create_conversation(
         self, owner_id: str, payload: TwilioWhatsAppPayload
     ) -> Conversation:
-        return await run_in_threadpool(
-            self.conversation_service.get_or_create_conversation,
+        return await self.conversation_service.get_or_create_conversation(
             owner_id=owner_id,
             from_number=payload.from_number,
             to_number=payload.to_number,
@@ -124,9 +123,7 @@ class TwilioWebhookMessageHandler:
             },
         )
 
-        return await run_in_threadpool(
-            self.conversation_service.add_message, conversation, message_data
-        )
+        return await self.conversation_service.add_message(conversation, message_data)
 
     async def persist_inbound_message(
         self,
@@ -162,9 +159,7 @@ class TwilioWebhookMessageHandler:
             },
         )
 
-        return await run_in_threadpool(
-            self.conversation_service.add_message, conversation, message_data
-        )
+        return await self.conversation_service.add_message(conversation, message_data)
 
     async def handle_duplicate_message(
         self, payload: TwilioWhatsAppPayload, conversation: Conversation
@@ -175,8 +170,7 @@ class TwilioWebhookMessageHandler:
         )
 
         # Fetch existing message to return consistent response
-        existing_message = await run_in_threadpool(
-            self.conversation_service.message_repo.find_by_external_id,
+        existing_message = await self.conversation_service.message_repo.find_by_external_id(
             payload.message_sid,
         )
 
@@ -190,8 +184,7 @@ class TwilioWebhookMessageHandler:
     async def send_twilio_message(
         self, owner_id: str, payload: TwilioWhatsAppPayload
     ):
-        return await run_in_threadpool(
-            self.twilio_service.send_message,
+        return await self.twilio_service.send_message(
             owner_id=owner_id,
             from_number=payload.from_number,
             to_number=payload.to_number,
@@ -234,17 +227,14 @@ class TwilioWebhookMessageHandler:
             )
 
             # Re-fetch conversation to ensure attached to session if needed
-            conversation = await run_in_threadpool(
-                self.conversation_service.get_or_create_conversation,
+            conversation = await self.conversation_service.get_or_create_conversation(
                 owner_id=owner_id,
                 from_number=sender_number,
                 to_number=recipient_number,
                 channel="whatsapp",
             )
 
-            message = await run_in_threadpool(
-                self.conversation_service.add_message, conversation, message_data
-            )
+            message = await self.conversation_service.add_message(conversation, message_data)
 
             if not message:
                 logger.error("Failed to persist outbound message", correlation_id=correlation_id)
@@ -276,8 +266,7 @@ class TwilioWebhookMessageHandler:
             )
 
     async def update_message_body(self, msg_id: str, new_body: str):
-        await run_in_threadpool(
-            self.conversation_service.message_repo.update,
+        await self.conversation_service.message_repo.update(
             id_value=msg_id,
             data={"body": new_body, "content": new_body},
             id_column="msg_id"

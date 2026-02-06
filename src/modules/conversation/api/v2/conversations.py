@@ -68,7 +68,7 @@ class ConversationListResponse(BaseModel):
 
 @router.post("/", response_model=ConversationResponse, status_code=201)
 @inject
-def create_conversation(
+async def create_conversation(
     conversation_data: ConversationCreateDTO,
     owner_id: str = Depends(get_current_owner_id),
     service: ConversationService = Depends(
@@ -84,7 +84,7 @@ def create_conversation(
             detail=f"Not authorized to create conversation for owner {conversation_data.owner_id}",
         )
 
-    conversation = service.get_or_create_conversation(
+    conversation = await service.get_or_create_conversation(
         owner_id=conversation_data.owner_id,
         from_number=conversation_data.from_number,
         to_number=conversation_data.to_number,
@@ -98,7 +98,7 @@ def create_conversation(
 
 @router.get("/{conv_id}", response_model=ConversationResponse)
 @inject
-def get_conversation(
+async def get_conversation(
     conv_id: str,
     owner_id: str = Depends(get_current_owner_id),
     service: ConversationService = Depends(
@@ -106,7 +106,7 @@ def get_conversation(
     ),
 ):
     """Get a conversation by ID (V2)."""
-    conversation = service.get_conversation_by_id(conv_id)
+    conversation = await service.get_conversation_by_id(conv_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -118,7 +118,7 @@ def get_conversation(
 
 @router.get("/", response_model=ConversationListResponse)
 @inject
-def list_conversations(
+async def list_conversations(
     limit: int = Query(100, ge=1, le=1000),
     owner_id: str = Depends(get_current_owner_id),
     service: ConversationService = Depends(
@@ -126,7 +126,7 @@ def list_conversations(
     ),
 ):
     """List active conversations for an owner (V2)."""
-    conversations = service.get_active_conversations(owner_id, limit)
+    conversations = await service.get_active_conversations(owner_id, limit)
 
     return ConversationListResponse(
         conversations=[ConversationResponse.model_validate(c) for c in conversations],
@@ -136,7 +136,7 @@ def list_conversations(
 
 @router.get("/{conv_id}/messages", response_model=List[MessageResponse])
 @inject
-def get_conversation_messages(
+async def get_conversation_messages(
     conv_id: str,
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
@@ -147,21 +147,21 @@ def get_conversation_messages(
 ):
     """Get messages from a conversation (V2)."""
     # Verify conversation exists
-    conversation = service.get_conversation_by_id(conv_id)
+    conversation = await service.get_conversation_by_id(conv_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     if conversation.owner_id != owner_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this conversation")
 
-    messages = service.get_conversation_messages(conv_id, limit, offset)
+    messages = await service.get_conversation_messages(conv_id, limit, offset)
 
     return [MessageResponse.model_validate(m) for m in messages]
 
 
 @router.post("/{conv_id}/messages", response_model=MessageResponse, status_code=201)
 @inject
-def add_message(
+async def add_message(
     conv_id: str,
     message_data: MessageCreateDTO,
     owner_id: str = Depends(get_current_owner_id),
@@ -171,7 +171,7 @@ def add_message(
 ):
     """Add a message to a conversation (V2)."""
     # Verify conversation exists
-    conversation = service.get_conversation_by_id(conv_id)
+    conversation = await service.get_conversation_by_id(conv_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
@@ -181,13 +181,13 @@ def add_message(
     # Ensure conv_id matches
     message_data.conv_id = conv_id
 
-    message = service.add_message(conversation, message_data)
+    message = await service.add_message(conversation, message_data)
     return MessageResponse.model_validate(message)
 
 
 @router.post("/{conv_id}/close", response_model=ConversationResponse)
 @inject
-def close_conversation(
+async def close_conversation(
     conv_id: str,
     status: ConversationStatus,
     reason: str = Query(..., description="Reason for closure"),
@@ -197,14 +197,14 @@ def close_conversation(
     ),
 ):
     """Close a conversation (V2)."""
-    conversation = service.get_conversation_by_id(conv_id)
+    conversation = await service.get_conversation_by_id(conv_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
 
     if conversation.owner_id != owner_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this conversation")
 
-    closed = service.close_conversation(
+    closed = await service.close_conversation(
         conversation, status, initiated_by="api_user_v2", reason=reason
     )
     return ConversationResponse.model_validate(closed)

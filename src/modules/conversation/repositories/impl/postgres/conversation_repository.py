@@ -3,10 +3,10 @@ from typing import Any, Dict, List, Optional, Union
 
 import json
 from psycopg2 import sql
-from psycopg2.extras import Json, RealDictCursor
+# from psycopg2.extras import Json, RealDictCursor # Removed sync dependencies
 
-from src.core.database.postgres_repository import PostgresRepository
-from src.core.database.postgres_session import PostgresDatabase
+from src.core.database.postgres_async_repository import PostgresAsyncRepository
+from src.core.database.postgres_async_session import AsyncPostgresDatabase
 from src.core.utils import get_logger
 from src.core.utils.exceptions import ConcurrencyError
 from src.modules.conversation.enums.conversation_status import ConversationStatus
@@ -18,8 +18,8 @@ from src.modules.conversation.repositories.conversation_repository import (
 logger = get_logger(__name__)
 
 
-class PostgresConversationRepository(PostgresRepository[Conversation], ConversationRepository):
-    def __init__(self, db: PostgresDatabase):
+class PostgresConversationRepository(PostgresAsyncRepository[Conversation], ConversationRepository):
+    def __init__(self, db: AsyncPostgresDatabase):
         super().__init__(db, "conversations", Conversation)
 
     @staticmethod
@@ -33,16 +33,16 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
         numbers = sorted([clean1, clean2])
         return f"{numbers[0]}::{numbers[1]}"
 
-    def create(self, data: Dict[str, Any]) -> Optional[Conversation]:
+    async def create(self, data: Dict[str, Any]) -> Optional[Conversation]:
         data = {**data}
         data.pop("session_key", None)
         if "version" not in data:
             data["version"] = 1
 
-        conversation = super().create(data)
+        conversation = await super().create(data)
         if conversation:
             try:
-                self.log_transition_history(
+                await self.log_transition_history(
                     {
                         "conv_id": conversation.conv_id,
                         "from_status": None,
@@ -64,8 +64,8 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
                 )
         return conversation
 
-    def log_transition_history(self, history_data: Dict[str, Any]) -> None:
-        self._log_history(
+    async def log_transition_history(self, history_data: Dict[str, Any]) -> None:
+        await self._log_history(
             conv_id=history_data.get("conv_id"),
             from_status=history_data.get("from_status"),
             to_status=history_data.get("to_status"),
@@ -74,7 +74,7 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
             metadata=history_data.get("metadata") or {},
         )
 
-    def _log_history(
+    async def _log_history(
         self,
         *,
         conv_id: str,
@@ -95,20 +95,12 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
             to_status,
             changed_by,
             reason,
-            Json(metadata),
+            json.dumps(metadata), # Asyncpg requires explicit JSON serialization usually
         )
-        with self.db.connection() as conn:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cur.execute(query, params)
-                conn.commit()
-            except Exception:
-                conn.rollback()
-                raise
-            finally:
-                cur.close()
+        
+        await self._execute_query(query, params)
 
-    def find_by_session_key(
+    async def find_by_session_key(
         self, owner_id: str, from_number: str, to_number: str
     ) -> Optional[Conversation]:
         session_key = self.calculate_session_key(from_number, to_number)
@@ -119,16 +111,12 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
             "ORDER BY started_at DESC "
             "LIMIT 1"
         )
-        with self.db.connection() as conn:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cur.execute(query, (owner_id, session_key, statuses))
-                row = cur.fetchone()
-                return self.model_class(**row) if row else None
-            finally:
-                cur.close()
+        
+        # asyncpg handles arrays natively, usually passed as list
+        result = await self._execute_query(query, (owner_id, session_key, statuses), fetch_one=True)
+        return self.model_class(**result) if result else None
 
-    def find_active_by_owner(self, owner_id: str, limit: int = 100) -> List[Conversation]:
+    async def find_active_by_owner(self, owner_id: str, limit: int = 100) -> List[Conversation]:
         statuses = [s.value for s in ConversationStatus.active_statuses()]
         query = sql.SQL(
             "SELECT * FROM conversations "
@@ -136,16 +124,11 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
             "ORDER BY started_at DESC "
             "LIMIT %s"
         )
-        with self.db.connection() as conn:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cur.execute(query, (owner_id, statuses, limit))
-                rows = cur.fetchall()
-                return [self.model_class(**r) for r in rows]
-            finally:
-                cur.close()
+        
+        rows = await self._execute_query(query, (owner_id, statuses, limit), fetch_all=True)
+        return [self.model_class(**r) for r in rows]
 
-    def find_active_by_session_key(
+    async def find_active_by_session_key(
         self, owner_id: str, session_key: str
     ) -> Optional[Conversation]:
         statuses = [s.value for s in ConversationStatus.active_statuses()]
@@ -155,16 +138,11 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
             "ORDER BY started_at DESC "
             "LIMIT 1"
         )
-        with self.db.connection() as conn:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cur.execute(query, (owner_id, session_key, statuses))
-                row = cur.fetchone()
-                return self.model_class(**row) if row else None
-            finally:
-                cur.close()
+        
+        result = await self._execute_query(query, (owner_id, session_key, statuses), fetch_one=True)
+        return self.model_class(**result) if result else None
 
-    def find_all_by_session_key(
+    async def find_all_by_session_key(
         self, owner_id: str, session_key: str, limit: int = 10
     ) -> List[Conversation]:
         query = sql.SQL(
@@ -173,16 +151,11 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
             "ORDER BY started_at DESC "
             "LIMIT %s"
         )
-        with self.db.connection() as conn:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cur.execute(query, (owner_id, session_key, limit))
-                rows = cur.fetchall()
-                return [self.model_class(**r) for r in rows]
-            finally:
-                cur.close()
+        
+        rows = await self._execute_query(query, (owner_id, session_key, limit), fetch_all=True)
+        return [self.model_class(**r) for r in rows]
 
-    def find_expired_candidates(self, limit: int = 100) -> List[Conversation]:
+    async def find_expired_candidates(self, limit: int = 100) -> List[Conversation]:
         now = datetime.now(timezone.utc).isoformat()
         statuses = [s.value for s in ConversationStatus.active_statuses()]
         query = sql.SQL(
@@ -190,16 +163,11 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
             "WHERE status = ANY(%s) AND expires_at < %s "
             "LIMIT %s"
         )
-        with self.db.connection() as conn:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cur.execute(query, (statuses, now, limit))
-                rows = cur.fetchall()
-                return [self.model_class(**r) for r in rows]
-            finally:
-                cur.close()
+        
+        rows = await self._execute_query(query, (statuses, now, limit), fetch_all=True)
+        return [self.model_class(**r) for r in rows]
 
-    def find_idle_candidates(
+    async def find_idle_candidates(
         self, idle_threshold_iso: str, limit: int = 100
     ) -> List[Conversation]:
         statuses = [s.value for s in ConversationStatus.active_statuses()]
@@ -208,21 +176,16 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
             "WHERE status = ANY(%s) AND updated_at < %s "
             "LIMIT %s"
         )
-        with self.db.connection() as conn:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cur.execute(query, (statuses, idle_threshold_iso, limit))
-                rows = cur.fetchall()
-                return [self.model_class(**r) for r in rows]
-            finally:
-                cur.close()
+        
+        rows = await self._execute_query(query, (statuses, idle_threshold_iso, limit), fetch_all=True)
+        return [self.model_class(**r) for r in rows]
 
-    def cleanup_expired_conversations(self, limit: int = 100) -> int:
+    async def cleanup_expired_conversations(self, limit: int = 100) -> int:
         processed = 0
-        candidates = self.find_expired_candidates(limit)
+        candidates = await self.find_expired_candidates(limit)
         for conv in candidates:
             try:
-                result = self.update_status(
+                result = await self.update_status(
                     conv.conv_id,
                     ConversationStatus.EXPIRED,
                     ended_at=datetime.now(timezone.utc),
@@ -241,7 +204,7 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
                 )
         return processed
 
-    def close_by_message_policy(
+    async def close_by_message_policy(
         self,
         conv: Conversation,
         *,
@@ -258,7 +221,7 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
             "user": ConversationStatus.USER_CLOSED,
         }
         target = status_map.get(owner, ConversationStatus.EXPIRED)
-        result = self.update_status(
+        result = await self.update_status(
             conv.conv_id,
             target,
             initiated_by=owner,
@@ -267,11 +230,11 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
         )
         if result:
             if message_text:
-                self.update_context(conv.conv_id, conv.context or {})
+                await self.update_context(conv.conv_id, conv.context or {})
             return True
         return False
 
-    def find_by_status(
+    async def find_by_status(
         self,
         *,
         owner_id: str,
@@ -279,39 +242,35 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
         agent_id: Optional[str] = None,
         limit: int = 100,
     ) -> List[Conversation]:
-        query = (
-            "SELECT * FROM conversations WHERE owner_id = %s AND status = %s"
-        )
+        # Using sql.SQL for safety
+        query = sql.SQL("SELECT * FROM conversations WHERE owner_id = %s AND status = %s")
         params: list = [owner_id, status.value]
+        
         if agent_id:
-            query += " AND agent_id = %s"
+            query += sql.SQL(" AND agent_id = %s")
             params.append(agent_id)
-        query += " ORDER BY updated_at DESC LIMIT %s"
+            
+        query += sql.SQL(" ORDER BY updated_at DESC LIMIT %s")
         params.append(limit)
-        with self.db.connection() as conn:
-            cur = conn.cursor(cursor_factory=RealDictCursor)
-            try:
-                cur.execute(query, tuple(params))
-                rows = cur.fetchall()
-                return [self.model_class(**r) for r in rows]
-            finally:
-                cur.close()
+        
+        rows = await self._execute_query(query, tuple(params), fetch_all=True)
+        return [self.model_class(**r) for r in rows]
 
-    def update_context(
+    async def update_context(
         self, conv_id: str, context: dict, expected_version: Optional[int] = None
     ) -> Optional[Conversation]:
-        return self.update(
+        return await self.update(
             conv_id,
-            {"context": Json(context)},
+            {"context": json.dumps(context)}, # Asyncpg JSON
             id_column="conv_id",
             current_version=expected_version,
         )
 
-    def update_timestamp(self, conv_id: str) -> Optional[Conversation]:
+    async def update_timestamp(self, conv_id: str) -> Optional[Conversation]:
         data = {"updated_at": datetime.now(timezone.utc).isoformat()}
-        return self.update(conv_id, data, id_column="conv_id")
+        return await self.update(conv_id, data, id_column="conv_id")
 
-    def update_status(
+    async def update_status(
         self,
         conv_id: str,
         status: ConversationStatus,
@@ -322,7 +281,7 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
         expires_at: Optional[datetime] = None,
         force: bool = False,
     ) -> Optional[Conversation]:
-        current = self.find_by_id(conv_id, id_column="conv_id")
+        current = await self.find_by_id(conv_id, id_column="conv_id")
         if not current:
             return None
 
@@ -330,10 +289,6 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
         to_status = (
             status if isinstance(status, ConversationStatus) else ConversationStatus(status)
         )
-
-        # Validation is now delegated to the ConversationLifecycle component (Business Layer)
-        # The repository is responsible for persistence only.
-        # if not force: ... (removed duplication)
 
         update_data: Dict[str, Any] = {
             "status": to_status.value,
@@ -346,7 +301,7 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
         if expires_at:
             update_data["expires_at"] = expires_at.isoformat()
 
-        updated = self.update(
+        updated = await self.update(
             conv_id,
             update_data,
             id_column="conv_id",
@@ -359,7 +314,7 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
                     if initiated_by in {"agent", "support", "user", "system"}
                     else "system"
                 )
-                self._log_history(
+                await self._log_history(
                     conv_id=conv_id,
                     from_status=from_status.value,
                     to_status=to_status.value,
@@ -379,11 +334,10 @@ class PostgresConversationRepository(PostgresRepository[Conversation], Conversat
                 )
             return updated
 
-        after = self.find_by_id(conv_id, id_column="conv_id")
+        after = await self.find_by_id(conv_id, id_column="conv_id")
         if after and after.version != current.version:
             raise ConcurrencyError(
                 f"Expected version {current.version}, found {after.version}",
                 current_version=after.version,
             )
         return None
-

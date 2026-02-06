@@ -1,19 +1,21 @@
 """
 Integration tests for Conversation Service V2 (Facade).
 """
-import unittest
-from unittest.mock import MagicMock, ANY
+import pytest
+from unittest.mock import MagicMock, ANY, AsyncMock
 
 from src.modules.conversation.services.conversation_service import ConversationService
 from src.modules.conversation.enums.conversation_status import ConversationStatus
 from src.modules.conversation.models.conversation import Conversation
 
-class TestConversationServiceV2Facade(unittest.TestCase):
-    def setUp(self):
-        self.repo = MagicMock()
-        self.message_repo = MagicMock()
-        self.finder = MagicMock()
-        self.lifecycle = MagicMock()
+@pytest.mark.asyncio
+class TestConversationServiceV2Facade:
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        self.repo = AsyncMock()
+        self.message_repo = AsyncMock()
+        self.finder = AsyncMock()
+        self.lifecycle = AsyncMock()
         self.closer = MagicMock()
         
         self.service = ConversationService(
@@ -33,9 +35,9 @@ class TestConversationServiceV2Facade(unittest.TestCase):
             status=ConversationStatus.PROGRESS.value
         )
 
-    def test_facade_delegation_close_priority(self):
+    async def test_facade_delegation_close_priority(self):
         """Test close_conversation_with_priority delegation."""
-        self.service.close_conversation_with_priority(
+        await self.service.close_conversation_with_priority(
             self.mock_conv,
             ConversationStatus.FAILED,
             "agent",
@@ -49,18 +51,18 @@ class TestConversationServiceV2Facade(unittest.TestCase):
             "agent"
         )
 
-    def test_facade_delegation_extend(self):
+    async def test_facade_delegation_extend(self):
         """Test extend_expiration delegation."""
-        self.service.extend_expiration(self.mock_conv, 120)
+        await self.service.extend_expiration(self.mock_conv, 120)
         
         self.lifecycle.extend_expiration.assert_called_with(
             self.mock_conv,
             120
         )
 
-    def test_facade_delegation_transfer(self):
+    async def test_facade_delegation_transfer(self):
         """Test transfer_conversation delegation."""
-        self.service.transfer_conversation(
+        await self.service.transfer_conversation(
             self.mock_conv,
             "new_user",
             "reason"
@@ -72,9 +74,9 @@ class TestConversationServiceV2Facade(unittest.TestCase):
             "reason"
         )
 
-    def test_facade_delegation_escalate(self):
+    async def test_facade_delegation_escalate(self):
         """Test escalate_conversation delegation."""
-        self.service.escalate_conversation(
+        await self.service.escalate_conversation(
             self.mock_conv,
             "supervisor",
             "reason"
@@ -85,6 +87,3 @@ class TestConversationServiceV2Facade(unittest.TestCase):
             "supervisor",
             "reason"
         )
-
-if __name__ == "__main__":
-    unittest.main()

@@ -44,28 +44,28 @@ class ConversationFinder:
         numbers = sorted([clean1, clean2])
         return f"{numbers[0]}::{numbers[1]}"
 
-    def find_active(
+    async def find_active(
         self, owner_id: str, from_number: str, to_number: str
     ) -> Optional[Conversation]:
         """
         Find an active conversation based on phone numbers.
         """
         session_key = self.calculate_session_key(from_number, to_number)
-        return self.repository.find_active_by_session_key(owner_id, session_key)
+        return await self.repository.find_active_by_session_key(owner_id, session_key)
 
-    def find_last_conversation(
+    async def find_last_conversation(
         self, owner_id: str, from_number: str, to_number: str
     ) -> Optional[Conversation]:
         """
         Find the most recent conversation (active or closed) for context linking.
         """
         session_key = self.calculate_session_key(from_number, to_number)
-        conversations = self.repository.find_all_by_session_key(
+        conversations = await self.repository.find_all_by_session_key(
             owner_id, session_key, limit=1
         )
         return conversations[0] if conversations else None
 
-    def create_new(
+    async def create_new(
         self,
         owner_id: str,
         from_number: str,
@@ -122,7 +122,7 @@ class ConversationFinder:
         if user_id:
             data["user_id"] = user_id
 
-        conversation = self.repository.create(data)
+        conversation = await self.repository.create(data)
 
         logger.info(
             "Created new conversation",

@@ -27,9 +27,9 @@ class TestIdentityAtomicity(unittest.TestCase):
         self.identity_service = IdentityService(
             owner_service=self.mock_owner_service,
             user_service=self.mock_user_service,
-            feature_service=self.mock_feature_service,
-            subscription_service=self.mock_subscription_service,
-            plan_service=self.mock_plan_service,
+            billing_feature_service=self.mock_feature_service,
+            billing_subscription_service=self.mock_subscription_service,
+            billing_plan_service=self.mock_plan_service,
         )
 
         # Test Data

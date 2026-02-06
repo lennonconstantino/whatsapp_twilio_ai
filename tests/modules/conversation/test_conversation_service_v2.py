@@ -4,7 +4,7 @@ Unit tests for Conversation Service V2.
 
 import os
 import sys
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 
 from dotenv import load_dotenv
 
@@ -17,7 +17,7 @@ sys.modules["src.core.database.session"].db = MagicMock()
 sys.modules["src.core.database.session"].get_db = MagicMock()
 sys.modules["src.core.database.session"].DatabaseConnection = MagicMock()
 
-import unittest
+import pytest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import ANY, Mock
 
@@ -32,13 +32,15 @@ from src.modules.conversation.services.conversation_service import \
     ConversationService
 
 
-class TestConversationServiceV2(unittest.TestCase):
-    def setUp(self):
-        self.repo = Mock()
-        self.message_repo = Mock()
-        self.finder = Mock()
-        self.lifecycle = Mock()
-        self.closer = Mock()
+@pytest.mark.asyncio
+class TestConversationServiceV2:
+    @pytest.fixture(autouse=True)
+    async def setup(self):
+        self.repo = AsyncMock()
+        self.message_repo = AsyncMock()
+        self.finder = AsyncMock()
+        self.lifecycle = AsyncMock()
+        self.closer = Mock() # Assuming closer is sync
 
         self.service = ConversationService(
             self.repo, self.message_repo, self.finder, self.lifecycle, self.closer
@@ -60,21 +62,21 @@ class TestConversationServiceV2(unittest.TestCase):
             expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
         )
 
-    def test_get_or_create_active_found(self):
+    async def test_get_or_create_active_found(self):
         """Test finding an existing active conversation."""
         self.finder.find_active.return_value = self.mock_conv
         # Ensure conversation is not expired and not closed
         self.mock_conv.expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
         self.mock_conv.status = ConversationStatus.PENDING.value
 
-        result = self.service.get_or_create_conversation(
+        result = await self.service.get_or_create_conversation(
             self.valid_ulid_2, "123", "456"
         )
 
-        self.assertEqual(result, self.mock_conv)
+        assert result == self.mock_conv
         self.finder.create_new.assert_not_called()
 
-    def test_get_or_create_active_expired(self):
+    async def test_get_or_create_active_expired(self):
         """Test finding an active conversation that is actually expired."""
         self.finder.find_active.return_value = self.mock_conv
         # Make it expired
@@ -84,7 +86,7 @@ class TestConversationServiceV2(unittest.TestCase):
         new_conv = Mock(spec=Conversation)
         self.finder.create_new.return_value = new_conv
 
-        result = self.service.get_or_create_conversation(
+        result = await self.service.get_or_create_conversation(
             self.valid_ulid_2, "123", "456"
         )
 
@@ -106,9 +108,9 @@ class TestConversationServiceV2(unittest.TestCase):
             None,
             previous_conversation=self.mock_conv,
         )
-        self.assertEqual(result, new_conv)
+        assert result == new_conv
 
-    def test_get_or_create_not_found(self):
+    async def test_get_or_create_not_found(self):
         """Test creating new conversation when none found."""
         self.finder.find_active.return_value = None
         self.finder.find_last_conversation.return_value = None
@@ -116,14 +118,14 @@ class TestConversationServiceV2(unittest.TestCase):
         new_conv = Mock(spec=Conversation)
         self.finder.create_new.return_value = new_conv
 
-        result = self.service.get_or_create_conversation(
+        result = await self.service.get_or_create_conversation(
             self.valid_ulid_2, "123", "456"
         )
 
         self.finder.create_new.assert_called()
-        self.assertEqual(result, new_conv)
+        assert result == new_conv
 
-    def test_add_message_closure_intent(self):
+    async def test_add_message_closure_intent(self):
         """Test detecting closure intent."""
         msg_dto = MessageCreateDTO(
             conv_id=self.valid_ulid_1,
@@ -144,7 +146,7 @@ class TestConversationServiceV2(unittest.TestCase):
             suggested_status=ConversationStatus.USER_CLOSED,
         )
 
-        self.service.add_message(self.mock_conv, msg_dto)
+        await self.service.add_message(self.mock_conv, msg_dto)
 
         self.lifecycle.transition_to.assert_called_with(
             self.mock_conv,
@@ -154,7 +156,7 @@ class TestConversationServiceV2(unittest.TestCase):
             expires_at=None,
         )
 
-    def test_add_message_agent_acceptance(self):
+    async def test_add_message_agent_acceptance(self):
         """Test agent message transitioning PENDING -> PROGRESS."""
         msg_dto = MessageCreateDTO(
             conv_id=self.valid_ulid_1,
@@ -174,7 +176,7 @@ class TestConversationServiceV2(unittest.TestCase):
 
         self.mock_conv.status = ConversationStatus.PENDING.value
 
-        self.service.add_message(self.mock_conv, msg_dto)
+        await self.service.add_message(self.mock_conv, msg_dto)
 
         self.lifecycle.transition_to.assert_called_with(
             self.mock_conv,
@@ -184,7 +186,7 @@ class TestConversationServiceV2(unittest.TestCase):
             expires_at=ANY,
         )
 
-    def test_add_message_reactivation(self):
+    async def test_add_message_reactivation(self):
         """Test user message transitioning IDLE -> PROGRESS."""
         msg_dto = MessageCreateDTO(
             conv_id=self.valid_ulid_1,
@@ -204,7 +206,7 @@ class TestConversationServiceV2(unittest.TestCase):
 
         self.mock_conv.status = ConversationStatus.IDLE_TIMEOUT.value
 
-        self.service.add_message(self.mock_conv, msg_dto)
+        await self.service.add_message(self.mock_conv, msg_dto)
 
         self.lifecycle.transition_to.assert_called_with(
             self.mock_conv,
@@ -216,4 +218,4 @@ class TestConversationServiceV2(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    pytest.main([__file__, "-v"])
