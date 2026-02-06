@@ -2,12 +2,13 @@
 Twilio service for sending and receiving messages.
 """
 
+import asyncio
 import os
 from typing import Any, Dict, Optional
 
 from twilio.base.exceptions import TwilioRestException
 from twilio.rest import Client as TwilioClient
-from starlette.concurrency import run_in_threadpool
+# from starlette.concurrency import run_in_threadpool # Removed to avoid potential issues
 
 from src.core.config import settings
 from src.core.utils import get_logger
@@ -151,11 +152,21 @@ class TwilioService:
                 if i == 0 and media_url:
                     message_params["media_url"] = [media_url]
 
-                # Run blocking Twilio call in threadpool
+                # Run blocking Twilio call in threadpool using asyncio.to_thread
                 def _send():
-                    return client.messages.create(**message_params)
+                    try:
+                        return client.messages.create(**message_params)
+                    except Exception as e:
+                        logger.error(f"Error inside thread: {e}")
+                        raise
+
+                message = await asyncio.to_thread(_send)
                 
-                message = await run_in_threadpool(_send)
+                # Debug logging
+                if hasattr(message, 'sid'):
+                     pass
+                else:
+                     logger.error(f"DEBUG: message object does not have sid! type={type(message)}")
 
                 if i == 0:
                     first_message = message
@@ -212,7 +223,7 @@ class TwilioService:
             def _fetch():
                 return client.messages(message_sid).fetch()
                 
-            message = await run_in_threadpool(_fetch)
+            message = await asyncio.to_thread(_fetch)
 
             return TwilioMessageResult(
                 sid=message.sid,

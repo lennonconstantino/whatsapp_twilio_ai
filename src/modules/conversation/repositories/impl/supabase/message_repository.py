@@ -26,6 +26,32 @@ class SupabaseMessageRepository(SupabaseRepository[Message], MessageRepository):
             client, "messages", Message, validates_ulid=True
         )  # ✅ Enable ULID validation
 
+    async def find_by_id(self, id_value: Any, id_column: Optional[str] = None) -> Optional[Message]:
+        """
+        Find a message by ID.
+        """
+        def _find():
+            return super(SupabaseMessageRepository, self).find_by_id(id_value, id_column)
+        
+        return await run_in_threadpool(_find)
+
+    async def update(
+        self,
+        id_value: Any,
+        data: Dict[str, Any],
+        id_column: Optional[str] = None,
+        current_version: Optional[int] = None,
+    ) -> Optional[Message]:
+        """
+        Update a message.
+        """
+        def _update():
+            return super(SupabaseMessageRepository, self).update(
+                id_value, data, id_column, current_version
+            )
+        
+        return await run_in_threadpool(_update)
+
     async def create(self, data: Dict[str, Any]) -> Optional[Message]:
         """
         Create a new message with unique constraint handling.

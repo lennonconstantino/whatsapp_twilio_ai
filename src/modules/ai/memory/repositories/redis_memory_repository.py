@@ -72,7 +72,7 @@ class RedisMemoryRepository(MemoryInterface):
                 reason=str(e),
             )
 
-    def get_context(
+    async def get_context(
         self,
         session_id: str,
         limit: int = 10,
@@ -111,7 +111,7 @@ class RedisMemoryRepository(MemoryInterface):
             logger.error(f"Error reading context from Redis for {session_id}: {e}")
             return []
 
-    def add_message(self, session_id: str, message: Dict[str, Any]) -> None:
+    async def add_message(self, session_id: str, message: Dict[str, Any]) -> None:
         """
         Appends a message to the Redis list and refreshes TTL.
         """
@@ -134,7 +134,7 @@ class RedisMemoryRepository(MemoryInterface):
         except Exception as e:
             logger.error(f"Error adding message to Redis for {session_id}: {e}")
 
-    def add_messages_bulk(self, session_id: str, messages: List[Dict[str, Any]]) -> None:
+    async def add_messages_bulk(self, session_id: str, messages: List[Dict[str, Any]]) -> None:
         """
         Appends multiple messages to the Redis list in a single pipeline.
         """

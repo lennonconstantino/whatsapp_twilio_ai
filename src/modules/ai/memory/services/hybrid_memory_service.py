@@ -27,7 +27,7 @@ class HybridMemoryService(MemoryInterface):
         self.message_repo = message_repo
         self.vector_repo = vector_repo
 
-    def get_context(
+    async def get_context(
         self,
         session_id: str,
         limit: int = 10,
@@ -45,7 +45,7 @@ class HybridMemoryService(MemoryInterface):
         
         # 1. Try Redis
         try:
-            messages = self.redis_repo.get_context(
+            messages = await self.redis_repo.get_context(
                 session_id,
                 limit,
                 owner_id=owner_id,
@@ -67,7 +67,7 @@ class HybridMemoryService(MemoryInterface):
             logger.debug(f"Cache MISS or EMPTY for session {session_id}. Fetching from DB.")
             try:
                 # session_id is conversation_id (conv_id)
-                db_messages = self.message_repo.find_recent_by_conversation(session_id, limit)
+                db_messages = await self.message_repo.find_recent_by_conversation(session_id, limit)
                 
                 if db_messages:
                     # Convert to Agent format
@@ -92,7 +92,7 @@ class HybridMemoryService(MemoryInterface):
                     # 3. Populate Redis (Read-Through)
                     # Optimization: Only populate if list is not empty
                     if agent_messages:
-                        self.redis_repo.add_messages_bulk(session_id, agent_messages)
+                        await self.redis_repo.add_messages_bulk(session_id, agent_messages)
             except Exception as e:
                 logger.error(f"Error reading from DB for session {session_id}: {e}")
         
@@ -161,7 +161,7 @@ class HybridMemoryService(MemoryInterface):
 
         return context_messages
 
-    def add_message(self, session_id: str, message: Dict[str, Any]) -> None:
+    async def add_message(self, session_id: str, message: Dict[str, Any]) -> None:
         """
         Adds message to Memory (Write-Through or Write-Back).
         In our architecture:
@@ -176,4 +176,4 @@ class HybridMemoryService(MemoryInterface):
         # The MemoryInterface is for Conversation History.
         
         # If the Agent adds a message here, it should be reflected in Redis.
-        self.redis_repo.add_message(session_id, message)
+        await self.redis_repo.add_message(session_id, message)

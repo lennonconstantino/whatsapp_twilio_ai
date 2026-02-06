@@ -16,6 +16,22 @@ class MessageRepository(ABC):
         pass
 
     @abstractmethod
+    async def find_by_id(self, id_value: Any, id_column: Optional[str] = None) -> Optional[Message]:
+        """Find a message by ID."""
+        pass
+
+    @abstractmethod
+    async def update(
+        self,
+        id_value: Any,
+        data: Dict[str, Any],
+        id_column: Optional[str] = None,
+        current_version: Optional[int] = None,
+    ) -> Optional[Message]:
+        """Update a message."""
+        pass
+
+    @abstractmethod
     async def find_by_conversation(
         self, conv_id: str, limit: int = 100, offset: int = 0
     ) -> List[Message]:

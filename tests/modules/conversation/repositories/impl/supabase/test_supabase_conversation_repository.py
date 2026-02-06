@@ -239,37 +239,42 @@ class TestConversationRepository:
 
     async def test_update_optimistic_locking_conflict(self):
         """Test optimistic locking conflict during update."""
-        # 1. Find returns version 1
-        self.mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
-            self.mock_conversation_data
-        ]
-
-        # 2. Update fails (returns empty data)
-        self.mock_client.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value.data = (
-            []
-        )
-
-        # 3. Check finds version 2 (conflict!)
+        # Setup mocks for the sequence of calls
+        
+        # 1. First find_by_id call (initial load)
+        mock_find_resp_1 = MagicMock()
+        mock_find_resp_1.data = [self.mock_conversation_data]
+        
+        # 2. Update call (fails/empty)
+        mock_update_resp = MagicMock()
+        mock_update_resp.data = []
+        
+        # 3. Second find_by_id call (conflict check)
         conflict_data = {**self.mock_conversation_data, "version": 2}
+        mock_find_resp_2 = MagicMock()
+        mock_find_resp_2.data = [conflict_data]
 
-        with patch.object(self.repository, "find_by_id") as mock_find:
-            mock_find.side_effect = [
-                Conversation(**self.mock_conversation_data),  # Initial load
-                Conversation(**conflict_data),  # Conflict check
-            ]
+        # Configure mocks
+        # We need to distinguish select vs update chains.
+        mock_query = MagicMock()
+        self.mock_client.table.return_value = mock_query
+        
+        # Setup select chain for find_by_id
+        mock_query.select.return_value.eq.return_value.execute.side_effect = [
+            mock_find_resp_1,
+            mock_find_resp_2
+        ]
+        
+        # Setup update chain
+        mock_query.update.return_value.eq.return_value.eq.return_value.execute.return_value = mock_update_resp
 
-            # Mock update returning empty
-            self.mock_client.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value.data = (
-                []
+        with pytest.raises(ConcurrencyError) as exc:
+            await self.repository.update_status(
+                "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+                ConversationStatus.PROGRESS,
             )
 
-            with pytest.raises(ConcurrencyError) as exc:
-                await self.repository.update_status(
-                    "01ARZ3NDEKTSV4RRFFQ69G5FAV",  # Fixed: Use valid ULID
-                    ConversationStatus.PROGRESS,
-                )
-
-            assert "Expected version 1, found 2" in str(exc.value)
+        assert "Expected version 1, found 2" in str(exc.value)
 
     async def test_cleanup_expired_conversations(self):
         """Test cleanup of expired conversations."""
@@ -501,69 +506,78 @@ class TestConversationRepository:
 
     async def test_update_status_update_failed_return_none(self):
         """Test update_status returns None when update fails (optimistic locking check returns None)."""
-        # Find works
-        self.mock_client.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
-            self.mock_conversation_data
-        ]
+        # 1. Initial find
+        mock_find_resp_1 = MagicMock()
+        mock_find_resp_1.data = [self.mock_conversation_data]
+        
+        # 2. Update empty
+        mock_update_resp = MagicMock()
+        mock_update_resp.data = []
+        
+        # 3. Check find returns empty (gone)
+        mock_find_resp_2 = MagicMock()
+        mock_find_resp_2.data = []
 
-        # Update returns empty (failed)
-        self.mock_client.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value.data = (
-            []
+        mock_query = MagicMock()
+        self.mock_client.table.return_value = mock_query
+        
+        mock_query.select.return_value.eq.return_value.execute.side_effect = [
+            mock_find_resp_1,
+            mock_find_resp_2
+        ]
+        mock_query.update.return_value.eq.return_value.eq.return_value.execute.return_value = mock_update_resp
+
+        result = await self.repository.update_status(
+            "01ARZ3NDEKTSV4RRFFQ69G5FAV", ConversationStatus.PROGRESS
         )
 
-        # Check (find_by_id) returns None (record gone?)
-        with patch.object(self.repository, "find_by_id") as mock_find:
-            mock_find.side_effect = [
-                Conversation(**self.mock_conversation_data),  # Initial find
-                None,  # Check find
-            ]
-
-            result = await self.repository.update_status(
-                "01ARZ3NDEKTSV4RRFFQ69G5FAV", ConversationStatus.PROGRESS
-            )
-
-            assert result is None
+        assert result is None
 
     async def test_update_generic_exception(self):
         """Test generic exception in update method."""
-        # Need to mock find_by_id to avoid ULID validation error or DB error during find
-        with patch.object(self.repository, "find_by_id") as mock_find:
-            mock_find.return_value = MagicMock(version=1)
+        # 1. Initial find success
+        mock_find_resp = MagicMock()
+        mock_find_resp.data = [self.mock_conversation_data]
+        
+        mock_query = MagicMock()
+        self.mock_client.table.return_value = mock_query
+        
+        mock_query.select.return_value.eq.return_value.execute.return_value = mock_find_resp
+        
+        # 2. Update raises exception
+        mock_query.update.side_effect = Exception("DB Error")
 
-            self.mock_client.table.side_effect = Exception("DB Error")
-
-            with pytest.raises(Exception, match="DB Error"):
-                await self.repository.update("01ARZ3NDEKTSV4RRFFQ69G5FAV", {"val": 1})
+        with pytest.raises(Exception, match="DB Error"):
+            await self.repository.update("01ARZ3NDEKTSV4RRFFQ69G5FAV", {"val": 1})
 
     async def test_update_concurrency_error_propagation(self):
         """Test propagation of ConcurrencyError in update method."""
-        # Find works
-        with patch.object(self.repository, "find_by_id") as mock_find:
-            mock_find.return_value = Conversation(**self.mock_conversation_data)
+        # Setup mocks
+        mock_find_resp_1 = MagicMock()
+        mock_find_resp_1.data = [self.mock_conversation_data]
+        
+        mock_update_resp = MagicMock()
+        mock_update_resp.data = []
+        
+        conflict_data = {**self.mock_conversation_data, "version": 2}
+        mock_find_resp_2 = MagicMock()
+        mock_find_resp_2.data = [conflict_data]
 
-            # Update returns empty
-            # Path with two eq (version check)
-            self.mock_client.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value.data = (
-                []
-            )
-            # Path with single eq (no version check)
-            self.mock_client.table.return_value.update.return_value.eq.return_value.execute.return_value.data = (
-                []
-            )
+        mock_query = MagicMock()
+        self.mock_client.table.return_value = mock_query
+        
+        # Select chain
+        mock_query.select.return_value.eq.return_value.execute.side_effect = [
+            mock_find_resp_1,
+            mock_find_resp_2
+        ]
+        
+        # Update chain (generic update signature might vary, so matching broad)
+        mock_query.update.return_value.eq.return_value.eq.return_value.execute.return_value = mock_update_resp
+        mock_query.update.return_value.eq.return_value.execute.return_value = mock_update_resp
 
-            # Check returns different version
-            conflict_data = {**self.mock_conversation_data, "version": 2}
-
-            # We need to orchestrate find_by_id calls
-            # 1. Fallback get current version (if expected_version is None)
-            # 2. Check after failure
-            mock_find.side_effect = [
-                Conversation(**self.mock_conversation_data),  # 1
-                Conversation(**conflict_data),  # 2
-            ]
-
-            with pytest.raises(ConcurrencyError):
-                await self.repository.update("01ARZ3NDEKTSV4RRFFQ69G5FAV", {"val": 1})
+        with pytest.raises(ConcurrencyError):
+            await self.repository.update("01ARZ3NDEKTSV4RRFFQ69G5FAV", {"val": 1})
 
     async def test_create_history_write_exception(self):
         """Test exception when writing history in update_status."""

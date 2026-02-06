@@ -225,3 +225,53 @@ class TestSupabaseMessageRepository:
         self.mock_client.table.side_effect = Exception("Supabase Error")
         with pytest.raises(Exception):
             await self.repository.find_user_messages("conv_id")
+
+    async def test_find_by_id_async(self):
+        # Setup mock chain
+        mock_query = MagicMock()
+        self.mock_client.table.return_value = mock_query
+        mock_query.select.return_value = mock_query
+        mock_query.eq.return_value = mock_query
+        
+        mock_response = MagicMock()
+        mock_response.data = [self.mock_message_data]
+        mock_query.execute.return_value = mock_response
+
+        # Execute - this should await correctly
+        message = await self.repository.find_by_id(self.mock_message_data["msg_id"], id_column="msg_id")
+
+        # Verify
+        assert message is not None
+        assert isinstance(message, Message)
+        assert message.msg_id == self.mock_message_data["msg_id"]
+        
+        # Verify calls
+        mock_query.eq.assert_called_with("msg_id", self.mock_message_data["msg_id"])
+
+    async def test_update_async(self):
+        # Setup mock chain
+        mock_query = MagicMock()
+        self.mock_client.table.return_value = mock_query
+        mock_query.update.return_value = mock_query
+        mock_query.eq.return_value = mock_query
+        
+        mock_response = MagicMock()
+        updated_data = {**self.mock_message_data, "content": "Updated Content"}
+        mock_response.data = [updated_data]
+        mock_query.execute.return_value = mock_response
+
+        # Execute - this should await correctly
+        result = await self.repository.update(
+            self.mock_message_data["msg_id"], 
+            {"content": "Updated Content"},
+            id_column="msg_id"
+        )
+
+        # Verify
+        assert result is not None
+        assert isinstance(result, Message)
+        assert result.content == "Updated Content"
+        
+        # Verify calls
+        mock_query.update.assert_called()
+        mock_query.eq.assert_called_with("msg_id", self.mock_message_data["msg_id"])

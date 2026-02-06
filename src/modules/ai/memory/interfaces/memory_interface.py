@@ -8,7 +8,7 @@ class MemoryInterface(ABC):
     """
 
     @abstractmethod
-    def get_context(
+    async def get_context(
         self,
         session_id: str,
         limit: int = 10,
@@ -30,7 +30,7 @@ class MemoryInterface(ABC):
         pass
 
     @abstractmethod
-    def add_message(self, session_id: str, message: Dict[str, Any]) -> None:
+    async def add_message(self, session_id: str, message: Dict[str, Any]) -> None:
         """
         Adds a message to the conversation history.
         """

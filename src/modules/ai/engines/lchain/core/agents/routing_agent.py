@@ -52,7 +52,7 @@ class RoutingAgent:
         self.ai_log_thought_service = ai_log_thought_service
         self.memory_service = memory_service
 
-    def run(self, user_input: str, **kwargs):
+    async def run(self, user_input: str, **kwargs):
         # Coleta todos os contextos disponíveis
         context_formatted = ""
         memory_formatted = ""
@@ -102,7 +102,7 @@ class RoutingAgent:
             # Use the resolved session_id
             if session_id:
                 try:
-                    # Synchronous call for now
+                    # Async call
                     logger.info(
                         f"Attempting memory retrieval for session {session_id}",
                         extra={
@@ -111,7 +111,7 @@ class RoutingAgent:
                             "user_id": (self.agent_context.user or {}).get("user_id"),
                         },
                     )
-                    history = self.memory_service.get_context(
+                    history = await self.memory_service.get_context(
                         session_id,
                         limit=settings.memory.recent_messages_limit,
                         query=user_input,
@@ -216,7 +216,7 @@ class RoutingAgent:
         
         logger.info(f"Invoking LLM: {LLM}", event_type="routing_agent_invoke_start")
         try:
-            response = model_with_tools.invoke(messages)
+            response = await model_with_tools.ainvoke(messages)
             logger.info(f"LLM Response: {response}", event_type="routing_agent_invoke_success")
         except Exception as e:
             logger.error(f"LLM Invoke Failed: {e}", event_type="routing_agent_invoke_error")
@@ -233,7 +233,7 @@ class RoutingAgent:
                 if session_id:
                     # Save User Input
                     # We save it here to ensure the user's intent is captured regardless of routing success
-                    self.memory_service.add_message(session_id, {"role": "user", "content": user_input})
+                    await self.memory_service.add_message(session_id, {"role": "user", "content": user_input})
                     logger.info("Persisted user input to memory", event_type="routing_agent_memory_persist")
                 else:
                     logger.warning("Session ID missing, skipping memory persistence", event_type="routing_agent_memory_skip")
@@ -270,7 +270,7 @@ class RoutingAgent:
                  try:
                      # session_id is guaranteed to be set if we reached here (checked at start)
                      if self.agent_context.session_id:
-                         self.memory_service.add_message(
+                         await self.memory_service.add_message(
                              self.agent_context.session_id, 
                              {"role": "assistant", "content": response.content}
                          )
@@ -303,7 +303,7 @@ class RoutingAgent:
 
         # Preparar e executar o agente
         agent = self.prepare_agent(tool_name, tool_args)
-        return agent.run(body=user_input)
+        return await agent.run(body=user_input)
 
     def prepare_agent(self, tool_name: str, tool_kwargs: Dict[str, Any]):
         for task_agent in self.task_agents:

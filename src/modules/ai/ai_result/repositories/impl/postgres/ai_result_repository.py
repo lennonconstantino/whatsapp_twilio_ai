@@ -23,7 +23,7 @@ class PostgresAIResultRepository(PostgresRepository[AIResult], AIResultRepositor
 
     def find_recent_by_feature(self, feature_id: str, limit: int = 50) -> List[AIResult]:
         query = (
-            "SELECT * FROM ai_results WHERE feature_id = %s "
+            f"SELECT * FROM {self.table_name} WHERE feature_id = %s "
             "ORDER BY processed_at DESC "
             "LIMIT %s"
         )
@@ -58,9 +58,10 @@ class PostgresAIResultRepository(PostgresRepository[AIResult], AIResultRepositor
         return self.create(data)
 
     def delete_older_than(self, days: int) -> int:
+        # Use make_interval for safer interval construction and self.table_name for correct schema
         query = (
-            "DELETE FROM ai_results "
-            "WHERE processed_at < NOW() - INTERVAL '%s days'"
+            f"DELETE FROM {self.table_name} "
+            "WHERE processed_at < NOW() - make_interval(days => %s)"
         )
         with self.db.connection() as conn:
             cur = conn.cursor()

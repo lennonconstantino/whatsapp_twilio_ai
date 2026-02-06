@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, patch, AsyncMock
 
 import pytest
 from langchain_core.messages import AIMessage
@@ -17,6 +17,7 @@ class MockArgs(BaseModel):
     query: str
 
 
+@pytest.mark.asyncio
 class TestRoutingAgent:
 
     @pytest.fixture
@@ -32,7 +33,7 @@ class TestRoutingAgent:
         agent.arg_model = MockArgs
         # Mock load_agent to return a runnable mock
         runner = Mock()
-        runner.run.return_value = "Agent Output"
+        runner.run = AsyncMock(return_value="Agent Output")
         agent.load_agent.return_value = runner
         return agent
 
@@ -40,6 +41,8 @@ class TestRoutingAgent:
     def mock_llm_model(self):
         model = MagicMock()
         model.bind_tools.return_value = model
+        # Setup ainvoke for async calls
+        model.ainvoke = AsyncMock()
         return model
 
     @pytest.fixture
@@ -59,11 +62,11 @@ class TestRoutingAgent:
         assert routing_agent.task_agents == [mock_task_agent]
         assert len(routing_agent.examples) == 1
 
-    def test_run_direct_response(self, routing_agent, mock_llm_model, mock_log_service):
+    async def test_run_direct_response(self, routing_agent, mock_llm_model, mock_log_service):
         mock_response = AIMessage(content="Direct Response")
-        mock_llm_model.invoke.return_value = mock_response
+        mock_llm_model.ainvoke.return_value = mock_response
 
-        result = routing_agent.run(
+        result = await routing_agent.run(
             "Hello",
             owner_id="owner_123",
             correlation_id="corr_123",
@@ -77,7 +80,7 @@ class TestRoutingAgent:
         args, kwargs = mock_log_service.log_agent_thought.call_args
         assert kwargs["result_type"] == AIResultType.AGENT_LOG
 
-    def test_run_with_routing(
+    async def test_run_with_routing(
         self, routing_agent, mock_llm_model, mock_log_service, mock_task_agent
     ):
         # Setup tool call response
@@ -91,9 +94,9 @@ class TestRoutingAgent:
                 }
             ],
         )
-        mock_llm_model.invoke.return_value = mock_response
+        mock_llm_model.ainvoke.return_value = mock_response
 
-        result = routing_agent.run(
+        result = await routing_agent.run(
             "Do something",
             owner_id="owner_123",
             correlation_id="corr_123",
@@ -118,12 +121,12 @@ class TestRoutingAgent:
         with pytest.raises(ValueError, match="Task Agent unknown_agent not found"):
             routing_agent.prepare_agent("unknown_agent", {})
 
-    def test_run_context_formatting(self, routing_agent, mock_llm_model):
+    async def test_run_context_formatting(self, routing_agent, mock_llm_model):
         mock_response = AIMessage(content="Response")
-        mock_llm_model.invoke.return_value = mock_response
+        mock_llm_model.ainvoke.return_value = mock_response
 
         # Test with various context inputs
-        routing_agent.run(
+        await routing_agent.run(
             "Hello",
             owner_id="owner_123",
             memory=["msg1", "msg2"],
@@ -134,5 +137,11 @@ class TestRoutingAgent:
         )
 
         # Check that context was formatted correctly in the agent context
-        assert routing_agent.agent_context.memory == ["msg1", "msg2"]
-        assert routing_agent.agent_context.additional_context == "Additional context"
+        # agent_context is an object now, check attributes if it's not a dict
+        if hasattr(routing_agent.agent_context, "memory"):
+             assert routing_agent.agent_context.memory == ["msg1", "msg2"]
+             assert routing_agent.agent_context.additional_context == "Additional context"
+        else:
+             # Fallback if implementation changed to dict
+             assert routing_agent.agent_context.get("memory") == ["msg1", "msg2"]
+             assert routing_agent.agent_context.get("additional_context") == "Additional context"

@@ -69,7 +69,7 @@ class Agent:
             # Fallback for object-like user
             return getattr(user, "user_id", getattr(user, "id", None))
 
-    def run(self, body: str, context: str = None):
+    async def run(self, body: str, context: str = None):
         # Resolve context logic
         if self.user_context:
             context = context if context else self.user_context
@@ -142,7 +142,7 @@ class Agent:
                     )
                     agent_user_id = self._get_agent_user_id()
 
-                    memory_messages = self.memory_service.get_context(
+                    memory_messages = await self.memory_service.get_context(
                         session_id,
                         limit=settings.memory.recent_messages_limit,
                         query=body,
@@ -176,7 +176,7 @@ class Agent:
         assistant_responses: list[str] = []
 
         while i < self.max_steps:
-            step_result = self.run_step(self.step_history, langchain_tools)
+            step_result = await self.run_step(self.step_history, langchain_tools)
 
             if step_result.content and str(step_result.content).strip():
                 last_valid_content = step_result.content
@@ -233,14 +233,14 @@ class Agent:
             )
             if session_id:
                 try:
-                    self.memory_service.add_message(session_id, {"role": "assistant", "content": final_content})
+                    await self.memory_service.add_message(session_id, {"role": "assistant", "content": final_content})
                     logger.info("Persisted assistant response to memory", event_type="agent_memory_persist")
                 except Exception as e:
                     logger.warning(f"Failed to persist assistant response to memory: {e}", event_type="agent_memory_error")
 
         return final_content
 
-    def run_step(self, messages: List[dict], tools):
+    async def run_step(self, messages: List[dict], tools):
         # Converter mensagens para formato LangChain
         langchain_messages = self._convert_to_langchain_messages(messages)
 
@@ -260,14 +260,14 @@ class Agent:
             if hasattr(model, "bind_tools"):
                 bound = model.bind_tools(tools)
                 model_with_tools = bound
-                response = bound.invoke(langchain_messages)
+                response = await bound.ainvoke(langchain_messages)
             # Fallback to direct invoke on the original model when bound result is not usable
             if (
                 response is None
                 or not hasattr(response, "tool_calls")
                 or not isinstance(getattr(response, "tool_calls"), list)
             ):
-                response = model.invoke(langchain_messages)
+                response = await model.ainvoke(langchain_messages)
         except Exception as e:
             return StepResult(event="error", content=str(e), success=False)
 
@@ -280,7 +280,7 @@ class Agent:
                     "content": "Error: Please return only one tool call at a time.",
                 },
             ]
-            return self.run_step(messages, tools)
+            return await self.run_step(messages, tools)
 
         # Adicionar mensagem do assistente ao histórico
         assistant_message = {

@@ -1,27 +1,36 @@
-import unittest
-from unittest.mock import MagicMock, ANY
+import pytest
+from unittest.mock import MagicMock, AsyncMock
 
 from src.modules.ai.memory.services.hybrid_memory_service import HybridMemoryService
 from src.modules.conversation.models.message import Message
 from src.modules.conversation.enums.message_owner import MessageOwner
 
-class TestHybridMemoryService(unittest.TestCase):
-    def setUp(self):
+@pytest.mark.asyncio
+class TestHybridMemoryService:
+    @pytest.fixture(autouse=True)
+    def setup(self):
         self.redis_repo = MagicMock()
+        # Mock async methods on redis_repo
+        self.redis_repo.get_context = AsyncMock()
+        self.redis_repo.add_messages_bulk = AsyncMock()
+        self.redis_repo.add_message = AsyncMock()
+        
         self.message_repo = MagicMock()
+        self.message_repo.find_recent_by_conversation = AsyncMock()
+        
         self.service = HybridMemoryService(self.redis_repo, self.message_repo)
         self.session_id = "test_session_123"
 
-    def test_get_context_hit_redis(self):
+    async def test_get_context_hit_redis(self):
         # Arrange
         expected_messages = [{"role": "user", "content": "Hello"}]
         self.redis_repo.get_context.return_value = expected_messages
 
         # Act
-        result = self.service.get_context(self.session_id)
+        result = await self.service.get_context(self.session_id)
 
         # Assert
-        self.assertEqual(result, expected_messages)
+        assert result == expected_messages
         self.redis_repo.get_context.assert_called_once_with(
             self.session_id,
             10,
@@ -30,7 +39,7 @@ class TestHybridMemoryService(unittest.TestCase):
         )
         self.message_repo.find_recent_by_conversation.assert_not_called()
 
-    def test_get_context_miss_redis_hit_db(self):
+    async def test_get_context_miss_redis_hit_db(self):
         # Arrange
         self.redis_repo.get_context.return_value = [] # Miss
         
@@ -41,11 +50,11 @@ class TestHybridMemoryService(unittest.TestCase):
         self.message_repo.find_recent_by_conversation.return_value = [mock_msg]
 
         # Act
-        result = self.service.get_context(self.session_id)
+        result = await self.service.get_context(self.session_id)
 
         # Assert
         expected_format = [{"role": "user", "content": "Hello DB"}]
-        self.assertEqual(result, expected_format)
+        assert result == expected_format
         
         # Verify Fallback
         self.message_repo.find_recent_by_conversation.assert_called_once_with(self.session_id, 10)
@@ -54,18 +63,15 @@ class TestHybridMemoryService(unittest.TestCase):
         # Changed to add_messages_bulk
         self.redis_repo.add_messages_bulk.assert_called_once_with(self.session_id, expected_format)
 
-    def test_get_context_miss_redis_miss_db(self):
+    async def test_get_context_miss_redis_miss_db(self):
         # Arrange
         self.redis_repo.get_context.return_value = []
         self.message_repo.find_recent_by_conversation.return_value = []
 
         # Act
-        result = self.service.get_context(self.session_id)
+        result = await self.service.get_context(self.session_id)
 
         # Assert
-        self.assertEqual(result, [])
+        assert result == []
         self.redis_repo.add_message.assert_not_called()
         self.redis_repo.add_messages_bulk.assert_not_called()
-
-if __name__ == '__main__':
-    unittest.main()

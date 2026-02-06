@@ -37,6 +37,15 @@ class SupabaseConversationRepository(SupabaseRepository[Conversation], Conversat
             exclude_on_create=["session_key"],
         )
 
+    async def find_by_id(self, id_value: Any, id_column: str = "id") -> Optional[Conversation]:
+        """
+        Find conversation by ID.
+        """
+        def _find():
+            return super(SupabaseConversationRepository, self).find_by_id(id_value, id_column)
+        
+        return await run_in_threadpool(_find)
+
     async def create(self, data: Dict[str, Any]) -> Optional[Conversation]:
         """
         Create a new conversation.
@@ -278,7 +287,7 @@ class SupabaseConversationRepository(SupabaseRepository[Conversation], Conversat
             current = None
             if current_version is None:
                 try:
-                    current = self.find_by_id(id_value, id_column=id_column)
+                    current = super(SupabaseConversationRepository, self).find_by_id(id_value, id_column=id_column)
                 except Exception:
                     current = None
             
@@ -288,7 +297,7 @@ class SupabaseConversationRepository(SupabaseRepository[Conversation], Conversat
                 return result
             
             try:
-                after = self.find_by_id(id_value, id_column=id_column)
+                after = super(SupabaseConversationRepository, self).find_by_id(id_value, id_column=id_column)
             except Exception:
                 after = None
             
@@ -391,7 +400,7 @@ class SupabaseConversationRepository(SupabaseRepository[Conversation], Conversat
     ) -> Optional[Conversation]:
         
         def _update():
-            current = self.find_by_id(conv_id, id_column="conv_id")
+            current = super(SupabaseConversationRepository, self).find_by_id(conv_id, id_column="conv_id")
             if not current:
                 return None
             from_status = ConversationStatus(current.status)
@@ -460,7 +469,7 @@ class SupabaseConversationRepository(SupabaseRepository[Conversation], Conversat
             )
             updated_data = updated.data or []
             if not updated_data:
-                after = self.find_by_id(conv_id, id_column="conv_id")
+                after = super(SupabaseConversationRepository, self).find_by_id(conv_id, id_column="conv_id")
                 if after and after.version != current.version:
                     raise ConcurrencyError(f"Expected version {current.version}, found {after.version}", current_version=after.version)
                 return None

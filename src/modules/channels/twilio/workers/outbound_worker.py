@@ -67,6 +67,9 @@ class TwilioOutboundWorker:
                 to_number=to_number,
                 body=body,
             )
+            
+            # Log the type of response to debug
+            logger.info(f"DEBUG: send_message returned type={type(response)}")
 
             # 2. Update Message Status in DB (if persisted message exists)
             if msg_id and response:
@@ -98,9 +101,11 @@ class TwilioOutboundWorker:
                 )
 
         except Exception as e:
+            # Detailed debug logging for mysterious async errors
             logger.error(
                 "Failed to process outbound message task",
                 error=str(e),
+                error_type=str(type(e)),
                 msg_id=msg_id,
                 correlation_id=correlation_id
             )

@@ -22,7 +22,7 @@ class ConversationTasks:
 
         logger.info("Starting idle conversation processing task", limit=limit)
         try:
-            count = self.lifecycle.process_idle_timeouts(
+            count = await self.lifecycle.process_idle_timeouts(
                 idle_minutes=idle_minutes, limit=limit
             )
             logger.info("Completed idle conversation processing task", count=count)
@@ -36,7 +36,7 @@ class ConversationTasks:
 
         logger.info("Starting expired conversation processing task", limit=limit)
         try:
-            count = self.lifecycle.process_expirations(limit=limit)
+            count = await self.lifecycle.process_expirations(limit=limit)
             logger.info("Completed expired conversation processing task", count=count)
         except Exception as e:
             logger.error(f"Error in expired conversation task: {e}")

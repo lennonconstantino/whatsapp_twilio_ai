@@ -259,9 +259,9 @@ class TwilioWebhookAIProcessor:
                 feature_name = feature.name if feature else "finance"
                 agent = self.agent_factory.get_agent(feature_name)
 
-                # Agent.run is likely blocking/CPU intensive
-                response_text = await run_in_threadpool(
-                    agent.run, user_input=payload.body, **agent_context
+                # Agent.run is now async
+                response_text = await agent.run(
+                    user_input=payload.body, **agent_context
                 )
                 
                 logger.info(

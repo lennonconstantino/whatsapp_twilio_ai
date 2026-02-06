@@ -18,6 +18,22 @@ class ConversationRepository(ABC):
         pass
 
     @abstractmethod
+    async def find_by_id(self, id_value: Any, id_column: str = "id") -> Optional[Conversation]:
+        """Find conversation by ID."""
+        pass
+
+    @abstractmethod
+    async def update(
+        self,
+        id_value: Any,
+        data: Dict[str, Any],
+        id_column: str = "id",
+        current_version: Optional[int] = None,
+    ) -> Optional[Conversation]:
+        """Update a conversation."""
+        pass
+
+    @abstractmethod
     async def find_active_by_session_key(
         self, owner_id: str, session_key: str
     ) -> Optional[Conversation]:
