@@ -27,9 +27,16 @@ class PostgresAsyncRepository(Generic[T]):
         # Handle schema qualification
         if "." in table_name:
             schema, table = table_name.split(".", 1)
-            self.table_identifier = sql.Identifier(schema, table)
+            self.table_identifier = sql.SQL('"{}"."{}"').format(sql.SQL(schema), sql.SQL(table))
         else:
-            self.table_identifier = sql.Identifier(table_name)
+            self.table_identifier = sql.SQL('"{}"').format(sql.SQL(table_name))
+
+    def _id(self, name: str) -> sql.Composable:
+        """
+        Helper to quote identifiers without needing a connection context.
+        This replaces sql.Identifier(name) which fails with as_string(None).
+        """
+        return sql.SQL('"{}"').format(sql.SQL(name))
 
     def _convert_query_to_asyncpg(self, query: sql.Composable) -> str:
         """
@@ -103,7 +110,7 @@ class PostgresAsyncRepository(Generic[T]):
 
         query = sql.SQL("INSERT INTO {} ({}) VALUES ({}) RETURNING *").format(
             self.table_identifier,
-            sql.SQL(", ").join(map(sql.Identifier, columns)),
+            sql.SQL(", ").join(map(self._id, columns)),
             sql.SQL(", ").join(sql.Placeholder() * len(columns)),
         )
 
@@ -117,7 +124,7 @@ class PostgresAsyncRepository(Generic[T]):
 
     async def find_by_id(self, id_value: Any, id_column: str = "id") -> Optional[T]:
         query = sql.SQL("SELECT * FROM {} WHERE {} = %s").format(
-            self.table_identifier, sql.Identifier(id_column)
+            self.table_identifier, self._id(id_column)
         )
 
         result = await self._execute_query(query, (id_value,), fetch_one=True)
@@ -136,7 +143,7 @@ class PostgresAsyncRepository(Generic[T]):
         if not data:
             return await self.find_by_id(id_value, id_column)
 
-        where_clause = sql.SQL("{} = %s").format(sql.Identifier(id_column))
+        where_clause = sql.SQL("{} = %s").format(self._id(id_column))
         
         params_list = list(data.values())
         params_list.append(id_value)
@@ -154,7 +161,7 @@ class PostgresAsyncRepository(Generic[T]):
             params_list.append(current_version)
 
         set_clauses = [
-            sql.SQL("{} = %s").format(sql.Identifier(k))
+            sql.SQL("{} = %s").format(self._id(k))
             for k in data.keys()
         ]
 
@@ -171,7 +178,7 @@ class PostgresAsyncRepository(Generic[T]):
 
     async def delete(self, id_value: Union[int, str], id_column: str = "id") -> bool:
         query = sql.SQL("DELETE FROM {} WHERE {} = %s").format(
-            self.table_identifier, sql.Identifier(id_column)
+            self.table_identifier, self._id(id_column)
         )
 
         rowcount = await self._execute_query(query, (id_value,))
@@ -183,7 +190,7 @@ class PostgresAsyncRepository(Generic[T]):
 
         for k, v in filters.items():
             conditions.append(
-                sql.SQL("{} = %s").format(sql.Identifier(k))
+                sql.SQL("{} = %s").format(self._id(k))
             )
             values.append(v)
 
@@ -213,7 +220,7 @@ class PostgresAsyncRepository(Generic[T]):
         if filters:
             for k, v in filters.items():
                 conditions.append(
-                    sql.SQL("{} = %s").format(sql.Identifier(k))
+                    sql.SQL("{} = %s").format(self._id(k))
                 )
                 values.append(v)
 

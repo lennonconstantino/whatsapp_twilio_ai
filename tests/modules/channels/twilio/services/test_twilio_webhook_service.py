@@ -20,6 +20,7 @@ def mock_components():
 @pytest.fixture
 def service(mock_components):
     # Setup async methods for components
+    mock_components["owner_resolver"].resolve_owner_id = AsyncMock()
     mock_components["owner_resolver"].validate_owner_access = AsyncMock()
     mock_components["message_handler"].get_or_create_conversation = AsyncMock()
     mock_components["message_handler"].send_twilio_message = AsyncMock()

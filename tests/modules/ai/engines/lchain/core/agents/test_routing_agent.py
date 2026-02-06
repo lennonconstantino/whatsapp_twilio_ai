@@ -67,7 +67,7 @@ class TestRoutingAgent:
             "Hello",
             owner_id="owner_123",
             correlation_id="corr_123",
-            feature_id=1,
+            feature_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", # Changed from 1 to ULID
             channel="whatsapp",
         )
 
@@ -97,7 +97,7 @@ class TestRoutingAgent:
             "Do something",
             owner_id="owner_123",
             correlation_id="corr_123",
-            feature_id=1,
+            feature_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", # Changed from 1 to ULID
             channel="whatsapp",
         )
 
@@ -129,7 +129,7 @@ class TestRoutingAgent:
             memory=["msg1", "msg2"],
             context="Additional context",
             correlation_id="corr_123",
-            feature_id=1,
+            feature_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", # Changed from 1 to ULID
             channel="whatsapp",
         )
 

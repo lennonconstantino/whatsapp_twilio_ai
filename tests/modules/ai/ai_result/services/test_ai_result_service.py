@@ -20,7 +20,7 @@ def sample_result():
     return AIResult(
         ai_result_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
         msg_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-        feature_id=1,
+        feature_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", # Changed from 1 to ULID
         result_json={"status": "success", "processing_time": 0.5},
         result_type=AIResultType.AGENT_LOG,
         processed_at=datetime.now()
@@ -34,7 +34,7 @@ class TestAIResultService:
         
         result = service.create_result(
             msg_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            feature_id=1,
+            feature_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", # Changed from 1 to ULID
             result_json={"data": "test"},
             result_type=AIResultType.TOOL
         )
@@ -42,7 +42,7 @@ class TestAIResultService:
         assert result == sample_result
         mock_repo.create_result.assert_called_once_with(
             msg_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-            feature_id=1,
+            feature_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", # Changed from 1 to ULID
             result_json={"data": "test"},
             result_type=AIResultType.TOOL,
             correlation_id=None
@@ -55,7 +55,7 @@ class TestAIResultService:
         with pytest.raises(Exception, match="Database error"):
             service.create_result(
                 msg_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
-                feature_id=1,
+                feature_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", # Changed from 1 to ULID
                 result_json={}
             )
 
@@ -72,7 +72,7 @@ class TestAIResultService:
         """Test analysis when no results are found."""
         mock_repo.find_recent_by_feature.return_value = []
         
-        metrics = service.analyze_feature_performance(feature_id=1)
+        metrics = service.analyze_feature_performance(feature_id="01ARZ3NDEKTSV4RRFFQ69G5FAV") # Changed from 1 to ULID
         
         assert metrics["total_results"] == 0
         assert metrics["message"] == "No results found"
@@ -82,21 +82,21 @@ class TestAIResultService:
         now = datetime.now()
         results = [
             AIResult(
-                ai_result_id="01ARZ3NDEKTSV4RRFFQ69G5FA1", msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA1", feature_id=1, result_type=AIResultType.AGENT_LOG, processed_at=now,
+                ai_result_id="01ARZ3NDEKTSV4RRFFQ69G5FA1", msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA1", feature_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", result_type=AIResultType.AGENT_LOG, processed_at=now,
                 result_json={"status": "success", "processing_time": 0.1}
             ),
             AIResult(
-                ai_result_id="01ARZ3NDEKTSV4RRFFQ69G5FA2", msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA2", feature_id=1, result_type=AIResultType.AGENT_LOG, processed_at=now - timedelta(seconds=1),
+                ai_result_id="01ARZ3NDEKTSV4RRFFQ69G5FA2", msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA2", feature_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", result_type=AIResultType.AGENT_LOG, processed_at=now - timedelta(seconds=1),
                 result_json={"status": "success", "processing_time": 0.3}
             ),
             AIResult(
-                ai_result_id="01ARZ3NDEKTSV4RRFFQ69G5FA3", msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA3", feature_id=1, result_type=AIResultType.AGENT_LOG, processed_at=now - timedelta(seconds=2),
+                ai_result_id="01ARZ3NDEKTSV4RRFFQ69G5FA3", msg_id="01ARZ3NDEKTSV4RRFFQ69G5FA3", feature_id="01ARZ3NDEKTSV4RRFFQ69G5FAV", result_type=AIResultType.AGENT_LOG, processed_at=now - timedelta(seconds=2),
                 result_json={"status": "error", "processing_time": 0.5}
             )
         ]
         mock_repo.find_recent_by_feature.return_value = results
         
-        metrics = service.analyze_feature_performance(feature_id=1)
+        metrics = service.analyze_feature_performance(feature_id="01ARZ3NDEKTSV4RRFFQ69G5FAV") # Changed from 1 to ULID
         
         assert metrics["total_results"] == 3
         assert metrics["avg_processing_time"] == pytest.approx(0.3)

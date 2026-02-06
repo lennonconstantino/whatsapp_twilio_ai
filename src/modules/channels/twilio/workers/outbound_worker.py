@@ -61,8 +61,7 @@ class TwilioOutboundWorker:
 
         try:
             # 1. Send via Twilio API
-            response = await asyncio.to_thread(
-                self.twilio_service.send_message,
+            response = await self.twilio_service.send_message(
                 owner_id=owner_id,
                 from_number=from_number,
                 to_number=to_number,
@@ -71,8 +70,8 @@ class TwilioOutboundWorker:
 
             # 2. Update Message Status in DB (if persisted message exists)
             if msg_id and response:
-                existing_message = await asyncio.to_thread(
-                    self.message_repo.find_by_id, msg_id, id_column="msg_id"
+                existing_message = await self.message_repo.find_by_id(
+                    msg_id, id_column="msg_id"
                 )
                 existing_metadata = (
                     dict(existing_message.metadata) if existing_message and existing_message.metadata else {}
@@ -86,8 +85,7 @@ class TwilioOutboundWorker:
                     }
                 )
 
-                await asyncio.to_thread(
-                    self.message_repo.update,
+                await self.message_repo.update(
                     id_value=msg_id,
                     data={"metadata": existing_metadata},
                     id_column="msg_id",

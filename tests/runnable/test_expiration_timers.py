@@ -1,9 +1,9 @@
 import os
 import sys
-import unittest
 from datetime import datetime, timedelta, timezone
-from unittest.mock import ANY, MagicMock
+from unittest.mock import ANY, MagicMock, AsyncMock
 
+import pytest
 from dotenv import load_dotenv
 
 # Set environment variables for testing before importing application modules
@@ -25,11 +25,23 @@ from src.modules.conversation.services.conversation_service import \
     ConversationService
 
 
-class TestExpirationTimers(unittest.TestCase):
-    def setUp(self):
+@pytest.mark.asyncio
+class TestExpirationTimers:
+    @pytest.fixture(autouse=True)
+    def setup_method(self):
         # Mock repositories
         self.repo = MagicMock()
+        self.repo.find_active_by_session_key = AsyncMock()
+        self.repo.find_all_by_session_key = AsyncMock()
+        self.repo.create = AsyncMock()
+        self.repo.update_status = AsyncMock()
+        self.repo.update_context = AsyncMock()
+        self.repo.find_by_id = AsyncMock()
+        self.repo.update_timestamp = AsyncMock()
+
         self.msg_repo = MagicMock()
+        self.msg_repo.create = AsyncMock()
+
         from src.modules.conversation.components.conversation_finder import ConversationFinder
         self.finder = ConversationFinder(self.repo)
         self.lifecycle = ConversationLifecycle(self.repo)
@@ -49,7 +61,7 @@ class TestExpirationTimers(unittest.TestCase):
         self.conv_id = "01ARZ3NDEKTSV4RRFFQ69G5FAW"
 
         # Helper to simulate creation return
-        def create_side_effect(data):
+        async def create_side_effect(data):
             data_copy = data.copy()
             # Convert ISO strings back to datetime objects for the model
             if "expires_at" in data_copy and isinstance(data_copy["expires_at"], str):
@@ -69,7 +81,7 @@ class TestExpirationTimers(unittest.TestCase):
 
         self.repo.create.side_effect = create_side_effect
 
-    def test_pending_expiration_timer(self):
+    async def test_pending_expiration_timer(self):
         """Test that new conversations (PENDING) get ~48h expiration."""
         # Config values
         pending_minutes = settings.conversation.pending_expiration_minutes
@@ -79,7 +91,7 @@ class TestExpirationTimers(unittest.TestCase):
         self.repo.find_all_by_session_key.return_value = []  # No history
 
         # Create conversation
-        conv = self.service.get_or_create_conversation(
+        conv = await self.service.get_or_create_conversation(
             owner_id=self.owner_id,
             from_number="+5511999999999",
             to_number="+5511888888888",
@@ -87,7 +99,7 @@ class TestExpirationTimers(unittest.TestCase):
         )
 
         # Assert status
-        self.assertEqual(conv.status, ConversationStatus.PENDING.value)
+        assert conv.status == ConversationStatus.PENDING.value
 
         # Assert expiration time
         now = datetime.now(timezone.utc)
@@ -96,15 +108,11 @@ class TestExpirationTimers(unittest.TestCase):
         # Allow 1 minute tolerance
         # Note: conv.expires_at comes from our side_effect which uses data passed by service
         diff = abs((conv.expires_at - expected_expiry).total_seconds())
-        self.assertLess(
-            diff,
-            60,
-            f"Expiration should be close to {pending_minutes} " f"minutes from now",
-        )
+        assert diff < 60, f"Expiration should be close to {pending_minutes} minutes from now"
 
         print(f"PENDING Expiration Validated: {conv.expires_at} (~48h)")
 
-    def test_progress_expiration_update(self):
+    async def test_progress_expiration_update(self):
         """Test that transition to PROGRESS updates expiration to ~24h."""
         progress_minutes = settings.conversation.expiration_minutes
 
@@ -132,7 +140,7 @@ class TestExpirationTimers(unittest.TestCase):
         )
 
         # Mock update_status to return updated conversation
-        def update_status_side_effect(
+        async def update_status_side_effect(
             conv_id, status, **kwargs
         ):
             pending_conv.status = status.value if hasattr(status, "value") else status
@@ -144,7 +152,7 @@ class TestExpirationTimers(unittest.TestCase):
         self.repo.update_context.return_value = pending_conv
 
         # Add message (triggers transition logic)
-        self.service.add_message(pending_conv, msg_dto)
+        await self.service.add_message(pending_conv, msg_dto)
 
         # Verify update_status was called with correct status and expiration
         self.repo.update_status.assert_called()
@@ -155,27 +163,16 @@ class TestExpirationTimers(unittest.TestCase):
 
         # Check status (passed as positional arg in service)
         # call: update_status(conv_id, status, initiated_by=..., ...)
-        self.assertEqual(args[1], ConversationStatus.PROGRESS)
+        assert args[1] == ConversationStatus.PROGRESS
 
         # Check expiration (passed as kwarg in service)
         updated_expiry = kwargs.get("expires_at")
-        self.assertIsNotNone(
-            updated_expiry, "expires_at should be passed to update_status"
-        )
+        assert updated_expiry is not None, "expires_at should be passed to update_status"
 
         now = datetime.now(timezone.utc)
         expected_expiry = now + timedelta(minutes=progress_minutes)
 
         diff = abs((updated_expiry - expected_expiry).total_seconds())
-        self.assertLess(
-            diff,
-            60,
-            f"Updated expiration should be close to {progress_minutes} "
-            f"minutes from now",
-        )
+        assert diff < 60, f"Updated expiration should be close to {progress_minutes} minutes from now"
 
         print(f"PROGRESS Expiration Validated: {updated_expiry} (~24h)")
-
-
-if __name__ == "__main__":
-    unittest.main()

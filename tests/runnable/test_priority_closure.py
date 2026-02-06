@@ -1,8 +1,9 @@
 import os
 import sys
 from datetime import datetime, timezone
-from unittest.mock import ANY, MagicMock
+from unittest.mock import ANY, MagicMock, AsyncMock
 
+import pytest
 from dotenv import load_dotenv
 
 # Set environment variables for testing before importing application modules
@@ -26,11 +27,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def test_priority_closure():
+@pytest.mark.asyncio
+async def test_priority_closure():
     logger.info("Starting Priority Closure Test")
 
     # Mock Repository
     mock_repo = MagicMock()
+    mock_repo.update_status = AsyncMock()
     
     # Real Lifecycle to test priority logic
     from src.modules.conversation.components.conversation_lifecycle import ConversationLifecycle
@@ -63,7 +66,7 @@ def test_priority_closure():
     conv = create_conv(ConversationStatus.PENDING)
     mock_repo.update_status.return_value = create_conv(ConversationStatus.AGENT_CLOSED)
 
-    service.close_conversation_with_priority(
+    await service.close_conversation_with_priority(
         conv, ConversationStatus.AGENT_CLOSED, initiated_by="agent", reason="done"
     )
 
@@ -82,7 +85,7 @@ def test_priority_closure():
     conv_expired = create_conv(ConversationStatus.EXPIRED)
     mock_repo.reset_mock()
 
-    service.close_conversation_with_priority(
+    await service.close_conversation_with_priority(
         conv_expired, ConversationStatus.FAILED, initiated_by="system", reason="Critical Error"
     )
 
@@ -102,7 +105,7 @@ def test_priority_closure():
     conv_user_closed = create_conv(ConversationStatus.USER_CLOSED)
     mock_repo.reset_mock()
 
-    result = service.close_conversation_with_priority(
+    result = await service.close_conversation_with_priority(
         conv_user_closed, ConversationStatus.EXPIRED, initiated_by="system", reason="expired"
     )
 
@@ -116,11 +119,7 @@ def test_priority_closure():
     conv_failed = create_conv(ConversationStatus.FAILED)
     mock_repo.reset_mock()
 
-    service.close_conversation_with_priority(conv_failed, ConversationStatus.FAILED)
+    await service.close_conversation_with_priority(conv_failed, ConversationStatus.FAILED)
     mock_repo.update_status.assert_not_called()
 
     logger.info("All tests passed!")
-
-
-if __name__ == "__main__":
-    test_priority_closure()

@@ -8,12 +8,16 @@ from src.modules.conversation.models.message import Message
 class TestTwilioOutboundWorker:
     @pytest.fixture
     def mock_twilio_service(self):
-        return MagicMock(spec=TwilioService)
+        svc = MagicMock(spec=TwilioService)
+        svc.send_message = AsyncMock()
+        return svc
 
     @pytest.fixture
     def mock_message_repo(self):
-        # Remove spec to allow find_by_id and update which are likely from BaseRepository
-        return MagicMock()
+        repo = MagicMock()
+        repo.find_by_id = AsyncMock()
+        repo.update = AsyncMock()
+        return repo
 
     @pytest.fixture
     def worker(self, mock_twilio_service, mock_message_repo):

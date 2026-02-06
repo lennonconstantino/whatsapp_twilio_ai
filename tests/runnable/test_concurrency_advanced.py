@@ -1,7 +1,7 @@
 import os
 import sys
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock, ANY
 
 import pytest
 from dotenv import load_dotenv
@@ -32,10 +32,17 @@ from src.modules.identity.repositories.user_repository import UserRepository
 logger = get_logger(__name__)
 
 
+@pytest.mark.asyncio
 class TestConcurrencyAdvanced:
+    @pytest.fixture(autouse=True)
     def setup_method(self):
         # Mocks
         self.repo = MagicMock()
+        self.repo.update = AsyncMock()
+        self.repo.update_status = AsyncMock()
+        self.repo.find_by_id = AsyncMock()
+        self.repo.create = AsyncMock()
+        
         self.msg_repo = MagicMock()
         self.owner_repo = MagicMock()
         self.user_repo = MagicMock()
@@ -71,7 +78,7 @@ class TestConcurrencyAdvanced:
         self.user.user_id = self.new_user_id
         self.user_repo.create.return_value = self.user
 
-    def test_transfer_conversation_lost_update_prevention(self):
+    async def test_transfer_conversation_lost_update_prevention(self):
         print("\n[Test] Setting up conversation for Lost Update check...")
 
         # 1. Create conversation with initial context
@@ -90,7 +97,8 @@ class TestConcurrencyAdvanced:
         conv = Conversation(**conv_data)
 
         # Mock get_or_create to return this conversation
-        self.service.get_or_create_conversation = MagicMock(return_value=conv)
+        # Not actually used in test, but good to have
+        self.service.get_or_create_conversation = AsyncMock(return_value=conv)
 
         # 2. Simulate parallel modification (The "Lost Update" Scenario)
         print("[Test] Simulating parallel update (adding important note)...")
@@ -109,8 +117,8 @@ class TestConcurrencyAdvanced:
         final_context["transfer_history"] = [
             {
                 "timestamp": "...",
-                "from": None,
-                "to": self.new_user_id,
+                "from_user_id": None,
+                "to_user_id": self.new_user_id,
                 "reason": "shift_change",
             }
         ]
@@ -125,23 +133,11 @@ class TestConcurrencyAdvanced:
         self.repo.find_by_id.return_value = updated_conv
 
         # Mock update (transfer usually calls update or update_status)
-        # We assume transfer_conversation calls repo.update or repo.update_status
-        # Let's mock both to be safe, or check what transfer_conversation does.
-        # Assuming it calls repo.update()
-
-        def update_side_effect(*args, **kwargs):
-            # Check if this is the first call (stale version) or second call (correct version)
-            # This is simplified; in reality we'd check the arguments
-            pass
-
+        # transfer_owner calls repo.update
+        
         # First call: Fail with ConcurrencyError
         # Second call: Return success
         self.repo.update.side_effect = [
-            ConcurrencyError("Version mismatch", current_version=2),
-            final_conv,
-        ]
-        # Also mock update_status just in case it's used
-        self.repo.update_status.side_effect = [
             ConcurrencyError("Version mismatch", current_version=2),
             final_conv,
         ]
@@ -149,7 +145,7 @@ class TestConcurrencyAdvanced:
         print(f"[Test] Attempting transfer with stale version {conv.version}...")
 
         try:
-            transferred_conv = self.service.transfer_conversation(
+            transferred_conv = await self.service.transfer_conversation(
                 conv,  # Stale object (version 1)
                 new_user_id=self.new_user_id,
                 reason="shift_change",
@@ -163,46 +159,42 @@ class TestConcurrencyAdvanced:
             assert transferred_conv.user_id == self.new_user_id
 
             # Verify context preservation (important for Lost Update)
-            # In a real mock test, we rely on the service logic to merge.
-            # Since we are mocking the return value of the second update call as 'final_conv',
-            # we are asserting that the service *eventually* returned what we told it to return.
-            # The real value of this test with mocks is verifying the RETRY logic.
-
-            # To verify context merging logic, we would need to inspect the arguments passed to the second update call.
-            # But for now, let's verify retry behavior.
-
-            assert (
-                self.repo.update.call_count >= 1
-                or self.repo.update_status.call_count >= 1
-            )
+            assert self.repo.update.call_count >= 1
             self.repo.find_by_id.assert_called()
+
+            # Verify arguments of the SECOND call (the successful one)
+            # The first call failed, then we reloaded updated_conv, merged changes, and called update again.
+            # We want to ensure that 'important_note' was preserved in the merge.
+            # But wait, logic is in Lifecycle.transfer_owner:
+            # context = conversation.context.copy()
+            # context['transfer_history'].append(...)
+            # repo.update(..., context=context)
+            
+            # Since we pass 'updated_conv' (which has important_note) to transfer_owner in the retry loop,
+            # it should use that context.
+            
+            # Let's verify what we told the mock to return matches expectations
+            final_context = transferred_conv.context
+            print(f"[Test] Final Context: {final_context}")
+
+            assert "important_note" in final_context, "CRITICAL: Lost Update! Parallel change was overwritten."
+            assert final_context["important_note"] == "MUST NOT BE LOST"
+            
+            # Note: The test logic above relies on the fact that 'final_conv' mock return value has the note.
+            # Ideally we should inspect call_args to verify that the Service PASSED the note back to the repo.
+            
+            # Get the last call arguments
+            call_args = self.repo.update.call_args
+            # call_args is (args, kwargs)
+            # update signature: update(self, id_value, data, id_column="id", current_version=None)
+            # args[1] is data dict
+            
+            data_arg = call_args[0][1]
+            assert "context" in data_arg
+            assert "important_note" in data_arg["context"]
+            assert data_arg["context"]["important_note"] == "MUST NOT BE LOST"
+
+            print("✅ Lost Update Prevention Verified!")
 
         except ConcurrencyError:
             pytest.fail("Service failed to recover from ConcurrencyError")
-
-        print(f"[Test] Final Version: {transferred_conv.version}")
-
-        # 4. Verify "important_note" is STILL present
-        final_context = transferred_conv.context
-        print(f"[Test] Final Context: {final_context}")
-
-        assert (
-            "important_note" in final_context
-        ), "CRITICAL: Lost Update! Parallel change was overwritten."
-        assert final_context["important_note"] == "MUST NOT BE LOST"
-        assert "transfer_history" in final_context
-        assert final_context["transfer_history"][0]["reason"] == "shift_change"
-
-        print("✅ Lost Update Prevention Verified!")
-
-
-if __name__ == "__main__":
-    test = TestConcurrencyAdvanced()
-    test.setup_method()
-    try:
-        test.test_transfer_conversation_lost_update_prevention()
-    except Exception as e:
-        print(f"\n❌ Test Failed: {e}")
-        import traceback
-
-        traceback.print_exc()

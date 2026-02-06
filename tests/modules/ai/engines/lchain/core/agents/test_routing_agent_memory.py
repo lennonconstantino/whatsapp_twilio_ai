@@ -46,7 +46,7 @@ class TestRoutingAgentMemory:
             user_input, 
             session_id=session_id,
             owner_id="owner_1",
-            feature_id=1,
+            feature_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             correlation_id="test_correlation",
             channel="whatsapp"
         )

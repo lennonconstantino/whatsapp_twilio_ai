@@ -38,23 +38,25 @@ def payload():
 def owner_id():
     return "01HRZ32M1X6Z4P5R7W8K9A0M1N"
 
-def test_resolve_owner_id_success(resolver, mock_services, payload, owner_id):
+@pytest.mark.asyncio
+async def test_resolve_owner_id_success(resolver, mock_services, payload, owner_id):
     mock_account = MagicMock()
     mock_account.owner_id = owner_id
-    mock_services["twilio_account_service"].resolve_account.return_value = mock_account
+    mock_services["twilio_account_service"].resolve_account = AsyncMock(return_value=mock_account)
 
-    result = resolver.resolve_owner_id(payload)
+    result = await resolver.resolve_owner_id(payload)
     assert result == owner_id
     
     mock_services["twilio_account_service"].resolve_account.assert_called_once_with(
         to_number=payload.to_number, account_sid=payload.account_sid
     )
 
-def test_resolve_owner_id_not_found(resolver, mock_services, payload):
-    mock_services["twilio_account_service"].resolve_account.return_value = None
+@pytest.mark.asyncio
+async def test_resolve_owner_id_not_found(resolver, mock_services, payload):
+    mock_services["twilio_account_service"].resolve_account = AsyncMock(return_value=None)
 
     with pytest.raises(HTTPException) as exc:
-        resolver.resolve_owner_id(payload)
+        await resolver.resolve_owner_id(payload)
 
     assert exc.value.status_code == 403
 

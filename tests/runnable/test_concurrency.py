@@ -1,7 +1,7 @@
 import os
 import sys
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytest
 from dotenv import load_dotenv
@@ -40,6 +40,11 @@ class TestConcurrency:
     def setup_method(self):
         # Mocks
         self.repo = MagicMock()
+        # Mock async methods on repo
+        self.repo.update_status = AsyncMock()
+        self.repo.find_by_id = AsyncMock()
+        self.repo.create = AsyncMock()
+        
         self.msg_repo = MagicMock()
         self.owner_repo = MagicMock()
         
@@ -70,7 +75,7 @@ class TestConcurrency:
         self.phone = "+5511999999999"
 
         # Helper to simulate creation return
-        def create_conv_side_effect(data):
+        async def create_conv_side_effect(data):
             data_copy = data.copy()
             if "conv_id" not in data_copy:
                 data_copy["conv_id"] = self.conv_id
@@ -79,7 +84,8 @@ class TestConcurrency:
 
         self.repo.create.side_effect = create_conv_side_effect
 
-    def test_optimistic_locking_recovery(self):
+    @pytest.mark.asyncio
+    async def test_optimistic_locking_recovery(self):
         print("\n[Test] Setting up conversation...")
 
         # 1. Create conversation mock
@@ -95,9 +101,10 @@ class TestConcurrency:
         conv = Conversation(**conv_data)
 
         # Mock get_or_create to return this conversation
-        self.service.get_or_create_conversation = MagicMock(return_value=conv)
+        # Note: get_or_create_conversation is async
+        self.service.get_or_create_conversation = AsyncMock(return_value=conv)
 
-        retrieved_conv = self.service.get_or_create_conversation(
+        retrieved_conv = await self.service.get_or_create_conversation(
             owner_id=self.owner_id,
             from_number=self.phone,
             to_number="whatsapp:+14155238886",
@@ -131,10 +138,6 @@ class TestConcurrency:
         # Mock find_by_id to return the updated conversation when reloading
         self.repo.find_by_id.return_value = updated_conv
 
-        # Mock update_status side effect
-        def update_side_effect(conv_id, status, **kwargs):
-            pass
-
         # We will use 'side_effect' with an iterable to return different results on consecutive calls
         # First call: Raise ConcurrencyError
         # Second call: Return success (final_conv)
@@ -145,13 +148,9 @@ class TestConcurrency:
 
         print(f"[Test] Attempting update with stale version {initial_version}...")
 
-        # Note: We must call the real close_conversation method, not a mock
-        # We need to restore the service method we might have mocked or just use the real one.
-        # Wait, I mocked get_or_create_conversation, but close_conversation is what we are testing.
-
         # Verify that ConcurrencyError is raised (No retry logic in V2 Lifecycle)
         with pytest.raises(ConcurrencyError):
-            self.service.close_conversation(
+            await self.service.close_conversation(
                 retrieved_conv,  # stale object (version 1)
                 ConversationStatus.AGENT_CLOSED,
                 initiated_by="agent",
