@@ -1,10 +1,11 @@
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 from src.modules.ai.engines.lchain.core.agents.routing_agent import RoutingAgent
 from src.modules.ai.memory.repositories.redis_memory_repository import RedisMemoryRepository
 
+@pytest.mark.asyncio
 class TestAgentMemoryIntegration:
     """
     Integration test to verify that Agent correctly interacts with MemoryService.
@@ -14,7 +15,9 @@ class TestAgentMemoryIntegration:
     @pytest.fixture
     def mock_redis_repo(self):
         repo = MagicMock(spec=RedisMemoryRepository)
-        repo.get_context.return_value = []
+        # Configure async methods to return awaitables
+        repo.get_context = AsyncMock(return_value=[])
+        repo.add_message = AsyncMock()
         return repo
 
     @pytest.fixture
@@ -24,7 +27,8 @@ class TestAgentMemoryIntegration:
         mock_response = MagicMock()
         mock_response.content = "I am an AI."
         mock_response.tool_calls = None
-        mock_model.bind_tools.return_value.invoke.return_value = mock_response
+        # Configure ainvoke for async call
+        mock_model.bind_tools.return_value.ainvoke = AsyncMock(return_value=mock_response)
         
         # We need to mock the key access self.llm[LLM] where LLM is likely 'ollama/gpt-oss:20b'
         # based on settings. But since we inject this dict, we can control the key.
@@ -34,7 +38,7 @@ class TestAgentMemoryIntegration:
         from src.modules.ai.infrastructure.llm import LLM
         return {LLM: mock_model}
 
-    def test_agent_reads_memory_on_start(self, mock_redis_repo, mock_llm):
+    async def test_agent_reads_memory_on_start(self, mock_redis_repo, mock_llm):
         """
         Test that RoutingAgent calls memory_service.get_context() on run().
         """
@@ -52,7 +56,7 @@ class TestAgentMemoryIntegration:
         )
         
         # Act
-        agent.run("Hello AI")
+        await agent.run("Hello AI")
         
         # Assert
         # Check if get_context was called with correct session_id
@@ -61,7 +65,7 @@ class TestAgentMemoryIntegration:
         # Session ID logic: owner_id:user_phone -> "owner1:123"
         assert call_args[0][0] == "owner1:123"
 
-    def test_agent_saves_interaction_to_memory(self, mock_redis_repo, mock_llm):
+    async def test_agent_saves_interaction_to_memory(self, mock_redis_repo, mock_llm):
         """
         Test that RoutingAgent calls memory_service.add_message() for user input and AI response.
         """
@@ -79,7 +83,7 @@ class TestAgentMemoryIntegration:
         )
         
         # Act
-        agent.run("Hello AI")
+        await agent.run("Hello AI")
         
         # Assert
         # Expect 2 calls to add_message: one for user, one for assistant
@@ -96,7 +100,7 @@ class TestAgentMemoryIntegration:
         assert second_call[0][1]["role"] == "assistant"
         # Content depends on mock_llm response
 
-    def test_agent_populates_context_from_memory(self, mock_redis_repo, mock_llm):
+    async def test_agent_populates_context_from_memory(self, mock_redis_repo, mock_llm):
         """
         Test that memory content is injected into agent context.
         """
@@ -119,10 +123,11 @@ class TestAgentMemoryIntegration:
         )
         
         # Act
-        agent.run("Who am I?")
+        await agent.run("Who am I?")
         
         # Assert
         # Verify that agent_context.memory was populated
+        # Since we awaited run, agent.agent_context should be an AgentContext object
         assert "My name is Lennon" in agent.agent_context.memory
         assert "Hello Lennon" in agent.agent_context.memory
 

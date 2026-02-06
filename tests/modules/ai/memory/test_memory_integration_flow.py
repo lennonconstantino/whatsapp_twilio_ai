@@ -1,18 +1,28 @@
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 from src.modules.ai.memory.services.hybrid_memory_service import HybridMemoryService
 from src.modules.conversation.models.message import Message
 from src.modules.conversation.enums.message_owner import MessageOwner
 from src.core.config.settings import settings
 
-class TestMemoryIntegrationFlow(unittest.TestCase):
+class TestMemoryIntegrationFlow(unittest.IsolatedAsyncioTestCase):
     """
     Testes de fluxo de integração (simulados) para validar o comportamento Read-Through.
     """
     def setUp(self):
         self.redis_repo = MagicMock()
+        # Configure async methods
+        self.redis_repo.get_context = AsyncMock()
+        self.redis_repo.add_messages_bulk = AsyncMock()
+        self.redis_repo.add_message = AsyncMock()
+
         self.message_repo = MagicMock()
+        # Configure message repo to be async
+        self.message_repo.find_recent_by_conversation = AsyncMock()
+        
         self.vector_repo = MagicMock()
+        # Vector repo is synchronous (uses psycopg2)
+        # So we do NOT use AsyncMock for it
         
         self.service = HybridMemoryService(
             redis_repo=self.redis_repo,
@@ -21,7 +31,7 @@ class TestMemoryIntegrationFlow(unittest.TestCase):
         )
         self.session_id = "integration_test_session"
 
-    def test_full_read_through_flow(self):
+    async def test_full_read_through_flow(self):
         """
         Cenário:
         1. Redis vazio (Miss).
@@ -41,7 +51,7 @@ class TestMemoryIntegrationFlow(unittest.TestCase):
         self.message_repo.find_recent_by_conversation.return_value = [mock_msg]
 
         # --- Passo 2: Primeira Chamada (Cache Miss) ---
-        result_1 = self.service.get_context(self.session_id)
+        result_1 = await self.service.get_context(self.session_id)
         
         # Validações Passo 2
         self.assertEqual(len(result_1), 1)
@@ -70,7 +80,7 @@ class TestMemoryIntegrationFlow(unittest.TestCase):
         self.message_repo.find_recent_by_conversation.reset_mock()
 
         # --- Passo 4: Segunda Chamada (Cache Hit) ---
-        result_2 = self.service.get_context(self.session_id)
+        result_2 = await self.service.get_context(self.session_id)
 
         # Validações Passo 4
         self.assertEqual(result_2, result_1) # Deve ser igual
@@ -84,7 +94,7 @@ class TestMemoryIntegrationFlow(unittest.TestCase):
         
         print("\n✅ Teste de Integração (Fluxo Read-Through) passou com sucesso!")
 
-    def test_semantic_search_integration(self):
+    async def test_semantic_search_integration(self):
         """
         Cenário:
         1. Busca com query.
@@ -99,7 +109,7 @@ class TestMemoryIntegrationFlow(unittest.TestCase):
         ]
         
         # Chamada com Query e owner_id (obrigatório para busca vetorial)
-        result = self.service.get_context(
+        result = await self.service.get_context(
             self.session_id, 
             query="Onde eu moro?",
             owner_id="test_owner_123"
@@ -117,7 +127,7 @@ class TestMemoryIntegrationFlow(unittest.TestCase):
         
         # O segundo item deve ser a mensagem do histórico (Redis)
         self.assertEqual(result[1]["content"], "Oi")
-
+        
         print("\n✅ Teste de Integração (Busca Semântica) passou com sucesso!")
 
 if __name__ == '__main__':

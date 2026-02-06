@@ -84,7 +84,8 @@ async def test_handle_ai_response_success(processor, mock_services, payload, own
     
     # Mock agent
     mock_agent = MagicMock()
-    mock_agent.run = MagicMock() # Sync method in agent
+    # Agent.run is async now
+    mock_agent.run = AsyncMock(return_value="AI Response Text")
     
     # Mock agent.run call via run_in_threadpool
     with patch(
@@ -95,12 +96,11 @@ async def test_handle_ai_response_success(processor, mock_services, payload, own
         # 1. get_user_by_phone
         # 2. get_usage_summary
         # 3. get_feature_by_key
-        # 4. agent.run
+        # Agent run is called directly, not via run_in_threadpool
         mock_run.side_effect = [
             mock_user,
             {"finance": mock_usage},
-            mock_feature_obj,
-            "AI Response Text"
+            mock_feature_obj
         ]
         
         mock_services["agent_factory"].get_agent.return_value = mock_agent
@@ -115,6 +115,9 @@ async def test_handle_ai_response_success(processor, mock_services, payload, own
         
         # Verify agent factory called
         mock_services["agent_factory"].get_agent.assert_called_once_with("finance")
+        
+        # Verify agent run called directly
+        mock_agent.run.assert_called_once()
         
         # Verify response sent
         mock_services["message_handler"].send_and_persist_response.assert_called_once()
@@ -157,7 +160,7 @@ async def test_handle_ai_response_persists_profile_name_and_injects_context(proc
     mock_feature_obj.feature_id = "feat_123"
 
     mock_agent = MagicMock()
-    mock_agent.run = MagicMock()
+    mock_agent.run = AsyncMock(return_value="AI Response Text")
     mock_services["agent_factory"].get_agent.return_value = mock_agent
 
     with patch(
@@ -169,13 +172,12 @@ async def test_handle_ai_response_persists_profile_name_and_injects_context(proc
         # 2. get_usage_summary
         # 3. get_feature_by_key
         # 4. update_user_profile_name (since profile name detected)
-        # 5. agent.run
+        # Agent run is direct
         mock_run.side_effect = [
             mock_user,
             {"finance": mock_usage},
             mock_feature_obj,
             mock_user, # update_user_profile_name returns updated user
-            "AI Response Text",
         ]
 
         await processor.handle_ai_response(
@@ -191,9 +193,10 @@ async def test_handle_ai_response_persists_profile_name_and_injects_context(proc
         assert mock_run.call_args_list[3].args[1] == "user_1"
         assert mock_run.call_args_list[3].args[2] == "Lennon"
 
-        # Call 5 (index 4) is agent.run
-        agent_call = mock_run.call_args_list[4]
-        assert agent_call.args[0] == mock_agent.run
+        # Agent run verification
+        mock_agent.run.assert_called_once()
+        agent_call = mock_agent.run.call_args
+        # agent_call is (args, kwargs)
         assert "profile_name: Lennon" in agent_call.kwargs.get("additional_context", "")
 
 
@@ -225,7 +228,7 @@ async def test_handle_ai_response_forgets_profile_name(processor, mock_services,
     mock_feature_obj.feature_id = "feat_123"
 
     mock_agent = MagicMock()
-    mock_agent.run = MagicMock()
+    mock_agent.run = AsyncMock(return_value="AI Response Text")
     mock_services["agent_factory"].get_agent.return_value = mock_agent
 
     with patch(
@@ -237,13 +240,11 @@ async def test_handle_ai_response_forgets_profile_name(processor, mock_services,
         # 2. get_usage_summary
         # 3. get_feature_by_key
         # 4. clear_user_profile_name
-        # 5. agent.run
         mock_run.side_effect = [
             mock_user,
             {"finance": mock_usage},
             mock_feature_obj,
             mock_user, # clear_user_profile_name returns user
-            "AI Response Text",
         ]
 
         await processor.handle_ai_response(
