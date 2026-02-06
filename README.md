@@ -10,7 +10,51 @@
 
 ## 🏗️ Arquitetura do Sistema
 
-![Arquitetura do Sistema](docs/image/README/arquitetura.png)
+### Contexto do Sistema (C4 Level 1)
+
+O diagrama abaixo ilustra o fluxo de interações do sistema com usuários e serviços externos:
+
+```mermaid
+graph TB
+    %% Atores
+    User(["📱 Usuário Final<br/>(WhatsApp Personal)"])
+    Owner(["💼 Owner/Admin<br/>(Gestor da Empresa)"])
+
+    %% Sistema Principal
+    subgraph Platform ["WhatsApp Twilio AI Platform"]
+        System["🤖 Core System<br/>(Modular Monolith)"]
+    end
+
+    %% Sistemas Externos
+    Twilio["📡 Twilio<br/>(Messaging Channel)"]
+    LLM["🧠 LLM Providers<br/>(OpenAI/Groq/Google)"]
+    Stripe["💳 Stripe<br/>(Payment Gateway)"]
+    Supabase["🗄️ Supabase<br/>(Database & Auth)"]
+
+    %% Relacionamentos
+    User -- "Envia mensagem (WhatsApp)" --> Twilio
+    Twilio -- "Webhook (JSON)" --> System
+    System -- "Responde (API)" --> Twilio
+    Twilio -- "Entrega resposta" --> User
+
+    Owner -- "Gerencia Assinatura" --> Stripe
+    System -- "Valida Pagamento" --> Stripe
+
+    System -- "Gera Completions/Embeddings" --> LLM
+    System -- "Persiste Dados/Logs" --> Supabase
+
+    %% Estilização (C4 Colors)
+    classDef person fill:#08427b,stroke:#052e56,color:#fff
+    classDef system fill:#1168bd,stroke:#0b4884,color:#fff
+    classDef external fill:#999999,stroke:#6b6b6b,color:#fff
+
+    class User,Owner person
+    class System system
+    class Twilio,LLM,Stripe,Supabase external
+```
+
+### Version 5.0
+![Arquitetura de Infraestrutura](docs/image/README/arquitetura_infrastructure.png)
 
 ### Principais Funcionalidades
 - 🤖 **Agentes de IA Inteligentes**: Integração com OpenAI/LangChain, com seleção dinâmica de agentes e memória híbrida (Redis + Vector Store).
@@ -20,6 +64,17 @@
 - 🔒 **Segurança e Conformidade**: Gestão segura de mídia e downloads isolados.
 - 🔄 **Resiliência**: Mecanismos de Fallback, Idempotência e Recuperação de Falhas.
 - 📊 **Gestão de Ciclo de Vida**: Máquina de estados completa para gerenciar conversas (Timeout, Expiração, Encerramento).
+
+## 🧩 Módulos do Sistema
+
+O sistema é construído sobre uma arquitetura modular (Modular Monolith), onde cada componente possui responsabilidades bem definidas:
+
+- **[AI Module](src/modules/ai/README.md)**: Núcleo de inteligência que orquestra agentes, processa linguagem natural e gerencia memória híbrida.
+- **[Billing Module](src/modules/billing/README.md)**: Gerenciamento completo de planos, assinaturas, controle de quotas e integração com Stripe.
+- **[Channels (Twilio)](src/modules/channels/twilio/README.md)**: Gateway de comunicação com WhatsApp via Twilio, processando webhooks e mídia com alta disponibilidade.
+- **[Conversation](src/modules/conversation/README.md)**: Gestão do ciclo de vida das conversas, manutenção de contexto e persistência de mensagens.
+- **[Core](src/core/readme.md)**: Shared Kernel contendo infraestrutura base, configurações, abstrações de banco de dados e sistema de filas.
+- **[Identity](src/modules/identity/README.md)**: Gestão de identidade, autenticação, controle de acesso (RBAC) e registro de organizações (Tenants).
 
 ## 🚀 Tecnologias Utilizadas
 
@@ -148,21 +203,25 @@ Com a aplicação rodando localmente (após `make run`), você pode acessar a do
 - **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
+### 📊 Painéis de Observabilidade e Ferramentas
+
+Com a stack de infraestrutura rodando (via Docker Compose), você tem acesso às seguintes ferramentas de monitoramento e administração:
+
+- **Grafana**: [http://localhost:3000](http://localhost:3000) (Dashboards de métricas e performance)
+- **PgAdmin**: [http://localhost:5050](http://localhost:5050) (Administração do Banco de Dados)
+- **Prometheus**: [http://localhost:9090](http://localhost:9090) (Coleta e consulta de métricas)
+- **Zipkin**: [http://localhost:9411](http://localhost:9411) (Tracing distribuído)
+
 ## 📚 Documentação Adicional
 
-A documentação técnica detalhada encontra-se na pasta `docs/v4/`:
+- 📝 **[Visão Executiva](docs/v5/executive_overview.md)**
+  Visão geral executiva, análise de conformidade e status de maturidade do projeto.
 
 - 📐 **[Arquitetura do Sistema](docs/v4/architecture.md)**
   Detalhes sobre padrões de design, fluxo de dados e decisões arquiteturais.
 
-- 📝 **[Resumo do Projeto](docs/v4/project_summary.md)**
-  Visão geral executiva, análise de conformidade e status de maturidade do projeto.
-
 - 🔧 **[Últimas Correções](docs/v4/last_corrections.md)**
   Histórico recente de refatorações (v4.0), correções de segurança e melhorias de performance.
-
-- 📊 **[Diagramas](docs/v3/diagrams.md)**
-  Representações visuais da arquitetura, ciclo de vida e fluxos (Mermaid).
 
 ## 📂 Estrutura de Pastas
 
@@ -173,7 +232,7 @@ src/
 │   ├── ai/             # Motores de Inteligência e Agentes
 │   ├── channels/       # Integração Twilio/WhatsApp (API, Services)
 │   ├── conversation/   # Gestão de Estado e Mensagens (API, Services)
-│   └── identity/       # Gestão de Tenants, Usuários e Permissões (API, Services)
+│   ├── identity/       # Gestão de Tenants, Usuários e Permissões (API, Services)
 └── main.py       # Ponto de entrada da aplicação
 ```
 
