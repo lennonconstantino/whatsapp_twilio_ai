@@ -39,14 +39,23 @@ class TestIdentityServiceFeatures(unittest.TestCase):
             owner_id="01ARZ3NDEKTSV4RRFFQ69G5FAV",
             phone="123456",
             profile_name="Admin",
+            auth_id="auth_123"
         )
 
         mock_owner = MagicMock(spec=Owner)
         mock_owner.owner_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
-        self.mock_owner_service.create_owner.return_value = mock_owner
-
+        
+        # Mock register_organization_atomic
+        self.mock_owner_service.register_organization_atomic.return_value = {
+            "owner_id": mock_owner.owner_id,
+            "user_id": "user_123"
+        }
+        
+        # Mock fetching entities
+        self.mock_owner_service.get_owner_by_id.return_value = mock_owner
+        
         mock_user = MagicMock(spec=User)
-        self.mock_user_service.create_user.return_value = mock_user
+        self.mock_user_service.get_user_by_id.return_value = mock_user
 
         initial_features = ["whatsapp", "ai_bot"]
 

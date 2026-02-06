@@ -121,3 +121,26 @@ class OwnerService:
         """
         logger.warning(f"Permanently deleting owner {owner_id}")
         return self.repository.delete(owner_id, id_column="owner_id")
+
+    def register_organization_atomic(
+        self,
+        owner_name: str,
+        owner_email: str,
+        user_auth_id: str,
+        user_email: str,
+        user_first_name: str,
+        user_last_name: str,
+        user_phone: str,
+    ) -> dict:
+        """
+        Register owner and admin user atomically via RPC.
+        """
+        return self.repository.register_organization_atomic(
+            owner_name,
+            owner_email,
+            user_auth_id,
+            user_email,
+            user_first_name,
+            user_last_name,
+            user_phone
+        )

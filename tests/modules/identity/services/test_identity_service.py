@@ -80,8 +80,12 @@ def test_register_organization_success(
     identity_service, mock_services, owner_data, admin_user_data, mock_owner, mock_user
 ):
     # Setup mocks
-    mock_services["owner_service"].create_owner.return_value = mock_owner
-    mock_services["user_service"].create_user.return_value = mock_user
+    mock_services["owner_service"].register_organization_atomic.return_value = {
+        "owner_id": mock_owner.owner_id,
+        "user_id": mock_user.user_id
+    }
+    mock_services["owner_service"].get_owner_by_id.return_value = mock_owner
+    mock_services["user_service"].get_user_by_id.return_value = mock_user
 
     # Mock free plan
     mock_plan = MagicMock()
@@ -97,72 +101,38 @@ def test_register_organization_success(
     assert result_owner == mock_owner
     assert result_user == mock_user
 
-    mock_services["owner_service"].create_owner.assert_called_once()
-    mock_services["user_service"].create_user.assert_called_once()
+    mock_services["owner_service"].register_organization_atomic.assert_called_once()
+    mock_services["owner_service"].get_owner_by_id.assert_called_with(mock_owner.owner_id)
+    mock_services["user_service"].get_user_by_id.assert_called_with(mock_user.user_id)
+    
+    # Verify subscription creation
     mock_services["subscription_service"].create_subscription.assert_called_once()
 
-    # Verify user creation args
-    call_args = mock_services["user_service"].create_user.call_args
-    assert call_args[0][0].owner_id == mock_owner.owner_id
-    assert call_args[0][0].role == UserRole.ADMIN
 
-
-def test_register_organization_owner_creation_failed(
+def test_register_organization_atomic_failure(
     identity_service, mock_services, owner_data, admin_user_data
 ):
-    mock_services["owner_service"].create_owner.return_value = None
+    mock_services["owner_service"].register_organization_atomic.side_effect = Exception("DB Error")
 
     with pytest.raises(Exception) as exc:
         identity_service.register_organization(owner_data, admin_user_data)
 
-    assert str(exc.value) == "Failed to create owner"
-    mock_services["user_service"].create_user.assert_not_called()
-
-
-def test_register_organization_user_creation_failed_rollback(
-    identity_service, mock_services, owner_data, admin_user_data, mock_owner
-):
-    mock_services["owner_service"].create_owner.return_value = mock_owner
-    mock_services["user_service"].create_user.side_effect = Exception(
-        "User creation error"
-    )
-
-    with pytest.raises(Exception) as exc:
-        identity_service.register_organization(owner_data, admin_user_data)
-
-    assert "User creation error" in str(exc.value)
-
-    # Verify rollback
-    mock_services["owner_service"].delete_owner.assert_called_once_with(
-        mock_owner.owner_id
-    )
-
-
-def test_register_organization_rollback_failed(
-    identity_service, mock_services, owner_data, admin_user_data, mock_owner
-):
-    mock_services["owner_service"].create_owner.return_value = mock_owner
-    mock_services["user_service"].create_user.side_effect = Exception(
-        "User creation error"
-    )
-    mock_services["owner_service"].delete_owner.side_effect = Exception(
-        "Rollback error"
-    )
-
-    with pytest.raises(Exception) as exc:
-        identity_service.register_organization(owner_data, admin_user_data)
-
-    assert "User creation error" in str(exc.value)
-    mock_services["owner_service"].delete_owner.assert_called_once_with(
-        mock_owner.owner_id
-    )
+    assert str(exc.value) == "DB Error"
+    
+    # Verify no subsequent calls
+    mock_services["owner_service"].get_owner_by_id.assert_not_called()
+    mock_services["user_service"].get_user_by_id.assert_not_called()
 
 
 def test_register_organization_with_features(
     identity_service, mock_services, owner_data, admin_user_data, mock_owner, mock_user
 ):
-    mock_services["owner_service"].create_owner.return_value = mock_owner
-    mock_services["user_service"].create_user.return_value = mock_user
+    mock_services["owner_service"].register_organization_atomic.return_value = {
+        "owner_id": mock_owner.owner_id,
+        "user_id": mock_user.user_id
+    }
+    mock_services["owner_service"].get_owner_by_id.return_value = mock_owner
+    mock_services["user_service"].get_user_by_id.return_value = mock_user
     mock_services["plan_service"].plan_repository.find_by_name.return_value = (
         None  # No free plan
     )
@@ -184,8 +154,12 @@ def test_register_organization_with_features(
 def test_register_organization_feature_creation_error(
     identity_service, mock_services, owner_data, admin_user_data, mock_owner, mock_user
 ):
-    mock_services["owner_service"].create_owner.return_value = mock_owner
-    mock_services["user_service"].create_user.return_value = mock_user
+    mock_services["owner_service"].register_organization_atomic.return_value = {
+        "owner_id": mock_owner.owner_id,
+        "user_id": mock_user.user_id
+    }
+    mock_services["owner_service"].get_owner_by_id.return_value = mock_owner
+    mock_services["user_service"].get_user_by_id.return_value = mock_user
 
     mock_services["feature_service"].create_feature.side_effect = [
         Exception("Error1"),
@@ -203,8 +177,12 @@ def test_register_organization_feature_creation_error(
 def test_register_organization_default_subscription_error(
     identity_service, mock_services, owner_data, admin_user_data, mock_owner, mock_user
 ):
-    mock_services["owner_service"].create_owner.return_value = mock_owner
-    mock_services["user_service"].create_user.return_value = mock_user
+    mock_services["owner_service"].register_organization_atomic.return_value = {
+        "owner_id": mock_owner.owner_id,
+        "user_id": mock_user.user_id
+    }
+    mock_services["owner_service"].get_owner_by_id.return_value = mock_owner
+    mock_services["user_service"].get_user_by_id.return_value = mock_user
 
     mock_plan = MagicMock()
     mock_plan.plan_id = "plan_free"

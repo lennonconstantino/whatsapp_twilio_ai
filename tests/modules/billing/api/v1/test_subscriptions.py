@@ -44,8 +44,12 @@ class TestBillingSubscriptionsAPI:
             plan_id="plan_123"
         )
         mock_service.create_subscription.return_value = mock_subscription
+        
+        # Mock current_user dependency
+        mock_user = MagicMock()
+        mock_user.owner_id = "owner_123"
 
-        result = create_subscription(req=req, service=mock_service)
+        result = create_subscription(req=req, current_user=mock_user, service=mock_service)
 
         assert result == mock_subscription
         mock_service.create_subscription.assert_called_with(

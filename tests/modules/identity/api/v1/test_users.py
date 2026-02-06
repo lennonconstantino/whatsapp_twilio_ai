@@ -154,6 +154,17 @@ class TestUserAPI:
         assert response.status_code == 404
 
     def test_create_user(self):
+        # Mock authenticated admin user
+        admin_user = User(
+            user_id=VALID_USER_ID,
+            email="admin@example.com",
+            owner_id=VALID_OWNER_ID,
+            role="admin",
+            auth_id=VALID_AUTH_ID,
+            created_at=self.now,
+        )
+        self.mock_user_service.get_user_by_auth_id.return_value = admin_user
+
         user_data = {
             "email": "new@example.com",
             "owner_id": VALID_OWNER_ID,

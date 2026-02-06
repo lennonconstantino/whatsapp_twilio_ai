@@ -32,6 +32,19 @@ class IOwnerRepository(IRepository[Owner], Protocol):
         """Activate an owner."""
         ...
 
+    def register_organization_atomic(
+        self,
+        owner_name: str,
+        owner_email: str,
+        user_auth_id: str,
+        user_email: str,
+        user_first_name: str,
+        user_last_name: str,
+        user_phone: str,
+    ) -> Dict[str, str]:
+        """Register owner and admin user atomically via RPC."""
+        ...
+
 
 class IUserRepository(IRepository[User], Protocol):
     """Interface for User repository."""

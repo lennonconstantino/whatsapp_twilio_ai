@@ -85,3 +85,38 @@ class SupabaseOwnerRepository(SupabaseRepository[Owner], IOwnerRepository):
             Updated Owner instance or None
         """
         return self.update(owner_id, {"active": True}, id_column="owner_id")
+
+    def register_organization_atomic(
+        self,
+        owner_name: str,
+        owner_email: str,
+        user_auth_id: str,
+        user_email: str,
+        user_first_name: str,
+        user_last_name: str,
+        user_phone: str,
+    ) -> dict:
+        """
+        Register owner and admin user atomically via RPC.
+        
+        Returns:
+            Dict containing 'owner_id' and 'user_id'
+        """
+        params = {
+            "p_owner_name": owner_name,
+            "p_owner_email": owner_email,
+            "p_user_auth_id": user_auth_id,
+            "p_user_email": user_email,
+            "p_user_first_name": user_first_name,
+            "p_user_last_name": user_last_name,
+            "p_user_phone": user_phone
+        }
+        
+        try:
+            result = self.client.rpc("register_organization_atomic", params).execute()
+            if result.data:
+                return result.data
+            raise Exception("RPC returned no data")
+        except Exception as e:
+            logger.error(f"Failed to execute atomic registration RPC: {e}")
+            raise e

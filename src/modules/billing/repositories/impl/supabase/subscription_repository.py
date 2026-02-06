@@ -2,8 +2,12 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 
 from src.core.database.supabase_repository import SupabaseRepository
+from src.core.utils import get_logger
 from src.modules.billing.models.subscription import Subscription
 from src.modules.billing.repositories.interfaces import ISubscriptionRepository
+from src.modules.billing.exceptions import BillingRepositoryError
+
+logger = get_logger(__name__)
 
 
 class SupabaseSubscriptionRepository(SupabaseRepository[Subscription], ISubscriptionRepository):
@@ -25,8 +29,9 @@ class SupabaseSubscriptionRepository(SupabaseRepository[Subscription], ISubscrip
             if result.data:
                 return self.model_class(**result.data[0])
             return None
-        except Exception:
-            return None
+        except Exception as e:
+            logger.error("find_by_owner_failed", owner_id=owner_id, error=str(e))
+            raise BillingRepositoryError(f"Failed to find subscription for owner {owner_id}", original_error=e)
 
     def find_by_stripe_subscription_id(self, stripe_subscription_id: str) -> Optional[Subscription]:
         try:
@@ -42,8 +47,9 @@ class SupabaseSubscriptionRepository(SupabaseRepository[Subscription], ISubscrip
             if result.data:
                 return self.model_class(**result.data[0])
             return None
-        except Exception:
-            return None
+        except Exception as e:
+            logger.error("find_by_stripe_subscription_id_failed", stripe_subscription_id=stripe_subscription_id, error=str(e))
+            raise BillingRepositoryError(f"Failed to find subscription by stripe id {stripe_subscription_id}", original_error=e)
 
     def find_pending_cancellations(self) -> List[Subscription]:
         try:
@@ -56,8 +62,9 @@ class SupabaseSubscriptionRepository(SupabaseRepository[Subscription], ISubscrip
                 .execute()
             )
             return [self.model_class(**item) for item in result.data]
-        except Exception:
-            return []
+        except Exception as e:
+            logger.error("find_pending_cancellations_failed", error=str(e))
+            raise BillingRepositoryError("Failed to find pending cancellations", original_error=e)
 
     def find_expiring_trials(self, days_before: int) -> List[Subscription]:
         try:
@@ -77,5 +84,6 @@ class SupabaseSubscriptionRepository(SupabaseRepository[Subscription], ISubscrip
                 .execute()
             )
             return [self.model_class(**item) for item in result.data]
-        except Exception:
-            return []
+        except Exception as e:
+            logger.error("find_expiring_trials_failed", days_before=days_before, error=str(e))
+            raise BillingRepositoryError("Failed to find expiring trials", original_error=e)

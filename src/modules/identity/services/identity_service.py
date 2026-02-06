@@ -76,40 +76,34 @@ class IdentityService:
         """
         logger.info(f"Registering new organization: {owner_data.name}")
 
-        # 1. Create Owner
-        owner = self.owner_service.create_owner(owner_data)
-        if not owner:
-            logger.error("Failed to create owner")
-            raise Exception("Failed to create owner")
-
-        # 2. Create Admin User linked to Owner
-        logger.info(f"Creating admin user for owner {owner.owner_id}")
-
-        # Override owner_id to match the created owner
-        user_dict = admin_user_data.model_dump()
-        user_dict["owner_id"] = owner.owner_id
-        user_dict["role"] = UserRole.ADMIN
-
-        # Re-validate with DTO
-        final_user_dto = UserCreateDTO(**user_dict)
+        # 1. & 2. Create Owner and Admin User Atomically via RPC
+        logger.info(f"Registering new organization atomically: {owner_data.name}")
 
         try:
-            user = self.user_service.create_user(final_user_dto)
+            result = self.owner_service.register_organization_atomic(
+                owner_name=owner_data.name,
+                owner_email=owner_data.email,
+                user_auth_id=admin_user_data.auth_id,
+                user_email=admin_user_data.email,
+                user_first_name=admin_user_data.first_name,
+                user_last_name=admin_user_data.last_name,
+                user_phone=admin_user_data.phone
+            )
         except Exception as e:
-            logger.error(f"Failed to create admin user: {e}")
-            # Rollback: Delete the orphan owner
-            if owner and owner.owner_id:
-                logger.warning(
-                    f"Rolling back owner creation for {owner.owner_id} due to user creation failure"
-                )
-                try:
-                    self.owner_service.delete_owner(owner.owner_id)
-                    logger.info(f"Successfully rolled back owner {owner.owner_id}")
-                except Exception as rollback_error:
-                    logger.critical(
-                        f"CRITICAL: Failed to rollback owner {owner.owner_id}: {rollback_error}"
-                    )
+            logger.error(f"Atomic registration failed: {e}")
             raise e
+
+        # Fetch created entities
+        owner_id = result.get('owner_id')
+        user_id = result.get('user_id')
+        
+        owner = self.owner_service.get_owner_by_id(owner_id)
+        user = self.user_service.get_user_by_id(user_id)
+        
+        if not owner or not user:
+             logger.error("Atomic registration succeeded but failed to fetch created entities")
+             # This is a rare edge case, but we should handle it or raise
+             raise Exception("Failed to fetch created organization details")
 
         # 3. Create initial features if provided
         if initial_features:

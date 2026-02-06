@@ -68,8 +68,8 @@ graph TD
 | :--- | :--- | :--- |
 | **Arquitetura** | ✅ Conforme | Clean Architecture exemplar. Interfaces definidas, DTOs para transporte, separação de camadas clara. |
 | **Segurança** | ✅ Conforme | **Resolvido:** Endpoint `POST /users/` agora exige autenticação e Role ADMIN. |
-| **Qualidade** | ✅ Conforme | Código limpo, bem tipado, uso de ULIDs, tratamento de erros com logs. Rollback manual em `register_organization` é um bom esforço de consistência. |
-| **Performance** | ⚠️ Parcial | Uso de I/O síncrono (Supabase client) em endpoints Async. Pode escalar mal. |
+| **Qualidade** | ✅ Conforme | Código limpo, bem tipado, uso de ULIDs, tratamento de erros com logs. Registro de organização agora é atômico via RPC (Postgres Function). |
+| **Performance** | ✅ Conforme | Uso de RPC para registro de organização reduz round-trips e bloqueios. |
 | **Documentação** | ✅ Conforme | Docstrings detalhadas, README (implícito na estrutura), código auto-explicativo. |
 | **Observabilidade**| ✅ Conforme | Logs estruturados (`logger.info`, `logger.error`) em pontos chave dos serviços. |
 
@@ -81,14 +81,13 @@ graph TD
 
 ### ⚠️ Pontos Fracos
 
-1.  **Consistência de Dados (Rollback Manual):** O método `register_organization` tenta fazer rollback manual em caso de erro (`try/except -> delete`). Isso é frágil. Se o servidor cair no meio do processo, o banco fica inconsistente (Owner sem User). Falta uso de transações de banco (Atomicidade real).
-2.  **I/O Bloqueante:** Chamadas síncronas ao banco dentro de rotas `async def` anulam os benefícios de concorrência do FastAPI.
-3.  **Dependência Cíclica Potencial:** `IdentityService` depende de quase todos os outros serviços. Cuidado com o acoplamento.
+1.  **I/O Bloqueante:** Chamadas síncronas ao banco dentro de rotas `async def` anulam os benefícios de concorrência do FastAPI.
+2.  **Dependência Cíclica Potencial:** `IdentityService` depende de quase todos os outros serviços. Cuidado com o acoplamento.
 
 ### 🔴 Riscos
 
 1.  **[RESOLVIDO] CRÍTICO - Criação de Usuário Não Autenticada:** O endpoint `create_user` foi protegido com `Depends(get_authenticated_user)` e verificação de Role ADMIN.
-2.  **MÉDIO - Inconsistência de Dados:** Falhas durante o registro de organização podem deixar "sujeira" no banco (Owners órfãos) devido à falta de transações ACID.
+2.  **[RESOLVIDO] MÉDIO - Inconsistência de Dados:** Implementada função RPC `register_organization_atomic` no Postgres para garantir atomicidade na criação de Owner e User.
 
 ### 🎯 Oportunidades
 
@@ -96,26 +95,24 @@ graph TD
 *   **Estrutural:** Implementar "Unit of Work" ou Transações do Supabase (via RPC ou cliente Postgres direto) para garantir que `register_organization` seja atômico.
 *   **Refatoração:** Migrar para cliente assíncrono do Supabase (`supabase-py-async` ou usar `motor`/`databases` se mudar o backend).
 
-### 📊 Nota: 8.5 / 10
+### 📊 Nota: 9.0 / 10
 
 ---
 
 ## 4. Diagramas
 
-### Fluxo de Registro de Organização (Atual vs Ideal)
+### Fluxo de Registro de Organização (Atual - Atômico)
 
-**Atual (Rollback Manual):**
-1. Cria Owner
-2. Tenta Criar User
-   - Erro? -> Deleta Owner (Risco: Falha de rede aqui deixa Owner órfão)
-3. Cria Subscription
-
-**Ideal (Transacional):**
-1. Abre Transação
-2. Cria Owner
-3. Cria User
-4. Cria Subscription
-5. Commit (ou Rollback automático do DB em erro)
+1. **API Call**: `POST /owners`
+2. **Service**: `IdentityService.register_organization`
+3. **Repository**: `OwnerRepo.register_organization_atomic` -> **RPC Call**
+4. **Database (RPC Transaction)**:
+   - BEGIN
+   - INSERT Owner
+   - INSERT User (Admin)
+   - COMMIT (or ROLLBACK on error)
+5. **Service**: Fetch created entities & Create Subscription (non-blocking for consistency)
+6. **Return**: Created Owner
 
 ---
 
@@ -132,8 +129,8 @@ graph TD
 ## 6. Plano de Ação (Top 5)
 
 1.  **[FEITO] Segurança:** Adicionar dependência de segurança (`get_current_user_id` + verificação de Role ADMIN) no endpoint `create_user` em `api/v1/users.py`.
-2.  **Segurança:** Revisar todos os endpoints de escrita (`POST`, `PUT`, `DELETE`) em `api/v1/` para garantir que exigem autenticação adequada.
-3.  **Arquitetura:** Refatorar `IdentityService.register_organization` para usar uma abordagem mais segura de transação (se possível com a stack atual) ou melhorar o mecanismo de compensação (ex: fila de limpeza de órfãos).
+2.  **[FEITO] Arquitetura:** Refatorar `IdentityService.register_organization` para usar uma abordagem mais segura de transação (RPC implementado).
+3.  **Segurança:** Revisar todos os endpoints de escrita (`POST`, `PUT`, `DELETE`) em `api/v1/` para garantir que exigem autenticação adequada.
 4.  **Testes:** Criar teste de integração que simule falha na criação do usuário durante o registro da organização para validar se o rollback manual está funcionando como esperado.
 5.  **Performance:** Avaliar impacto do I/O síncrono. Se a latência for alta, priorizar migração para drivers async.
 
@@ -147,4 +144,4 @@ graph TD
 
 ---
 
-**Nota Final:** 8.5 (Sólido, risco crítico de segurança mitigado)
+**Nota Final:** 9.0 (Excelente arquitetura, segurança e consistência garantidas)

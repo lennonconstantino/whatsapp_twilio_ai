@@ -47,13 +47,14 @@ class TestIdentityAtomicity(unittest.TestCase):
 
     def test_register_organization_rollback_on_user_failure(self):
         """
-        Test that owner is deleted (rolled back) if user creation fails.
+        Test that atomic registration failure is propagated.
+        Note: Rollback is handled by DB transaction in register_organization_atomic RPC.
         """
         print("\nRunning test: " "test_register_organization_rollback_on_user_failure")
+        
         # Setup mocks
-        self.mock_owner_service.create_owner.return_value = self.created_owner
-        self.mock_user_service.create_user.side_effect = Exception(
-            "User creation failed"
+        self.mock_owner_service.register_organization_atomic.side_effect = Exception(
+            "Atomic registration failed"
         )
 
         # Execute
@@ -61,29 +62,35 @@ class TestIdentityAtomicity(unittest.TestCase):
             self.identity_service.register_organization(self.owner_dto, self.user_dto)
 
         # Verify Exception
-        self.assertEqual(str(context.exception), "User creation failed")
-
-        # Verify Rollback
-        self.mock_owner_service.delete_owner.assert_called_once_with(
-            self.created_owner.owner_id
-        )
-        print("✅ Verified: Owner deletion was called upon user creation failure.")
+        self.assertEqual(str(context.exception), "Atomic registration failed")
+        
+        # Verify RPC was called
+        self.mock_owner_service.register_organization_atomic.assert_called_once()
+        
+        print("✅ Verified: Exception propagated correctly.")
 
     def test_register_organization_success(self):
         """
         Test successful registration path.
         """
         print("\nRunning test: test_register_organization_success")
+        
         # Setup mocks
-        self.mock_owner_service.create_owner.return_value = self.created_owner
-        self.mock_user_service.create_user.return_value = MagicMock()  # created user
+        self.mock_owner_service.register_organization_atomic.return_value = {
+            "owner_id": self.created_owner.owner_id,
+            "user_id": "user_123"
+        }
+        
+        # Mock get_owner and get_user calls which happen after successful registration
+        self.mock_owner_service.get_owner_by_id.return_value = self.created_owner
+        self.mock_user_service.get_user_by_id.return_value = MagicMock()
 
         # Execute
         self.identity_service.register_organization(self.owner_dto, self.user_dto)
 
-        # Verify NO Rollback
-        self.mock_owner_service.delete_owner.assert_not_called()
-        print("✅ Verified: Owner deletion was NOT called on success.")
+        # Verify RPC call
+        self.mock_owner_service.register_organization_atomic.assert_called_once()
+        print("✅ Verified: Atomic registration called successfully.")
 
 
 if __name__ == "__main__":
