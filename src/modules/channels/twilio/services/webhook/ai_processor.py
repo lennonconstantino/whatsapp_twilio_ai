@@ -1,5 +1,6 @@
 import json
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from dataclasses import dataclass
 
 from starlette.concurrency import run_in_threadpool
 
@@ -11,7 +12,16 @@ from src.modules.identity.services.identity_service import IdentityService
 from src.modules.identity.utils.profile_memory import extract_profile_name, should_forget_profile
 from src.modules.channels.twilio.services.webhook.message_handler import TwilioWebhookMessageHandler
 
+# Billing Services for Feature/Agent Resolution
+from src.modules.billing.services.feature_usage_service import FeatureUsageService
+from src.modules.billing.services.features_catalog_service import FeaturesCatalogService
+
 logger = get_logger(__name__)
+
+@dataclass
+class ResolvedAgentFeature:
+    name: str # The agent name (e.g. "finance", "relationships")
+    feature_id: str # The billing feature ID
 
 class TwilioWebhookAIProcessor:
     """
@@ -21,11 +31,15 @@ class TwilioWebhookAIProcessor:
     def __init__(
         self,
         identity_service: IdentityService,
+        feature_usage_service: FeatureUsageService,
+        features_catalog_service: FeaturesCatalogService,
         agent_factory: AgentFactory,
         queue_service: QueueService,
         message_handler: TwilioWebhookMessageHandler,
     ):
         self.identity_service = identity_service
+        self.feature_usage_service = feature_usage_service
+        self.features_catalog_service = features_catalog_service
         self.agent_factory = agent_factory
         self.queue_service = queue_service
         self.message_handler = message_handler
@@ -65,6 +79,56 @@ class TwilioWebhookAIProcessor:
             payload=payload,
             correlation_id=task_payload["correlation_id"],
         )
+    
+    async def resolve_agent_feature(self, owner_id: str) -> Optional[ResolvedAgentFeature]:
+        """
+        Resolve which agent/feature should handle the message for this owner.
+        Uses Billing Service to check enabled features.
+        """
+        try:
+            # Get usage summary (includes active status)
+            summary = await run_in_threadpool(self.feature_usage_service.get_usage_summary, owner_id)
+            
+            # Simple Logic: Return the first active feature that matches a known agent type
+            # In a real scenario, we might have a specific "routing_agent" or "primary_agent" config
+            # For now, we look for 'finance' or 'relationships' or fallback to any active.
+            
+            preferred_agents = ["finance", "relationships", "identity"]
+            
+            # 1. Check preferred agents first
+            for agent_key in preferred_agents:
+                if agent_key in summary and summary[agent_key].is_active:
+                    # We need the feature_id. Summary keys are feature_keys.
+                    # We can get it from the summary object we just fetched if available?
+                    # The summary object has feature_name but maybe not feature_id directly exposed in keys?
+                    # Wait, FeatureUsageSummary in billing/services/feature_usage_service.py 
+                    # doesn't seem to have feature_id in the dataclass definition I read earlier?
+                    # Let's check: feature_key, feature_name, current_usage...
+                    # It doesn't have feature_id. We might need to fetch it from catalog or usage repo.
+                    
+                    # But we have FeaturesCatalogService.
+                    feature = await run_in_threadpool(
+                        self.features_catalog_service.get_feature_by_key, 
+                        agent_key
+                    )
+                    if feature:
+                         return ResolvedAgentFeature(name=feature.feature_key, feature_id=feature.feature_id)
+
+            # 2. Fallback to any active feature
+            for key, usage in summary.items():
+                if usage.is_active:
+                     feature = await run_in_threadpool(
+                        self.features_catalog_service.get_feature_by_key, 
+                        key
+                    )
+                     if feature:
+                        return ResolvedAgentFeature(name=feature.feature_key, feature_id=feature.feature_id)
+            
+            return None
+
+        except Exception as e:
+            logger.error(f"Error resolving agent feature for owner {owner_id}: {e}")
+            return None
 
     async def handle_ai_response(
         self,
@@ -81,8 +145,6 @@ class TwilioWebhookAIProcessor:
 
         try:
             # 1. Get User Context
-            # We can run this sync DB call in threadpool if IdentityService is sync
-            # IdentityService methods seem to be synchronous based on usage in original code (run_in_threadpool)
             search_phone = (
                 payload.from_number.replace("whatsapp:", "").strip()
                 if payload.from_number
@@ -91,8 +153,30 @@ class TwilioWebhookAIProcessor:
             
             user = await run_in_threadpool(self.identity_service.get_user_by_phone, search_phone)
 
-            # 2. Resolve Feature (Dynamic based on user/owner config)
-            feature = await run_in_threadpool(self.identity_service.get_active_feature, owner_id)
+            # 2. Resolve Feature (Dynamic based on Billing config)
+            feature = await self.resolve_agent_feature(owner_id)
+            
+            # Fallback to 'finance' if no feature resolved, to ensure we have a feature_id for logging
+            if not feature:
+                logger.warning(
+                    f"No active feature found for owner {owner_id}, defaulting to 'finance'", 
+                    correlation_id=correlation_id
+                )
+                try:
+                    default_feature = await run_in_threadpool(
+                        self.features_catalog_service.get_feature_by_key, 
+                        "finance"
+                    )
+                    if default_feature:
+                        feature = ResolvedAgentFeature(
+                            name=default_feature.feature_key, 
+                            feature_id=str(default_feature.feature_id)
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to fetch default finance feature: {e}", 
+                        correlation_id=correlation_id
+                    )
 
             user_dump = user.model_dump() if user else None
 

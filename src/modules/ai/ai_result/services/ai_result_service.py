@@ -35,7 +35,7 @@ class AIResultService:
     def create_result(
         self,
         msg_id: str,
-        feature_id: int,
+        feature_id: str,
         result_json: Dict[str, Any],
         result_type: AIResultType = AIResultType.AGENT_LOG,
         correlation_id: Optional[str] = None,
@@ -45,7 +45,7 @@ class AIResultService:
 
         Args:
             msg_id: Message ID (ULID)
-            feature_id: Feature ID that processed the message
+            feature_id: Feature ID that processed the message (ULID)
             result_json: AI processing result data
             result_type: Type of result (TOOL, AGENT_LOG)
             correlation_id: Optional Trace ID
@@ -99,7 +99,7 @@ class AIResultService:
         return self.ai_result_repo.find_by_message(msg_id, limit)
 
     def get_results_by_feature(
-        self, feature_id: int, limit: int = 100
+        self, feature_id: str, limit: int = 100
     ) -> List[AIResult]:
         """
         Get all AI results for a feature.
@@ -114,7 +114,7 @@ class AIResultService:
         return self.ai_result_repo.find_by_feature(feature_id, limit)
 
     def get_recent_results_by_feature(
-        self, feature_id: int, limit: int = 50
+        self, feature_id: str, limit: int = 50
     ) -> List[AIResult]:
         """
         Get recent AI results for a feature.
@@ -128,7 +128,7 @@ class AIResultService:
         """
         return self.ai_result_repo.find_recent_by_feature(feature_id, limit)
 
-    def get_result_by_id(self, ai_result_id: int) -> Optional[AIResult]:
+    def get_result_by_id(self, ai_result_id: str) -> Optional[AIResult]:
         """
         Get an AI result by ID.
 
@@ -141,7 +141,7 @@ class AIResultService:
         return self.ai_result_repo.find_by_id(ai_result_id, id_column="ai_result_id")
 
     def analyze_feature_performance(
-        self, feature_id: int, limit: int = 100
+        self, feature_id: str, limit: int = 100
     ) -> Dict[str, Any]:
         """
         Analyze AI feature performance based on results.

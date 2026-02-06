@@ -23,6 +23,7 @@ class TwilioContainer(containers.DeclarativeContainer):
     identity = providers.DependenciesContainer()
     conversation = providers.DependenciesContainer()
     ai = providers.DependenciesContainer()
+    billing = providers.DependenciesContainer()
 
     # Repositories
     twilio_account_repository = providers.Selector(
@@ -64,6 +65,8 @@ class TwilioContainer(containers.DeclarativeContainer):
     twilio_webhook_ai_processor = providers.Factory(
         TwilioWebhookAIProcessor,
         identity_service=identity.identity_service,
+        feature_usage_service=billing.feature_usage_service,
+        features_catalog_service=billing.features_catalog_service,
         agent_factory=ai.agent_factory,
         queue_service=core.queue_service,
         message_handler=twilio_webhook_message_handler,

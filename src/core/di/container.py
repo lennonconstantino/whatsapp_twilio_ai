@@ -28,9 +28,6 @@ class Container(containers.DeclarativeContainer):
             "src.modules.conversation.api.v2.conversations",
             "src.modules.identity.api.v1.owners",
             "src.modules.identity.api.v1.users",
-            "src.modules.identity.api.v1.plans",
-            "src.modules.identity.api.v1.subscriptions",
-            "src.modules.identity.api.v1.features",
             "src.modules.billing.api.v1.plans",
             "src.modules.billing.api.v1.subscriptions",
             "src.modules.billing.api.v1.feature_usage",
@@ -43,13 +40,18 @@ class Container(containers.DeclarativeContainer):
     # Core Infrastructure
     core = providers.Container(CoreContainer)
 
-    # Identity Module
-    identity = providers.Container(
-        IdentityContainer,
+    # Billing Module
+    billing = providers.Container(
+        BillingContainer,
         core=core
     )
 
-    # Conversation Module
+    # Identity Module
+    identity = providers.Container(
+        IdentityContainer,
+        core=core,
+        billing=billing
+    )
     conversation = providers.Container(
         ConversationContainer,
         core=core
@@ -69,13 +71,8 @@ class Container(containers.DeclarativeContainer):
         core=core,
         identity=identity,
         conversation=conversation,
-        ai=ai
-    )
-
-    # Billing Module
-    billing = providers.Container(
-        BillingContainer,
-        core=core
+        ai=ai,
+        billing=billing
     )
 
     # =========================================================================
@@ -91,15 +88,9 @@ class Container(containers.DeclarativeContainer):
     # Identity
     owner_repository = identity.owner_repository
     user_repository = identity.user_repository
-    feature_repository = identity.feature_repository
-    plan_repository = identity.plan_repository
-    subscription_repository = identity.subscription_repository
     
     owner_service = identity.owner_service
     user_service = identity.user_service
-    feature_service = identity.feature_service
-    plan_service = identity.plan_service
-    subscription_service = identity.subscription_service
     identity_service = identity.identity_service
     ai_identity_provider = identity.ai_identity_provider
 

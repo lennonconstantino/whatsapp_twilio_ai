@@ -40,7 +40,7 @@ class PostgresAIResultRepository(PostgresRepository[AIResult], AIResultRepositor
     def create_result(
         self,
         msg_id: str,
-        feature_id: int,
+        feature_id: str,
         result_json: dict,
         result_type: AIResultType = AIResultType.AGENT_LOG,
         correlation_id: Optional[str] = None,

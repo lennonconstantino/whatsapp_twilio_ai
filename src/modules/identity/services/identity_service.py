@@ -6,19 +6,18 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from src.core.config import settings
 from src.core.utils import get_logger
-from src.modules.identity.dtos.feature_dto import FeatureCreateDTO
 from src.modules.identity.dtos.owner_dto import OwnerCreateDTO
 from src.modules.identity.dtos.user_dto import UserCreateDTO
-from src.modules.identity.enums.subscription_status import SubscriptionStatus
 from src.modules.identity.models.owner import Owner
-from src.modules.identity.models.subscription import SubscriptionCreate
-from src.modules.identity.models.user import User, UserRole
-from src.modules.identity.services.feature_service import FeatureService
+from src.modules.identity.models.user import User
 from src.modules.identity.services.owner_service import OwnerService
-from src.modules.identity.services.plan_service import PlanService
-from src.modules.identity.services.subscription_service import \
-    SubscriptionService
 from src.modules.identity.services.user_service import UserService
+
+# Billing Imports
+from src.modules.billing.services.subscription_service import SubscriptionService as BillingSubscriptionService
+from src.modules.billing.services.feature_usage_service import FeatureUsageService as BillingFeatureService
+from src.modules.billing.services.plan_service import PlanService as BillingPlanService
+from src.modules.billing.enums.subscription_status import SubscriptionStatus as BillingSubscriptionStatus
 
 logger = get_logger(__name__)
 
@@ -33,9 +32,9 @@ class IdentityService:
         self,
         owner_service: OwnerService,
         user_service: UserService,
-        feature_service: FeatureService,
-        subscription_service: SubscriptionService,
-        plan_service: PlanService,
+        billing_subscription_service: BillingSubscriptionService,
+        billing_feature_service: BillingFeatureService,
+        billing_plan_service: BillingPlanService,
     ):
         """
         Initialize IdentityService.
@@ -43,15 +42,15 @@ class IdentityService:
         Args:
             owner_service: OwnerService instance
             user_service: UserService instance
-            feature_service: FeatureService instance
-            subscription_service: SubscriptionService instance
-            plan_service: PlanService instance
+            billing_subscription_service: Billing SubscriptionService instance
+            billing_feature_service: Billing FeatureUsageService instance
+            billing_plan_service: Billing PlanService instance
         """
         self.owner_service = owner_service
         self.user_service = user_service
-        self.feature_service = feature_service
-        self.subscription_service = subscription_service
-        self.plan_service = plan_service
+        self.billing_subscription_service = billing_subscription_service
+        self.billing_feature_service = billing_feature_service
+        self.billing_plan_service = billing_plan_service
 
     def register_organization(
         self,
@@ -102,41 +101,31 @@ class IdentityService:
         
         if not owner or not user:
              logger.error("Atomic registration succeeded but failed to fetch created entities")
-             # This is a rare edge case, but we should handle it or raise
              raise Exception("Failed to fetch created organization details")
 
         # 3. Create initial features if provided
         if initial_features:
-            logger.info(
-                f"Creating {len(initial_features)} initial features for owner {owner.owner_id}"
+            # TODO: Implement override creation via Billing Module
+            logger.warning(
+                f"Initial features {initial_features} requested for owner {owner.owner_id} but not yet supported in new Billing flow."
             )
-            for feature_name in initial_features:
-                try:
-                    feature_dto = FeatureCreateDTO(
-                        owner_id=owner.owner_id,
-                        name=feature_name,
-                        enabled=True,
-                        description=f"Initial feature: {feature_name}",
-                    )
-                    self.feature_service.create_feature(feature_dto)
-                except Exception as e:
-                    logger.error(f"Failed to create feature {feature_name}: {e}")
-                    # Continue creating other features
 
         # 4. Create default subscription (Free Tier)
         try:
-            free_plan = self.plan_service.plan_repository.find_by_name("free")
+            # Find Free plan by name using Billing Repo
+            free_plan = self.billing_plan_service.plan_repo.find_by_name("free")
             if free_plan:
                 logger.info(f"Subscribing owner {owner.owner_id} to Free plan")
 
-                sub_create = SubscriptionCreate(
+                self.billing_subscription_service.create_subscription(
                     owner_id=owner.owner_id,
                     plan_id=free_plan.plan_id,
-                    status=SubscriptionStatus.ACTIVE,
+                    trial_days=None, # Free plan usually has no trial or is infinite
+                    payment_method_id=None,
+                    metadata={"source": "registration"}
                 )
-                self.subscription_service.create_subscription(sub_create)
             else:
-                logger.warning("Free plan not found. Skipping default subscription.")
+                logger.warning("Free plan not found in Billing. Skipping default subscription.")
         except Exception as e:
             logger.error(f"Failed to create default subscription: {e}")
             # We don't rollback here as the user and owner are already created.
@@ -146,36 +135,25 @@ class IdentityService:
 
     def get_consolidated_features(self, owner_id: str) -> Dict[str, Any]:
         """
-        Get consolidated features (Plan Features + Owner Overrides).
+        Get consolidated features usage summary from Billing.
 
         Args:
             owner_id: Owner ID
 
         Returns:
-            Dictionary: {feature_name: config_value}
+            Dictionary: {feature_name: config_value_or_usage_info}
         """
         features = {}
-
-        # 1. Get Plan Features via Subscription
         try:
-            subscription = self.subscription_service.get_active_subscription(owner_id)
-            if subscription and subscription.plan_id:
-                plan_features = self.plan_service.get_plan_features(
-                    subscription.plan_id
-                )
-                for pf in plan_features:
-                    features[pf.feature_name] = pf.feature_value
+            summary = self.billing_feature_service.get_usage_summary(owner_id)
+            for key, usage in summary.items():
+                features[key] = {
+                    "limit": usage.quota_limit,
+                    "usage": usage.current_usage,
+                    "active": usage.is_active
+                }
         except Exception as e:
-            logger.error(f"Error fetching plan features for owner {owner_id}: {e}")
-
-        # 2. Get Owner Overrides
-        try:
-            overrides = self.feature_service.get_enabled_features(owner_id)
-            for feature in overrides:
-                # Overwrite or merge? Usually overwrite for specific owner config.
-                features[feature.name] = feature.config_json
-        except Exception as e:
-            logger.error(f"Error fetching feature overrides for owner {owner_id}: {e}")
+            logger.error(f"Error fetching feature summary for owner {owner_id}: {e}")
 
         return features
 
@@ -221,12 +199,27 @@ class IdentityService:
             return True
 
         try:
-            subscription = self.subscription_service.get_active_subscription(owner_id)
+            # Check for active subscription via Billing Repository
+            subscription = self.billing_subscription_service.subscription_repo.find_by_owner(owner_id)
+            
             if not subscription:
                 logger.warning(
-                    f"Access denied for owner {owner_id}: No active subscription found."
+                    f"Access denied for owner {owner_id}: No subscription found."
                 )
                 return False
+                
+            # Check status
+            valid_statuses = [
+                BillingSubscriptionStatus.ACTIVE,
+                BillingSubscriptionStatus.TRIALING,
+                BillingSubscriptionStatus.PAST_DUE # Maybe allow grace period
+            ]
+            
+            if subscription.status not in valid_statuses:
+                 logger.warning(
+                    f"Access denied for owner {owner_id}: Subscription status is {subscription.status}."
+                )
+                 return False
 
             return True
         except Exception as e:
@@ -239,17 +232,24 @@ class IdentityService:
 
         Args:
             user_id: User ID
-            feature_name: Name of the feature to check
+            feature_name: Name of the feature (key) to check
 
         Returns:
-            True if the user exists and the feature is enabled for their organization, False otherwise
+            True if the user exists and the feature is enabled/within quota, False otherwise
         """
         user = self.user_service.get_user_by_id(user_id)
         if not user:
             return False
 
-        feature = self.feature_service.get_feature_by_name(user.owner_id, feature_name)
-        return feature is not None and feature.enabled
+        try:
+            result = self.billing_feature_service.check_feature_access(
+                owner_id=user.owner_id,
+                feature_key=feature_name
+            )
+            return result.allowed
+        except Exception as e:
+            logger.error(f"Error checking feature access for {feature_name}: {e}")
+            return False
 
     def get_user_by_phone(self, phone: str) -> Optional[User]:
         """
@@ -271,40 +271,3 @@ class IdentityService:
 
     def clear_user_profile_name(self, user_id: str) -> Optional[User]:
         return self.user_service.update_user(user_id, {"profile_name": None})
-
-    def get_feature_by_name(self, owner_id: str, name: str) -> Optional[Any]:
-        """
-        Get a specific feature by name and owner.
-
-        Args:
-            owner_id: Owner ID
-            name: Feature name
-
-        Returns:
-            Feature instance or None
-        """
-        return self.feature_service.get_feature_by_name(owner_id, name)
-
-    def get_active_feature(self, owner_id: str) -> Optional[Any]:
-        """
-        Get the active feature for an owner based on configuration.
-
-        Args:
-            owner_id: Owner ID
-
-        Returns:
-            Active Feature instance or None
-        """
-        return self.feature_service.get_active_feature(owner_id)
-
-    def validate_feature_path(self, path: str) -> Dict[str, Any]:
-        """
-        Validate a feature path.
-
-        Args:
-            path: Feature path to validate
-
-        Returns:
-            dict with validation results for feature path
-        """
-        return self.feature_service.validate_feature_path(path)
